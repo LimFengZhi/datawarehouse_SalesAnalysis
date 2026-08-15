@@ -1,0 +1,19 @@
+st_ID,br_ID,st_first_name,st_last_name,st_role,st_position,st_address_line,st_city,st_state,st_postcode,st_DOB,st_gender,st_email,st_phone,st_hire_date,st_salary,st_status
+97,6,Farah,Goh,Branch Manager,Manager,"No. 226, Jalan 13/22",Ipoh,Perak,30000,2002-05-16,Female,farah.97@glowbeauty.com.my,019-9974416,2023-02-15,6330.12,Active
+98,6,Divya,Ong,Senior Therapist,Lead,"No. 167, Jalan 11/21",Ipoh,Perak,30000,1997-07-19,Female,divya.98@glowbeauty.com.my,010-4851666,2023-02-15,3641.20,Active
+99,6,Faizal,Rahman,Senior Therapist,Lead,"No. 24, Jalan 15/15",Ipoh,Perak,30000,1982-02-18,Male,faizal.99@glowbeauty.com.my,017-3089374,2023-02-15,3941.94,Active
+100,6,Nurin,Lee,Beauty Therapist,Senior,"No. 119, Jalan 1/4",Ipoh,Perak,30000,1995-09-12,Female,nurin.100@glowbeauty.com.my,015-9513150,2023-02-15,2787.17,Active
+101,6,Aisyah,Sim,Beauty Therapist,Senior,"No. 44, Jalan 1/4",Ipoh,Perak,30000,1997-05-09,Female,aisyah.101@glowbeauty.com.my,010-2585536,2023-02-15,2882.97,Active
+102,6,Mei Ling,Goh,Beauty Therapist,Senior,"No. 222, Jalan 2/25",Ipoh,Perak,30000,1996-01-26,Female,mei.102@glowbeauty.com.my,012-2784181,2023-02-15,2659.08,Active
+103,6,Wei Jie,Yeoh,Beauty Therapist,Senior,"No. 114, Jalan 9/13",Ipoh,Perak,30000,1978-10-14,Male,wei.103@glowbeauty.com.my,014-5161319,2023-02-15,2553.72,Active
+104,6,Chloe,Yeoh,Beauty Therapist,Junior,"No. 194, Jalan 16/30",Ipoh,Perak,30000,1997-06-17,Female,chloe.104@glowbeauty.com.my,011-8822864,2023-02-15,2022.29,Active
+105,6,Chloe,Cheah,Beauty Therapist,Junior,"No. 8, Jalan 18/12",Ipoh,Perak,30000,1995-12-22,Female,chloe.105@glowbeauty.com.my,011-6598185,2023-02-15,2060.21,Active
+106,6,Divya,Chong,Beauty Therapist,Junior,"No. 166, Jalan 16/7",Ipoh,Perak,30000,1997-06-12,Female,divya.106@glowbeauty.com.my,017-9477482,2023-02-15,2058.98,Active
+107,6,Xin Yi,Cheah,Beauty Therapist,Junior,"No. 43, Jalan 1/1",Ipoh,Perak,30000,1994-07-30,Female,xin.107@glowbeauty.com.my,018-6273332,2023-02-15,2212.37,Active
+108,6,Farah,Yeoh,Beauty Therapist,Junior,"No. 146, Jalan 2/30",Ipoh,Perak,30000,1984-11-15,Female,farah.108@glowbeauty.com.my,016-4179161,2023-02-15,2322.26,Active
+109,6,Amirul,a/p Subramaniam,Sales Assistant,Junior,"No. 13, Jalan 14/7",Ipoh,Perak,30000,1979-02-17,Male,amirul.109@glowbeauty.com.my,016-9377445,2023-02-15,2238.67,Active
+110,6,Alia,Lee,Sales Assistant,Junior,"No. 148, Jalan 1/14",Ipoh,Perak,30000,1994-01-21,Female,alia.110@glowbeauty.com.my,016-2902894,2023-02-15,1918.57,Active
+111,6,Kumar,Cheah,Sales Assistant,Junior,"No. 158, Jalan 7/27",Ipoh,Perak,30000,1995-12-02,Male,kumar.111@glowbeauty.com.my,018-3741625,2023-02-15,2349.77,Active
+112,6,Siti,Chong,Receptionist,Junior,"No. 153, Jalan 16/20",Ipoh,Perak,30000,1992-12-15,Female,siti.112@glowbeauty.com.my,012-9901990,2023-02-15,2304.05,Active
+113,6,Amirul,Goh,Receptionist,Junior,"No. 54, Jalan 14/1",Ipoh,Perak,30000,1998-04-20,Male,amirul.113@glowbeauty.com.my,016-8770762,2023-02-15,2189.38,Active
+114,6,Xin Yi,Lim,Cashier,Junior,"No. 84, Jalan 3/26",Ipoh,Perak,30000,1996-07-22,Female,xin.114@glowbeauty.com.my,016-2143258,2023-02-15,2123.14,Active

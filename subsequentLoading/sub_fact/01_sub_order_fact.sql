@@ -1,0 +1,222 @@
+-- ===================================================================
+-- 01_sub_order_fact.sql       ORDER_FACT - SUBSEQUENT (INCREMENTAL)
+--
+--   SECTION 1: no new view - reuses order_fact_staging_v
+--   SECTION 2: no sequence - the PK is the degenerate order_det_ID
+--   SECTION 3: PROCEDURE - insert new lines, then update changed ones
+--   SECTION 4: run + verification
+--
+-- TWO STEPS:
+--   STEP 1  INSERT order lines that are not in the fact yet
+--   STEP 2  UPDATE lines that ARE in the fact but whose values moved
+--
+-- STEP 2 is what makes a fact load different from a dimension load.
+-- order_status is not frozen at the moment of sale - an order sits at
+-- 'Processing' and later becomes 'Completed' or 'Cancelled'. Without
+-- the update the warehouse would keep reporting the status the row had
+-- on the day it first loaded, and cancellation rates would be wrong.
+--
+-- THE WINDOW
+--   p_load_date IN DATE DEFAULT SYSDATE, filtered as
+--       order_date >= TRUNC(p_load_date) - 1
+--   so a bare call picks up yesterday and today.
+--
+--   To BACKFILL a historical range, pass the day AFTER the earliest
+--   date you want. Loading the whole of data2 (2023-2024):
+--       EXEC load_order_fact_incremental(DATE '2023-01-02');
+--   which resolves to order_date >= 2023-01-01.
+-- ===================================================================
+
+SET SERVEROUTPUT ON
+
+-- ===================================================================
+-- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
+-- order_fact_staging_v is defined in
+--   initialLoading\init_fact\01_init_order_fact.sql
+--
+-- It does OLTP cleansing only and exposes NATURAL keys (cus_ID, br_ID,
+-- st_ID, product_ID) plus the raw order_date. The surrogate-key joins
+-- are written out below, in this procedure - the same way the initial
+-- load does it. Keeping them here rather than in the view means the
+-- is_current_flag = 'Y' filter is visible at the point of loading, and
+-- the raw date is available for the window filter.
+-- ===================================================================
+
+-- ===================================================================
+-- SECTION 2: SEQUENCE - NOT REQUIRED
+-- ===================================================================
+
+-- ===================================================================
+-- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
+-- ===================================================================
+CREATE OR REPLACE PROCEDURE load_order_fact_incremental(
+    p_load_date IN DATE DEFAULT SYSDATE
+) AS
+    v_from    DATE   := TRUNC(p_load_date) - 1;
+    v_count   NUMBER := 0;
+    v_updated NUMBER := 0;
+    v_errors  NUMBER := 0;
+BEGIN
+    -- ---------------------------------------------------------------
+    -- STEP 1: insert new order lines.
+    -- The NOT EXISTS anti-join on the degenerate PK is what makes this
+    -- safe to re-run - a second pass inserts nothing.
+    -- ---------------------------------------------------------------
+    INSERT INTO order_fact (
+        date_key, product_key, customer_key, staff_key, branch_key,
+        order_ID, order_det_ID, order_status,
+        order_qty, order_unit_price, order_gross_amt,
+        order_discount_amt, order_tax_amt, order_total_amt
+    )
+    SELECT
+        d.date_key, p.product_key, c.customer_key, s.staff_key,
+        b.branch_key, ls.order_ID, ls.order_det_ID,
+        ls.clean_order_status, ls.clean_order_qty, ls.clean_unit_price,
+        ls.order_gross_amt, ls.clean_discount_amt, ls.clean_tax_amt,
+        ls.order_total_amt
+    FROM order_fact_staging_v ls
+    JOIN date_dim     d ON d.cal_date   = ls.order_date
+    JOIN product_dim  p ON p.product_ID = ls.product_ID
+                       AND p.is_current_flag = 'Y'
+    JOIN customer_dim c ON c.cus_ID     = ls.cus_ID
+                       AND c.is_current_flag = 'Y'
+    JOIN staff_dim    s ON s.st_ID      = ls.st_ID
+                       AND s.is_current_flag = 'Y'
+    JOIN branch_dim   b ON b.br_ID      = ls.br_ID
+                       AND b.is_current_flag = 'Y'
+    WHERE ls.order_date >= v_from
+    AND   NOT EXISTS (SELECT 1 FROM order_fact f
+                      WHERE f.order_det_ID = ls.order_det_ID);
+
+    v_count := SQL%ROWCOUNT;
+
+    -- ---------------------------------------------------------------
+    -- STEP 2: refresh lines already in the fact whose values changed.
+    --
+    -- Mostly order_status moving on, but a corrected quantity or
+    -- discount lands here too. The measures update together so
+    -- gross - discount + tax = total always holds.
+    --
+    -- No dimension joins here: a changed STATUS does not move the row
+    -- to a different customer or product. If the natural key itself
+    -- changed it would be a different order line.
+    --
+    -- NVL on both sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
+    -- <> would silently skip any change involving a NULL.
+    --
+    -- The window is applied here as well. That is a deliberate
+    -- deviation from the course sample, which scans the whole fact:
+    -- order_fact holds 635,000 rows and an unfiltered correlated
+    -- update against the staging view is far too slow on XE. The
+    -- trade-off is that a status change on an order OLDER than the
+    -- window is not picked up - widen p_load_date if you need it.
+    -- ---------------------------------------------------------------
+    UPDATE order_fact f
+    SET   (order_status, order_qty, order_unit_price, order_gross_amt,
+           order_discount_amt, order_tax_amt, order_total_amt) =
+          (SELECT ls.clean_order_status, ls.clean_order_qty,
+                  ls.clean_unit_price, ls.order_gross_amt,
+                  ls.clean_discount_amt, ls.clean_tax_amt,
+                  ls.order_total_amt
+           FROM   order_fact_staging_v ls
+           WHERE  ls.order_det_ID = f.order_det_ID)
+    WHERE EXISTS (
+        SELECT 1
+        FROM   order_fact_staging_v ls
+        WHERE  ls.order_det_ID = f.order_det_ID
+          AND  ls.order_date >= v_from
+          AND (   NVL(f.order_status, '~')     <> NVL(ls.clean_order_status, '~')
+               OR NVL(f.order_qty, -1)          <> NVL(ls.clean_order_qty, -1)
+               OR NVL(f.order_unit_price, -1)   <> NVL(ls.clean_unit_price, -1)
+               OR NVL(f.order_discount_amt, -1) <> NVL(ls.clean_discount_amt, -1)
+               OR NVL(f.order_tax_amt, -1)      <> NVL(ls.clean_tax_amt, -1) ));
+
+    v_updated := SQL%ROWCOUNT;
+
+    -- Rows in the window that the cleansing had to repair
+    SELECT COUNT(*) INTO v_errors
+    FROM   order_fact_staging_v
+    WHERE  order_date >= v_from
+    AND   (qty_corrected = 'Y' OR price_corrected = 'Y'
+        OR status_defaulted = 'Y' OR money_defaulted = 'Y');
+
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('ORDER_FACT incremental load completed:');
+    DBMS_OUTPUT.PUT_LINE(' - Window from             : '
+        || TO_CHAR(v_from, 'YYYY-MM-DD'));
+    DBMS_OUTPUT.PUT_LINE(' - New records inserted    : ' || v_count);
+    DBMS_OUTPUT.PUT_LINE(' - Existing records updated: ' || v_updated);
+    DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);
+
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error in ORDER_FACT incremental load: '
+            || SQLERRM);
+        RAISE;
+END;
+/
+
+-- ===================================================================
+-- SECTION 4: RUN + VERIFICATION
+-- ===================================================================
+-- Daily run - yesterday and today:
+-- EXEC load_order_fact_incremental;
+
+-- BACKFILL the whole of data2 (2023-2024). This is the one to use now:
+EXEC load_order_fact_incremental(DATE '2023-01-02');
+
+-- Fact must now equal the source exactly
+SELECT (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
+       (SELECT COUNT(*) FROM order_detail) AS source_rows
+FROM dual;
+
+-- Which dimension is dropping rows, if any. All must be 0.
+SELECT COUNT(*) AS no_date FROM order_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM date_dim d
+                  WHERE d.cal_date = ls.order_date);
+-- non-zero here usually means date_dim does not reach 2024 yet:
+--   EXEC load_date_dim_incremental(2024);
+
+SELECT COUNT(*) AS no_product FROM order_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM product_dim p
+                  WHERE p.product_ID = ls.product_ID
+                    AND p.is_current_flag = 'Y');
+
+SELECT COUNT(*) AS no_customer FROM order_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM customer_dim c
+                  WHERE c.cus_ID = ls.cus_ID AND c.is_current_flag = 'Y');
+
+SELECT COUNT(*) AS no_staff FROM order_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
+                  WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y');
+
+SELECT COUNT(*) AS no_branch FROM order_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
+                  WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y');
+
+-- Arithmetic still reconciles
+SELECT COUNT(*) AS bad_arithmetic FROM order_fact
+WHERE ABS(order_gross_amt - order_discount_amt + order_tax_amt
+          - order_total_amt) > 0.01;
+
+-- Six years of product revenue. 2023 and 2024 should continue the 2022
+-- recovery, and the new Ipoh branch should appear from March 2023.
+SELECT d.cal_year,
+       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS net_revenue,
+       COUNT(*) AS order_lines
+FROM order_fact f
+JOIN date_dim d ON d.date_key = f.date_key
+WHERE f.order_status = 'Completed'
+GROUP BY d.cal_year
+ORDER BY d.cal_year;
+
+SELECT b.br_city, MIN(d.cal_date) AS first_sale, COUNT(*) AS lines
+FROM order_fact f
+JOIN branch_dim b ON b.branch_key = f.branch_key
+JOIN date_dim   d ON d.date_key   = f.date_key
+GROUP BY b.br_city
+ORDER BY first_sale;
+-- Ipoh should show a first sale of 2023-03-01
+
+-- Re-run the EXEC above: expect 0 inserted, 0 updated.

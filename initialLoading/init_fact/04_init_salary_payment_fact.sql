@@ -1,12 +1,22 @@
 -- ===================================================================
 -- 04_init_salary_payment_fact.sql   SALARY_PAYMENT_FACT
--- Grain: one row per staff member per pay period  (3,135 rows)
--- Source: SALARY_PAYMENT
+-- Grain: one row per staff member per pay period (3,135 in data\)
+-- Source: SALARY_PAYMENT joined to STAFF
+--
+--   SECTION 1: staging VIEW - OLTP cleansing ONLY
+--   SECTION 2: no sequence   - the PK is the degenerate sal_pay_ID
+--   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
+--   SECTION 4: run + verification
+--
+-- THE VIEW DOES NOT TOUCH THE DIMENSIONS - natural keys out (st_ID,
+-- br_ID) and the raw payment_date.
 --
 -- THE INTERESTING BIT: salary_payment has NO br_ID - that was a
--- deliberate design decision in the OLTP model (see the comment in
--- 01_create_operational_db.sql). branch_key is therefore resolved
--- by walking SALARY_PAYMENT -> STAFF -> BRANCH_DIM.
+-- deliberate decision in the OLTP model (see the comment in
+-- 01_create_operational_db.sql). The view therefore joins the OLTP
+-- STAFF table to expose br_ID as a natural key. That is an
+-- OLTP-to-OLTP join, exactly like LOAN joining LOAN_DETAILS - it does
+-- NOT couple the view to a dimension.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -16,32 +26,50 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW salary_payment_fact_staging_v AS
 SELECT
-    dd.date_key,
-    sd.staff_key,
-    bd.branch_key,                                -- resolved via STAFF
-
     sp.sal_pay_ID,                                -- degenerate dim / PK
-    sp.pay_period,                                -- 'YYYY-MM'
 
-    sp.base_amount,
-    ROUND(NVL(sp.bonus_amount, 0), 2)              AS bonus_amount,
-    ROUND(NVL(sp.deduction_amount, 0), 2)          AS deduction_amount,
+    -- ---------- NATURAL keys ----------
+    sp.st_ID,
+    s.br_ID,                                      -- via STAFF, by design
+    TRUNC(sp.payment_date)                         AS payment_date,
 
-    -- Measures
-    ROUND(sp.base_amount + NVL(sp.bonus_amount, 0), 2)
-                                                   AS gross_amount,
-    ROUND(  sp.base_amount
+    -- ---------- cleansed attributes ----------
+    CASE
+        WHEN sp.pay_period IS NULL
+             OR NOT REGEXP_LIKE(TRIM(sp.pay_period), '^[0-9]{4}-[0-9]{2}$')
+            THEN TO_CHAR(sp.payment_date, 'YYYY-MM')
+        ELSE TRIM(sp.pay_period)
+    END                                            AS clean_pay_period,
+
+    CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
+         THEN 0 ELSE sp.base_amount END            AS clean_base_amount,
+    ROUND(NVL(sp.bonus_amount, 0), 2)              AS clean_bonus_amount,
+    ROUND(NVL(sp.deduction_amount, 0), 2)          AS clean_deduction_amount,
+
+    -- ---------- derived measures ----------
+    ROUND(  CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
+                 THEN 0 ELSE sp.base_amount END
+          + NVL(sp.bonus_amount, 0), 2)            AS gross_amount,
+    ROUND(  CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
+                 THEN 0 ELSE sp.base_amount END
           + NVL(sp.bonus_amount, 0)
-          - NVL(sp.deduction_amount, 0), 2)        AS net_amount
+          - NVL(sp.deduction_amount, 0), 2)        AS net_amount,
+
+    -- ---------- data quality flags ----------
+    CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
+         THEN 'Y' ELSE 'N' END                     AS base_corrected,
+    CASE WHEN sp.bonus_amount IS NULL OR sp.deduction_amount IS NULL
+         THEN 'Y' ELSE 'N' END                     AS money_defaulted,
+    CASE WHEN sp.pay_period IS NULL
+              OR NOT REGEXP_LIKE(TRIM(sp.pay_period), '^[0-9]{4}-[0-9]{2}$')
+         THEN 'Y' ELSE 'N' END                     AS period_defaulted
 
 FROM salary_payment sp
--- the bridge: the staff member's branch
-JOIN staff        s  ON s.st_ID     = sp.st_ID
-JOIN date_dim     dd ON dd.cal_date = TRUNC(sp.payment_date)
-JOIN staff_dim    sd ON sd.st_ID    = sp.st_ID
-                    AND sd.is_current_flag = 'Y'
-JOIN branch_dim   bd ON bd.br_ID    = s.br_ID
-                    AND bd.is_current_flag = 'Y';
+JOIN staff s ON s.st_ID = sp.st_ID                -- OLTP, not staff_dim
+WHERE sp.sal_pay_ID   IS NOT NULL
+  AND sp.st_ID        IS NOT NULL
+  AND s.br_ID         IS NOT NULL
+  AND sp.payment_date IS NOT NULL;
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
@@ -52,15 +80,16 @@ JOIN branch_dim   bd ON bd.br_ID    = s.br_ID
 -- SECTION 3: ETL (INITIAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_salary_fact_initial AS
-    v_count   NUMBER;
-    v_source  NUMBER;
-    v_dropped NUMBER;
+    v_count    NUMBER;
+    v_errors   NUMBER := 0;
+    v_orphaned NUMBER := 0;
+    v_source   NUMBER := 0;
 BEGIN
     SELECT COUNT(*) INTO v_count FROM salary_payment_fact;
 
     IF v_count > 0 THEN
         DBMS_OUTPUT.PUT_LINE('SALARY_PAYMENT_FACT already contains data. '
-            || 'Delete it first if you intend to reload.');
+            || 'Use load_salary_fact_incremental for updates.');
         RETURN;
     END IF;
 
@@ -72,24 +101,41 @@ BEGIN
         gross_amount, net_amount
     )
     SELECT
-        date_key, staff_key, branch_key, sal_pay_ID, pay_period,
-        base_amount, bonus_amount, deduction_amount,
-        gross_amount, net_amount
-    FROM salary_payment_fact_staging_v;
+        d.date_key,
+        s.staff_key,
+        b.branch_key,
+        ls.sal_pay_ID,
+        ls.clean_pay_period,
+        ls.clean_base_amount,
+        ls.clean_bonus_amount,
+        ls.clean_deduction_amount,
+        ls.gross_amount,
+        ls.net_amount
+    FROM salary_payment_fact_staging_v ls
+    JOIN date_dim   d ON d.cal_date = ls.payment_date
+    JOIN staff_dim  s ON s.st_ID    = ls.st_ID
+                     AND s.is_current_flag = 'Y'
+    JOIN branch_dim b ON b.br_ID    = ls.br_ID
+                     AND b.is_current_flag = 'Y';
 
-    v_count   := SQL%ROWCOUNT;
-    v_dropped := v_source - v_count;
+    v_count := SQL%ROWCOUNT;
+
+    SELECT COUNT(*) INTO v_errors
+    FROM   salary_payment_fact_staging_v
+    WHERE  base_corrected = 'Y' OR money_defaulted = 'Y'
+       OR  period_defaulted = 'Y';
+
+    v_orphaned := v_source - v_count;
 
     COMMIT;
-    DBMS_OUTPUT.PUT_LINE('SALARY_PAYMENT_FACT initial load completed: '
-        || v_count || ' records inserted.');
+    DBMS_OUTPUT.PUT_LINE('SALARY_PAYMENT_FACT initial load completed:');
+    DBMS_OUTPUT.PUT_LINE(' - Records inserted        : ' || v_count);
+    DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);
+    DBMS_OUTPUT.PUT_LINE(' - Source rows not loaded  : ' || v_orphaned);
 
-    IF v_dropped <> 0 THEN
-        DBMS_OUTPUT.PUT_LINE('*** WARNING: ' || v_dropped
-            || ' source rows did NOT load - a dimension lookup failed.');
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('All ' || v_source
-            || ' source rows resolved every dimension key.');
+    IF v_orphaned <> 0 THEN
+        DBMS_OUTPUT.PUT_LINE('*** WARNING: a dimension lookup failed for '
+            || 'those rows. Run the orphan checks in SECTION 4.');
     END IF;
 
 EXCEPTION
@@ -106,20 +152,23 @@ END;
 -- ===================================================================
 EXEC load_salary_fact_initial;
 
--- Expect 3135 in both columns
 SELECT (SELECT COUNT(*) FROM salary_payment_fact) AS fact_rows,
        (SELECT COUNT(*) FROM salary_payment)      AS source_rows
 FROM dual;
 
--- Which lookup failed, if any. Both must return 0.
-SELECT COUNT(*) AS no_date FROM salary_payment sp
-WHERE NOT EXISTS (SELECT 1 FROM date_dim dd
-                  WHERE dd.cal_date = TRUNC(sp.payment_date));
+SELECT (SELECT COUNT(*) FROM salary_payment)
+     - (SELECT COUNT(*) FROM salary_payment_fact_staging_v) AS rejected_by_view
+FROM dual;
+-- expect 0
 
-SELECT COUNT(*) AS no_branch_via_staff FROM salary_payment sp
-JOIN staff s ON s.st_ID = sp.st_ID
-WHERE NOT EXISTS (SELECT 1 FROM branch_dim bd
-                  WHERE bd.br_ID = s.br_ID AND bd.is_current_flag = 'Y');
+-- Which DIMENSION lookup failed, if any. Both must return 0.
+SELECT COUNT(*) AS no_date FROM salary_payment_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM date_dim d
+                  WHERE d.cal_date = ls.payment_date);
+
+SELECT COUNT(*) AS no_branch FROM salary_payment_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
+                  WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y');
 
 -- Arithmetic check: gross - deduction = net
 SELECT COUNT(*) AS bad_arithmetic FROM salary_payment_fact

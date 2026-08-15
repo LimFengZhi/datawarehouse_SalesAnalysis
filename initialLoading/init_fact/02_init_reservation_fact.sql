@@ -1,13 +1,23 @@
 -- ===================================================================
 -- 02_init_reservation_fact.sql   RESERVATION_FACT
--- Grain: one row per service line booked  (88,790 rows)
--- Source: RESERVATION_DETAIL joined to RESERVATION
+-- Grain: one row per service line booked  (88,790 rows in data\)
+-- Source: RESERVATION_DETAIL joined to RESERVATION and SERVICE
 --
--- TWO THINGS THE SOURCE DOES NOT STORE, resolved here:
---   1. serv_price - reservation_detail has a discount and a tax but
---      no price. It comes from SERVICE_DIM.
---   2. start_hour / res_duration - derived from start_time & end_time,
---      for the peak-hour and therapist-utilisation analyses.
+--   SECTION 1: staging VIEW - OLTP cleansing ONLY
+--   SECTION 2: no sequence   - the PK is the degenerate res_det_ID
+--   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
+--   SECTION 4: run + verification
+--
+-- THE VIEW DOES NOT TOUCH THE DIMENSIONS - it exposes natural keys
+-- (cus_ID, br_ID, st_ID, serv_ID) and the raw appointment date. The
+-- surrogate lookups are in SECTION 3.
+--
+-- THREE THINGS THE SOURCE DOES NOT STORE, all resolved in the view:
+--   1. serv_price - reservation_detail has a discount and a tax but no
+--      price. It is joined from the OLTP SERVICE table (not
+--      service_dim, which would couple the view to a dimension).
+--   2. start_hour   - derived, for peak-hour analysis
+--   3. res_duration - derived, actual minutes
 --
 -- staff_key comes from RESERVATION_DETAIL (the therapist who performed
 -- the service), NOT from the reservation header.
@@ -20,59 +30,82 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW reservation_fact_staging_v AS
 SELECT
-    dd.date_key,
-    cd.customer_key,
-    sd.staff_key,
-    bd.branch_key,
-    vd.service_key,
-
-    r.res_ID,                                     -- degenerate dim
     rd.res_det_ID,                                -- degenerate dim / PK
+    r.res_ID,                                     -- degenerate dim
 
-    -- All statuses load, including Cancelled and No-Show, so the
-    -- warehouse can report no-show rates. Filter in your queries.
-    r.res_status,
+    -- ---------- NATURAL keys ----------
+    r.cus_ID,
+    r.br_ID,
+    rd.st_ID,
+    rd.serv_ID,
+    -- Date of the appointment itself; falls back to the booking date
+    -- if a slot has no start_time.
+    NVL(TRUNC(rd.start_time), TRUNC(r.booking_date))
+                                                   AS res_date,
+
+    -- ---------- cleansed attributes ----------
+    CASE
+        WHEN UPPER(TRIM(r.res_status)) IN ('COMPLETED','COMPLETE','DONE')
+            THEN 'Completed'
+        WHEN UPPER(TRIM(r.res_status)) IN ('CANCELLED','CANCELED','VOID')
+            THEN 'Cancelled'
+        WHEN UPPER(TRIM(r.res_status)) IN ('NO-SHOW','NO SHOW','NOSHOW')
+            THEN 'No-Show'
+        WHEN UPPER(TRIM(r.res_status)) IN ('CONFIRMED','CONFIRM')
+            THEN 'Confirmed'
+        WHEN UPPER(TRIM(r.res_status)) IN ('BOOKED','BOOKING','NEW')
+            THEN 'Booked'
+        WHEN r.res_status IS NULL THEN 'Booked'
+        ELSE INITCAP(TRIM(r.res_status))
+    END                                            AS clean_res_status,
 
     rd.start_time,
     rd.end_time,
 
-    -- DERIVED: appointment hour, 10..20. Peak is 16:00-18:00.
-    CASE
-        WHEN rd.start_time IS NULL THEN NULL
-        ELSE TO_NUMBER(TO_CHAR(rd.start_time, 'HH24'))
+    -- DERIVED: appointment hour, 10..20
+    CASE WHEN rd.start_time IS NULL THEN NULL
+         ELSE TO_NUMBER(TO_CHAR(rd.start_time, 'HH24'))
     END                                            AS start_hour,
 
-    -- DERIVED: actual slot length in minutes. Guarded against a NULL
-    -- or reversed pair, which would otherwise give a negative duration.
+    -- DERIVED: slot length in minutes. Guarded against a NULL or
+    -- reversed pair, which would otherwise give a negative duration.
     CASE
         WHEN rd.start_time IS NULL OR rd.end_time IS NULL
           OR rd.end_time <= rd.start_time THEN NULL
         ELSE ROUND((rd.end_time - rd.start_time) * 24 * 60)
     END                                            AS res_duration,
 
-    -- Measures. Price is carried from the dimension because the source
-    -- line does not store it.
-    vd.serv_price,
-    ROUND(NVL(rd.serv_discount, 0), 2)             AS serv_discount_amt,
-    ROUND(NVL(rd.serv_tax, 0), 2)                  AS serv_tax_amt,
-    ROUND(  vd.serv_price
+    -- ---------- measures ----------
+    CASE WHEN sv.serv_price IS NULL OR sv.serv_price < 0
+         THEN 0 ELSE sv.serv_price END             AS clean_serv_price,
+    ROUND(NVL(rd.serv_discount, 0), 2)             AS clean_discount_amt,
+    ROUND(NVL(rd.serv_tax, 0), 2)                  AS clean_tax_amt,
+    ROUND(  CASE WHEN sv.serv_price IS NULL OR sv.serv_price < 0
+                 THEN 0 ELSE sv.serv_price END
           - NVL(rd.serv_discount, 0)
-          + NVL(rd.serv_tax, 0), 2)                AS serv_total_amt
+          + NVL(rd.serv_tax, 0), 2)                AS serv_total_amt,
+
+    -- ---------- data quality flags ----------
+    CASE WHEN r.res_status IS NULL
+         THEN 'Y' ELSE 'N' END                     AS status_defaulted,
+    CASE WHEN rd.start_time IS NULL OR rd.end_time IS NULL
+              OR rd.end_time <= rd.start_time
+         THEN 'Y' ELSE 'N' END                     AS time_unusable,
+    CASE WHEN sv.serv_price IS NULL OR sv.serv_price < 0
+         THEN 'Y' ELSE 'N' END                     AS price_defaulted,
+    CASE WHEN rd.serv_discount IS NULL OR rd.serv_tax IS NULL
+         THEN 'Y' ELSE 'N' END                     AS money_defaulted
 
 FROM reservation_detail rd
-JOIN reservation  r  ON r.res_ID  = rd.res_ID
--- Date of the appointment itself; falls back to the booking date if a
--- slot has no start_time.
-JOIN date_dim     dd ON dd.cal_date = NVL(TRUNC(rd.start_time),
-                                          TRUNC(r.booking_date))
-JOIN customer_dim cd ON cd.cus_ID  = r.cus_ID
-                    AND cd.is_current_flag = 'Y'
-JOIN staff_dim    sd ON sd.st_ID   = rd.st_ID
-                    AND sd.is_current_flag = 'Y'
-JOIN branch_dim   bd ON bd.br_ID   = r.br_ID
-                    AND bd.is_current_flag = 'Y'
-JOIN service_dim  vd ON vd.serv_ID = rd.serv_ID
-                    AND vd.is_current_flag = 'Y';
+JOIN reservation r  ON r.res_ID   = rd.res_ID
+JOIN service     sv ON sv.serv_ID = rd.serv_ID    -- OLTP, not the dim
+WHERE rd.res_det_ID IS NOT NULL
+  AND r.res_ID      IS NOT NULL
+  AND r.cus_ID      IS NOT NULL
+  AND r.br_ID       IS NOT NULL
+  AND rd.st_ID      IS NOT NULL
+  AND rd.serv_ID    IS NOT NULL
+  AND NVL(rd.start_time, r.booking_date) IS NOT NULL;
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
@@ -83,15 +116,16 @@ JOIN service_dim  vd ON vd.serv_ID = rd.serv_ID
 -- SECTION 3: ETL (INITIAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_reservation_fact_initial AS
-    v_count   NUMBER;
-    v_source  NUMBER;
-    v_dropped NUMBER;
+    v_count    NUMBER;
+    v_errors   NUMBER := 0;
+    v_orphaned NUMBER := 0;
+    v_source   NUMBER := 0;
 BEGIN
     SELECT COUNT(*) INTO v_count FROM reservation_fact;
 
     IF v_count > 0 THEN
-        DBMS_OUTPUT.PUT_LINE('RESERVATION_FACT already contains data. '
-            || 'Delete it first if you intend to reload.');
+        DBMS_OUTPUT.PUT_LINE('RESERVATION_FACT already contains data. Use '
+            || 'load_res_fact_incremental for updates.');
         RETURN;
     END IF;
 
@@ -104,26 +138,51 @@ BEGIN
         serv_discount_amt, serv_tax_amt, serv_total_amt
     )
     SELECT
-        date_key, customer_key, staff_key, branch_key, service_key,
-        res_ID, res_det_ID, res_status, start_time, end_time,
-        start_hour, res_duration, serv_price,
-        serv_discount_amt, serv_tax_amt, serv_total_amt
-    FROM reservation_fact_staging_v;
+        d.date_key,
+        c.customer_key,
+        s.staff_key,
+        b.branch_key,
+        v.service_key,
+        ls.res_ID,
+        ls.res_det_ID,
+        ls.clean_res_status,
+        ls.start_time,
+        ls.end_time,
+        ls.start_hour,
+        ls.res_duration,
+        ls.clean_serv_price,
+        ls.clean_discount_amt,
+        ls.clean_tax_amt,
+        ls.serv_total_amt
+    FROM reservation_fact_staging_v ls
+    JOIN date_dim     d ON d.cal_date = ls.res_date
+    JOIN customer_dim c ON c.cus_ID   = ls.cus_ID
+                       AND c.is_current_flag = 'Y'
+    JOIN staff_dim    s ON s.st_ID    = ls.st_ID
+                       AND s.is_current_flag = 'Y'
+    JOIN branch_dim   b ON b.br_ID    = ls.br_ID
+                       AND b.is_current_flag = 'Y'
+    JOIN service_dim  v ON v.serv_ID  = ls.serv_ID
+                       AND v.is_current_flag = 'Y';
 
-    v_count   := SQL%ROWCOUNT;
-    v_dropped := v_source - v_count;
+    v_count := SQL%ROWCOUNT;
+
+    SELECT COUNT(*) INTO v_errors
+    FROM   reservation_fact_staging_v
+    WHERE  status_defaulted = 'Y' OR time_unusable = 'Y'
+       OR  price_defaulted = 'Y'  OR money_defaulted = 'Y';
+
+    v_orphaned := v_source - v_count;
 
     COMMIT;
-    DBMS_OUTPUT.PUT_LINE('RESERVATION_FACT initial load completed: '
-        || v_count || ' records inserted.');
+    DBMS_OUTPUT.PUT_LINE('RESERVATION_FACT initial load completed:');
+    DBMS_OUTPUT.PUT_LINE(' - Records inserted        : ' || v_count);
+    DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);
+    DBMS_OUTPUT.PUT_LINE(' - Source rows not loaded  : ' || v_orphaned);
 
-    IF v_dropped <> 0 THEN
-        DBMS_OUTPUT.PUT_LINE('*** WARNING: ' || v_dropped
-            || ' source rows did NOT load - a dimension lookup failed. '
-            || 'Run the orphan checks in SECTION 4.');
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('All ' || v_source
-            || ' source rows resolved every dimension key.');
+    IF v_orphaned <> 0 THEN
+        DBMS_OUTPUT.PUT_LINE('*** WARNING: a dimension lookup failed for '
+            || 'those rows. Run the orphan checks in SECTION 4.');
     END IF;
 
 EXCEPTION
@@ -140,26 +199,27 @@ END;
 -- ===================================================================
 EXEC load_reservation_fact_initial;
 
--- Expect 88790 in both columns
 SELECT (SELECT COUNT(*) FROM reservation_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM reservation_detail) AS source_rows
 FROM dual;
 
--- Which lookup failed, if any. All must return 0.
-SELECT COUNT(*) AS no_date FROM reservation_detail rd
-JOIN reservation r ON r.res_ID = rd.res_ID
-WHERE NOT EXISTS (SELECT 1 FROM date_dim dd
-                  WHERE dd.cal_date = NVL(TRUNC(rd.start_time),
-                                          TRUNC(r.booking_date)));
+SELECT (SELECT COUNT(*) FROM reservation_detail)
+     - (SELECT COUNT(*) FROM reservation_fact_staging_v) AS rejected_by_view
+FROM dual;
+-- expect 0
 
-SELECT COUNT(*) AS no_service FROM reservation_detail rd
-WHERE NOT EXISTS (SELECT 1 FROM service_dim vd
-                  WHERE vd.serv_ID = rd.serv_ID
-                    AND vd.is_current_flag = 'Y');
+-- Which DIMENSION lookup failed, if any. All must return 0.
+SELECT COUNT(*) AS no_date FROM reservation_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM date_dim d WHERE d.cal_date = ls.res_date);
 
-SELECT COUNT(*) AS no_staff FROM reservation_detail rd
-WHERE NOT EXISTS (SELECT 1 FROM staff_dim sd
-                  WHERE sd.st_ID = rd.st_ID AND sd.is_current_flag = 'Y');
+SELECT COUNT(*) AS no_service FROM reservation_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM service_dim v
+                  WHERE v.serv_ID = ls.serv_ID
+                    AND v.is_current_flag = 'Y');
+
+SELECT COUNT(*) AS no_staff FROM reservation_fact_staging_v ls
+WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
+                  WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y');
 
 -- Derived columns must be sane: hours 10..20, no negative durations
 SELECT MIN(start_hour) AS min_hr, MAX(start_hour) AS max_hr,

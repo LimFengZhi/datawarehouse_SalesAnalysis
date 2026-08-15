@@ -14,20 +14,20 @@
 -- ============================================================
 
 -- ---------- Drop tables if re-running (children first) ----------
--- DROP TABLE order_detail        CASCADE CONSTRAINTS;
--- DROP TABLE orders              CASCADE CONSTRAINTS;
--- DROP TABLE reservation_detail  CASCADE CONSTRAINTS;
--- DROP TABLE reservation         CASCADE CONSTRAINTS;
--- DROP TABLE purchase            CASCADE CONSTRAINTS;
--- DROP TABLE salary_payment      CASCADE CONSTRAINTS;
--- DROP TABLE branch_expense      CASCADE CONSTRAINTS;
--- DROP TABLE staff               CASCADE CONSTRAINTS;
--- DROP TABLE branch_utils_category CASCADE CONSTRAINTS;
--- DROP TABLE customer            CASCADE CONSTRAINTS;
--- DROP TABLE service             CASCADE CONSTRAINTS;
--- DROP TABLE product             CASCADE CONSTRAINTS;
--- DROP TABLE supplier            CASCADE CONSTRAINTS;
--- DROP TABLE branch              CASCADE CONSTRAINTS;
+DROP TABLE order_detail        CASCADE CONSTRAINTS;
+DROP TABLE orders              CASCADE CONSTRAINTS;
+DROP TABLE reservation_detail  CASCADE CONSTRAINTS;
+DROP TABLE reservation         CASCADE CONSTRAINTS;
+DROP TABLE purchase            CASCADE CONSTRAINTS;
+DROP TABLE salary_payment      CASCADE CONSTRAINTS;
+DROP TABLE branch_expense      CASCADE CONSTRAINTS;
+DROP TABLE staff               CASCADE CONSTRAINTS;
+DROP TABLE branch_utils_category CASCADE CONSTRAINTS;
+DROP TABLE customer            CASCADE CONSTRAINTS;
+DROP TABLE service             CASCADE CONSTRAINTS;
+DROP TABLE product             CASCADE CONSTRAINTS;
+DROP TABLE supplier            CASCADE CONSTRAINTS;
+DROP TABLE branch              CASCADE CONSTRAINTS;
 
 -- ============================================================
 -- 1. BRANCH

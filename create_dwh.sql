@@ -1,32 +1,32 @@
 -- ============================================================
--- 04_create_dwh.sql   (REVISED v3)
+-- 04_create_dwh.sql
 -- Data Warehouse - Star Schema (Oracle)
 --
 -- Run order: 01 (OLTP) -> load CSVs -> this file -> 05 (date_dim)
 -- ============================================================
 
 -- ---------- Drop if re-running (facts first, then dims) ----------
-DROP TABLE order_fact           CASCADE CONSTRAINTS;
-DROP TABLE reservation_fact     CASCADE CONSTRAINTS;
-DROP TABLE purchase_fact        CASCADE CONSTRAINTS;
-DROP TABLE salary_payment_fact  CASCADE CONSTRAINTS;
-DROP TABLE branch_expense_fact  CASCADE CONSTRAINTS;
-DROP TABLE branch_dim           CASCADE CONSTRAINTS;
-DROP TABLE staff_dim            CASCADE CONSTRAINTS;
-DROP TABLE customer_dim         CASCADE CONSTRAINTS;
-DROP TABLE product_dim          CASCADE CONSTRAINTS;
-DROP TABLE supplier_dim         CASCADE CONSTRAINTS;
-DROP TABLE service_dim          CASCADE CONSTRAINTS;
-DROP TABLE branch_utils_dim     CASCADE CONSTRAINTS;
-DROP TABLE date_dim             CASCADE CONSTRAINTS;
-DROP SEQUENCE seq_branch_key;
-DROP SEQUENCE seq_staff_key;
-DROP SEQUENCE seq_customer_key;
-DROP SEQUENCE seq_product_key;
-DROP SEQUENCE seq_supplier_key;
-DROP SEQUENCE seq_service_key;
-DROP SEQUENCE seq_branch_utils_key;
-DROP SEQUENCE date_dim_seq;
+-- DROP TABLE order_fact           CASCADE CONSTRAINTS;
+-- DROP TABLE reservation_fact     CASCADE CONSTRAINTS;
+-- DROP TABLE purchase_fact        CASCADE CONSTRAINTS;
+-- DROP TABLE salary_payment_fact  CASCADE CONSTRAINTS;
+-- DROP TABLE branch_expense_fact  CASCADE CONSTRAINTS;
+-- DROP TABLE branch_dim           CASCADE CONSTRAINTS;
+-- DROP TABLE staff_dim            CASCADE CONSTRAINTS;
+-- DROP TABLE customer_dim         CASCADE CONSTRAINTS;
+-- DROP TABLE product_dim          CASCADE CONSTRAINTS;
+-- DROP TABLE supplier_dim         CASCADE CONSTRAINTS;
+-- DROP TABLE service_dim          CASCADE CONSTRAINTS;
+-- DROP TABLE branch_utils_dim     CASCADE CONSTRAINTS;
+-- DROP TABLE date_dim             CASCADE CONSTRAINTS;
+-- DROP SEQUENCE seq_branch_key;
+-- DROP SEQUENCE seq_staff_key;
+-- DROP SEQUENCE seq_customer_key;
+-- DROP SEQUENCE seq_product_key;
+-- DROP SEQUENCE seq_supplier_key;
+-- DROP SEQUENCE seq_service_key;
+-- DROP SEQUENCE seq_branch_utils_key;
+-- DROP SEQUENCE date_dim_seq;
 
 
 -- ############################################################
