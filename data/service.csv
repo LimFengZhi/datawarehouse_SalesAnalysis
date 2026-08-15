@@ -1,0 +1,17 @@
+serv_ID,serv_name,serv_category,serv_description,serv_price
+1,Classic Facial,Basic Facial,"Cleansing, exfoliation and mask for everyday skin maintenance.",75.00
+2,Express Facial,Basic Facial,"Cleansing, exfoliation and mask for everyday skin maintenance.",60.00
+3,Deep Cleansing Facial,Deep Cleansing,Thorough pore cleansing with extraction.,110.00
+4,Blackhead Extraction Facial,Deep Cleansing,Thorough pore cleansing with extraction.,95.00
+5,HydraFacial,Hydrating,Intensive moisture infusion for dehydrated skin.,220.00
+6,Hydrating Glow Facial,Hydrating,Intensive moisture infusion for dehydrated skin.,165.00
+7,Anti Aging Collagen Facial,Anti Aging,Advanced firming and rejuvenation treatment.,280.00
+8,Gold Radiance Facial,Anti Aging,Advanced firming and rejuvenation treatment.,320.00
+9,Diamond Peel Facial,Anti Aging,Advanced firming and rejuvenation treatment.,250.00
+10,Vitamin C Brightening Facial,Brightening,Targets dullness and uneven skin tone.,150.00
+11,Whitening Facial,Brightening,Targets dullness and uneven skin tone.,180.00
+12,Acne Clear Facial,Acne Treatment,Calms active breakouts and controls oil.,130.00
+13,Oxygen Infusion Facial,Acne Treatment,Calms active breakouts and controls oil.,160.00
+14,Eye Treatment Add on,Add on,Optional enhancement added to a main treatment.,35.00
+15,LED Light Therapy Add on,Add on,Optional enhancement added to a main treatment.,55.00
+16,Shoulder and Neck Massage Add on,Add on,Optional enhancement added to a main treatment.,40.00

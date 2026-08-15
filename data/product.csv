@@ -1,0 +1,44 @@
+product_ID,product_name,product_brand,product_category,product_desc,product_unit_price
+1,Gentle Foaming Cleanser,PureGlow,Cleanser,Daily facial cleanser suitable for all skin types.,32.00
+2,Charcoal Deep Cleanse Gel,PureGlow,Cleanser,Daily facial cleanser suitable for all skin types.,38.00
+3,Milk Cleansing Lotion,PureGlow,Cleanser,Daily facial cleanser suitable for all skin types.,29.00
+4,Salicylic Acid Acne Cleanser,PureGlow,Cleanser,Daily facial cleanser suitable for all skin types.,42.00
+5,Green Tea Purifying Cleanser,PureGlow,Cleanser,Daily facial cleanser suitable for all skin types.,35.00
+6,Oatmeal Calming Cleanser,PureGlow,Cleanser,Daily facial cleanser suitable for all skin types.,27.00
+7,Rose Water Soothing Toner,HydraLuxe,Toner,Balancing toner that refines pores and preps skin.,32.00
+8,Witch Hazel Pore Toner,HydraLuxe,Toner,Balancing toner that refines pores and preps skin.,38.00
+9,Hydrating Aloe Toner,HydraLuxe,Toner,Balancing toner that refines pores and preps skin.,30.00
+10,Niacinamide Pore Toner,HydraLuxe,Toner,Balancing toner that refines pores and preps skin.,45.00
+11,Centella Calming Toner,HydraLuxe,Toner,Balancing toner that refines pores and preps skin.,40.00
+12,Vitamin C Brightening Serum,DermaVita,Serum,Concentrated treatment serum for targeted skin concerns.,89.00
+13,Hyaluronic Acid Serum,DermaVita,Serum,Concentrated treatment serum for targeted skin concerns.,75.00
+14,Niacinamide Pore Serum,DermaVita,Serum,Concentrated treatment serum for targeted skin concerns.,68.00
+15,Retinol Renewal Serum,DermaVita,Serum,Concentrated treatment serum for targeted skin concerns.,110.00
+16,Peptide Firming Serum,DermaVita,Serum,Concentrated treatment serum for targeted skin concerns.,120.00
+17,Centella Repair Serum,DermaVita,Serum,Concentrated treatment serum for targeted skin concerns.,85.00
+18,Hyaluronic Acid Moisturizer,HydraLuxe,Moisturizer,Hydrating cream that strengthens the skin barrier.,65.00
+19,Ceramide Barrier Cream,HydraLuxe,Moisturizer,Hydrating cream that strengthens the skin barrier.,78.00
+20,Oil Free Gel Moisturizer,HydraLuxe,Moisturizer,Hydrating cream that strengthens the skin barrier.,48.00
+21,Collagen Youth Cream,HydraLuxe,Moisturizer,Hydrating cream that strengthens the skin barrier.,95.00
+22,Shea Butter Nourishing Cream,HydraLuxe,Moisturizer,Hydrating cream that strengthens the skin barrier.,55.00
+23,SPF50 Daily Sunscreen Lotion,SunGuard,Sunscreen,Broad spectrum UV protection for daily wear.,55.00
+24,Tinted Sunscreen SPF45,SunGuard,Sunscreen,Broad spectrum UV protection for daily wear.,62.00
+25,Water Based Sunscreen Gel,SunGuard,Sunscreen,Broad spectrum UV protection for daily wear.,48.00
+26,SPF60 Sport Sunscreen,SunGuard,Sunscreen,Broad spectrum UV protection for daily wear.,58.00
+27,Charcoal Detox Mask (Jar),PureGlow,Face Mask,Intensive weekly treatment mask.,38.00
+28,Collagen Sheet Mask (Box of 5),PureGlow,Face Mask,Intensive weekly treatment mask.,45.00
+29,Clay Purifying Mask (Jar),PureGlow,Face Mask,Intensive weekly treatment mask.,34.00
+30,Hydrating Sleeping Mask (Jar),PureGlow,Face Mask,Intensive weekly treatment mask.,72.00
+31,Vitamin C Brightening Sheet Mask (Box of 5),PureGlow,Face Mask,Intensive weekly treatment mask.,48.00
+32,Collagen Eye Cream,DermaVita,Eye Cream,Targeted care for the delicate eye area.,68.00
+33,Caffeine De Puff Eye Gel,DermaVita,Eye Cream,Targeted care for the delicate eye area.,58.00
+34,Retinol Eye Repair Cream,DermaVita,Eye Cream,Targeted care for the delicate eye area.,85.00
+35,Rice Bran Exfoliating Scrub,RenewLab,Exfoliator,Removes dead skin cells for a smoother texture.,42.00
+36,AHA/BHA Exfoliating Solution,RenewLab,Exfoliator,Removes dead skin cells for a smoother texture.,65.00
+37,Enzyme Peel Powder,RenewLab,Exfoliator,Removes dead skin cells for a smoother texture.,55.00
+38,Rosehip Facial Oil,BotaniQ,Facial Oil/Essence,Nourishing essence for a healthy glow.,58.00
+39,Ginseng Essence Water,BotaniQ,Facial Oil/Essence,Nourishing essence for a healthy glow.,62.00
+40,Squalane Facial Oil,BotaniQ,Facial Oil/Essence,Nourishing essence for a healthy glow.,72.00
+41,Tea Tree Acne Spot Gel,ClearMe,Spot Treatment,Fast acting treatment for blemishes.,22.00
+42,Centella Blemish Repair Gel,ClearMe,Spot Treatment,Fast acting treatment for blemishes.,25.00
+43,Salicylic Acid Spot Patch (Box),ClearMe,Spot Treatment,Fast acting treatment for blemishes.,18.00

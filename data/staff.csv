@@ -1,0 +1,97 @@
+st_ID,br_ID,st_first_name,st_last_name,st_role,st_position,st_address_line,st_city,st_state,st_postcode,st_DOB,st_gender,st_email,st_phone,st_hire_date,st_salary,st_status
+1,1,Amelia,binti Ismail,Branch Manager,Manager,"No. 100, Jalan 11/12",Kuala Lumpur,Wilayah Persekutuan,55100,1978-12-05,Female,amelia.1@glowbeauty.com.my,013-4730347,2020-02-14,6130.00,Active
+2,1,Nadia,Goh,Senior Therapist,Lead,"No. 196, Jalan 1/28",Kuala Lumpur,Wilayah Persekutuan,55100,1995-01-24,Female,nadia.2@glowbeauty.com.my,014-9079638,2018-08-08,4120.00,Active
+3,1,Lakshmi,Goh,Senior Therapist,Lead,"No. 61, Jalan 15/12",Kuala Lumpur,Wilayah Persekutuan,55100,1981-10-25,Female,lakshmi.3@glowbeauty.com.my,012-3703662,2020-12-03,3810.00,Active
+4,1,Zarina,Wong,Sales Assistant,Junior,"No. 176, Jalan 5/11",Kuala Lumpur,Wilayah Persekutuan,55100,1979-12-15,Female,zarina.4@glowbeauty.com.my,013-6873957,2019-02-20,2130.00,Active
+5,1,Priya,Lee,Receptionist,Junior,"No. 51, Jalan 10/8",Kuala Lumpur,Wilayah Persekutuan,55100,1994-06-08,Female,priya.5@glowbeauty.com.my,017-7047462,2016-04-01,2320.00,Active
+6,1,Rachel,Cheah,Beauty Therapist,Senior,"No. 135, Jalan 4/16",Kuala Lumpur,Wilayah Persekutuan,55100,1993-03-19,Female,rachel.6@glowbeauty.com.my,013-9474359,2020-11-08,2360.00,Active
+7,1,Sharmila,Lee,Cashier,Junior,"No. 149, Jalan 18/13",Kuala Lumpur,Wilayah Persekutuan,55100,1977-12-26,Female,sharmila.7@glowbeauty.com.my,011-2994474,2021-12-24,2140.00,Active
+8,1,Rachel,Wong,Beauty Therapist,Junior,"No. 125, Jalan 19/26",Kuala Lumpur,Wilayah Persekutuan,55100,1999-09-06,Female,rachel.8@glowbeauty.com.my,012-3359253,2018-07-24,2940.00,Active
+9,1,Zarina,Lim,Receptionist,Junior,"No. 32, Jalan 9/1",Kuala Lumpur,Wilayah Persekutuan,55100,1984-12-11,Female,zarina.9@glowbeauty.com.my,012-2515748,2016-07-16,2160.00,Active
+10,1,Tan Sze Min,Sim,Beauty Therapist,Senior,"No. 70, Jalan 15/21",Kuala Lumpur,Wilayah Persekutuan,55100,1987-03-16,Female,tan.10@glowbeauty.com.my,017-9001311,2018-07-23,2680.00,Active
+11,1,Nurin,a/l Subramaniam,Beauty Therapist,Junior,"No. 54, Jalan 6/10",Kuala Lumpur,Wilayah Persekutuan,55100,1988-10-23,Female,nurin.11@glowbeauty.com.my,016-3652016,2020-09-09,2670.00,Active
+12,1,Hui Min,Ong,Cashier,Senior,"No. 169, Jalan 2/7",Kuala Lumpur,Wilayah Persekutuan,55100,1977-04-25,Female,hui.12@glowbeauty.com.my,019-5897489,2016-05-14,1910.00,Active
+13,1,Divya,binti Ismail,Sales Assistant,Junior,"No. 58, Jalan 20/4",Kuala Lumpur,Wilayah Persekutuan,55100,1984-05-22,Female,divya.13@glowbeauty.com.my,016-2566331,2021-01-15,2100.00,Active
+14,1,Kumar,Lee,Beauty Therapist,Senior,"No. 120, Jalan 14/16",Kuala Lumpur,Wilayah Persekutuan,55100,1993-08-06,Male,kumar.14@glowbeauty.com.my,019-4737554,2016-06-26,2980.00,Active
+15,1,Lakshmi,Lim,Receptionist,Junior,"No. 14, Jalan 14/29",Kuala Lumpur,Wilayah Persekutuan,55100,1996-09-23,Female,lakshmi.15@glowbeauty.com.my,010-8796924,2017-07-16,2020.00,Active
+16,1,Ravi,a/p Rajan,Senior Therapist,Lead,"No. 111, Jalan 4/20",Kuala Lumpur,Wilayah Persekutuan,55100,1997-04-19,Male,ravi.16@glowbeauty.com.my,014-5640967,2017-07-09,3580.00,Active
+17,1,Lakshmi,a/p Rajan,Beauty Therapist,Senior,"No. 147, Jalan 6/27",Kuala Lumpur,Wilayah Persekutuan,55100,1984-10-14,Female,lakshmi.17@glowbeauty.com.my,013-6630617,2016-03-15,2700.00,Active
+18,1,Hafiz,Chong,Receptionist,Junior,"No. 61, Jalan 12/8",Kuala Lumpur,Wilayah Persekutuan,55100,1977-05-11,Male,hafiz.18@glowbeauty.com.my,016-8617086,2020-03-15,2020.00,Active
+19,1,Anitha,Ng,Sales Assistant,Junior,"No. 68, Jalan 14/17",Kuala Lumpur,Wilayah Persekutuan,55100,1993-07-27,Female,anitha.19@glowbeauty.com.my,012-7472679,2018-05-18,2200.00,Active
+20,1,Wan Nurul,binti Osman,Receptionist,Senior,"No. 64, Jalan 17/13",Kuala Lumpur,Wilayah Persekutuan,55100,1987-10-09,Female,wan.20@glowbeauty.com.my,014-3541984,2017-09-15,2220.00,Active
+21,1,Amirul,binti Rahman,Beauty Therapist,Junior,"No. 109, Jalan 20/11",Kuala Lumpur,Wilayah Persekutuan,55100,1999-12-05,Male,amirul.21@glowbeauty.com.my,013-8436168,2016-07-20,2760.00,Active
+22,1,Mohd Faiz,Goh,Receptionist,Junior,"No. 112, Jalan 6/7",Kuala Lumpur,Wilayah Persekutuan,55100,1993-11-28,Male,mohd.22@glowbeauty.com.my,017-8930261,2019-01-20,1820.00,Active
+23,1,Jia Yi,Lim,Sales Assistant,Junior,"No. 58, Jalan 19/8",Kuala Lumpur,Wilayah Persekutuan,55100,1976-10-27,Female,jia.23@glowbeauty.com.my,012-4478488,2017-04-29,2300.00,Resigned
+24,1,Nurul Huda,Yeoh,Receptionist,Senior,"No. 141, Jalan 8/1",Kuala Lumpur,Wilayah Persekutuan,55100,1991-11-23,Female,nurul.24@glowbeauty.com.my,019-4338463,2017-05-30,2330.00,Active
+25,1,Yee Ling,Chong,Cashier,Senior,"No. 190, Jalan 18/7",Kuala Lumpur,Wilayah Persekutuan,55100,1995-09-05,Female,yee.25@glowbeauty.com.my,012-8820849,2018-02-13,2020.00,Active
+26,1,Wan Nurul,a/p Rajan,Beauty Therapist,Senior,"No. 9, Jalan 16/5",Kuala Lumpur,Wilayah Persekutuan,55100,1998-07-17,Female,wan.26@glowbeauty.com.my,014-7980030,2019-01-14,2220.00,Active
+27,2,Nurul Huda,Lim,Branch Manager,Manager,"No. 172, Jalan 16/15",Petaling Jaya,Selangor,47300,1978-02-23,Female,nurul.27@glowbeauty.com.my,013-6418006,2021-05-30,5090.00,Active
+28,2,Poh Yee,a/p Rajan,Senior Therapist,Lead,"No. 174, Jalan 7/22",Petaling Jaya,Selangor,47300,1986-05-19,Female,poh.28@glowbeauty.com.my,018-5976403,2020-03-07,3860.00,Active
+29,2,Anitha,bin Hassan,Senior Therapist,Principal,"No. 89, Jalan 5/2",Petaling Jaya,Selangor,47300,1976-09-09,Female,anitha.29@glowbeauty.com.my,015-2127735,2019-06-24,3530.00,Active
+30,2,Lakshmi,bin Hassan,Beauty Therapist,Junior,"No. 26, Jalan 16/21",Petaling Jaya,Selangor,47300,1987-09-02,Female,lakshmi.30@glowbeauty.com.my,014-5299342,2018-11-11,2350.00,Active
+31,2,Kavitha,Wong,Beauty Therapist,Junior,"No. 88, Jalan 20/15",Petaling Jaya,Selangor,47300,1977-07-08,Female,kavitha.31@glowbeauty.com.my,015-2058288,2018-03-05,2520.00,Active
+32,2,Zarina,a/l Muthu,Sales Assistant,Junior,"No. 131, Jalan 14/16",Petaling Jaya,Selangor,47300,1995-03-27,Female,zarina.32@glowbeauty.com.my,016-6165637,2021-04-22,2330.00,Active
+33,2,Farah,binti Ismail,Sales Assistant,Junior,"No. 95, Jalan 18/28",Petaling Jaya,Selangor,47300,1999-05-26,Female,farah.33@glowbeauty.com.my,015-2589334,2021-09-13,2400.00,Active
+34,2,Elena,Loh,Beauty Therapist,Senior,"No. 186, Jalan 13/17",Petaling Jaya,Selangor,47300,1976-05-21,Female,elena.34@glowbeauty.com.my,014-9564665,2021-12-31,2890.00,Active
+35,2,Farah,a/l Muthu,Sales Assistant,Junior,"No. 28, Jalan 11/6",Petaling Jaya,Selangor,47300,2001-01-09,Female,farah.35@glowbeauty.com.my,013-3998232,2021-06-23,2000.00,Active
+36,2,Ravi,Tan,Beauty Therapist,Senior,"No. 144, Jalan 6/4",Petaling Jaya,Selangor,47300,1993-06-03,Male,ravi.36@glowbeauty.com.my,015-4120397,2018-05-29,2990.00,Active
+37,2,Elena,Goh,Senior Therapist,Lead,"No. 174, Jalan 5/25",Petaling Jaya,Selangor,47300,1982-04-26,Female,elena.37@glowbeauty.com.my,015-4234439,2022-05-13,3960.00,Active
+38,2,Jia Yi,a/p Rajan,Beauty Therapist,Junior,"No. 118, Jalan 3/26",Petaling Jaya,Selangor,47300,1999-10-25,Female,jia.38@glowbeauty.com.my,011-3923109,2020-10-12,2550.00,Active
+39,2,Mei Ling,Lee,Sales Assistant,Senior,"No. 160, Jalan 19/3",Petaling Jaya,Selangor,47300,1994-08-27,Female,mei.39@glowbeauty.com.my,016-8362873,2021-11-25,2030.00,Active
+40,2,Sharmila,a/l Muthu,Sales Assistant,Junior,"No. 63, Jalan 12/24",Petaling Jaya,Selangor,47300,1981-12-23,Female,sharmila.40@glowbeauty.com.my,013-3301440,2019-08-27,2390.00,Active
+41,2,Wan Nurul,Wong,Beauty Therapist,Senior,"No. 175, Jalan 6/13",Petaling Jaya,Selangor,47300,1994-11-14,Female,wan.41@glowbeauty.com.my,016-5731369,2019-10-04,2530.00,Active
+42,2,Wei Jie,Chong,Sales Assistant,Junior,"No. 89, Jalan 16/4",Petaling Jaya,Selangor,47300,1981-11-12,Male,wei.42@glowbeauty.com.my,019-3607525,2019-08-09,2270.00,Active
+43,2,Nurul Huda,Ong,Senior Therapist,Principal,"No. 189, Jalan 15/29",Petaling Jaya,Selangor,47300,1978-10-19,Female,nurul.43@glowbeauty.com.my,017-4705174,2017-11-06,3860.00,Active
+44,2,Daniel,Sim,Beauty Therapist,Senior,"No. 191, Jalan 17/12",Petaling Jaya,Selangor,47300,1982-07-01,Male,daniel.44@glowbeauty.com.my,010-4563750,2019-05-02,2870.00,Active
+45,2,Xin Yi,Goh,Receptionist,Senior,"No. 89, Jalan 17/30",Petaling Jaya,Selangor,47300,1980-10-14,Female,xin.45@glowbeauty.com.my,011-5854990,2019-09-27,1920.00,Active
+46,2,Aminah,Ng,Beauty Therapist,Junior,"No. 165, Jalan 10/15",Petaling Jaya,Selangor,47300,1995-12-16,Female,aminah.46@glowbeauty.com.my,016-6311194,2020-06-12,2950.00,Active
+47,2,Kumar,Loh,Beauty Therapist,Junior,"No. 22, Jalan 18/21",Petaling Jaya,Selangor,47300,1991-02-05,Male,kumar.47@glowbeauty.com.my,018-2269025,2021-05-12,2440.00,Active
+48,2,Suriani,a/l Subramaniam,Sales Assistant,Senior,"No. 186, Jalan 11/22",Petaling Jaya,Selangor,47300,1997-09-11,Female,suriani.48@glowbeauty.com.my,015-6127033,2018-07-03,2010.00,Active
+49,3,Tan Sze Min,Lim,Branch Manager,Manager,"No. 50, Jalan 16/7",Johor Bahru,Johor,81100,1984-04-28,Female,tan.49@glowbeauty.com.my,010-4558381,2018-01-15,5670.00,Active
+50,3,Nurin,binti Rahman,Senior Therapist,Principal,"No. 95, Jalan 11/14",Johor Bahru,Johor,81100,1999-12-17,Female,nurin.50@glowbeauty.com.my,018-3679016,2019-08-22,3970.00,Active
+51,3,Kumar,Tan,Senior Therapist,Lead,"No. 160, Jalan 12/30",Johor Bahru,Johor,81100,1996-11-22,Male,kumar.51@glowbeauty.com.my,018-9186736,2019-01-29,3940.00,Active
+52,3,Xin Yi,binti Rahman,Senior Therapist,Lead,"No. 7, Jalan 10/4",Johor Bahru,Johor,81100,1979-02-06,Female,xin.52@glowbeauty.com.my,019-7731017,2021-09-10,3420.00,Active
+53,3,Suriani,bin Hassan,Beauty Therapist,Senior,"No. 56, Jalan 11/15",Johor Bahru,Johor,81100,2000-11-02,Female,suriani.53@glowbeauty.com.my,019-8679031,2021-03-14,2740.00,Active
+54,3,Ahmad,Goh,Receptionist,Junior,"No. 163, Jalan 17/12",Johor Bahru,Johor,81100,1993-08-17,Male,ahmad.54@glowbeauty.com.my,010-6686821,2018-10-07,1850.00,Active
+55,3,Jia Yi,Cheah,Beauty Therapist,Senior,"No. 196, Jalan 5/27",Johor Bahru,Johor,81100,1991-11-23,Female,jia.55@glowbeauty.com.my,019-7998068,2019-04-04,2550.00,Resigned
+56,3,Yee Ling,binti Rahman,Sales Assistant,Senior,"No. 36, Jalan 2/13",Johor Bahru,Johor,81100,1996-11-13,Female,yee.56@glowbeauty.com.my,012-9495624,2020-04-03,2470.00,Active
+57,3,Jun Hao,Sim,Receptionist,Senior,"No. 35, Jalan 10/24",Johor Bahru,Johor,81100,1994-11-24,Male,jun.57@glowbeauty.com.my,010-6032631,2022-04-16,2290.00,Active
+58,3,Amelia,binti Rahman,Beauty Therapist,Junior,"No. 133, Jalan 7/20",Johor Bahru,Johor,81100,1986-01-28,Female,amelia.58@glowbeauty.com.my,013-6239185,2020-11-24,2240.00,Active
+59,3,Yee Ling,a/l Muthu,Beauty Therapist,Senior,"No. 181, Jalan 2/26",Johor Bahru,Johor,81100,1998-01-04,Female,yee.59@glowbeauty.com.my,019-9276757,2022-06-25,2210.00,Active
+60,3,Anitha,Yeoh,Receptionist,Junior,"No. 147, Jalan 14/3",Johor Bahru,Johor,81100,2000-09-04,Female,anitha.60@glowbeauty.com.my,010-2530017,2020-11-12,2110.00,Active
+61,3,Mei Ling,Lim,Cashier,Senior,"No. 130, Jalan 20/27",Johor Bahru,Johor,81100,1999-11-04,Female,mei.61@glowbeauty.com.my,010-9480737,2017-08-26,2000.00,Active
+62,3,Jia Yi,Lim,Cashier,Junior,"No. 52, Jalan 7/2",Johor Bahru,Johor,81100,1996-08-21,Female,jia.62@glowbeauty.com.my,014-6196287,2019-08-10,1950.00,Resigned
+63,3,Syafiq,bin Abdullah,Beauty Therapist,Junior,"No. 4, Jalan 10/29",Johor Bahru,Johor,81100,1983-10-16,Male,syafiq.63@glowbeauty.com.my,015-9235973,2022-05-09,2560.00,Active
+64,3,Kavitha,Ong,Beauty Therapist,Senior,"No. 69, Jalan 7/30",Johor Bahru,Johor,81100,1985-04-20,Female,kavitha.64@glowbeauty.com.my,017-3751196,2017-08-21,2340.00,Active
+65,3,Chong Wei,Loh,Beauty Therapist,Junior,"No. 175, Jalan 1/27",Johor Bahru,Johor,81100,2001-02-13,Male,chong.65@glowbeauty.com.my,016-4024256,2021-08-24,2710.00,Active
+66,3,Amelia,Sim,Beauty Therapist,Junior,"No. 44, Jalan 20/19",Johor Bahru,Johor,81100,1976-12-15,Female,amelia.66@glowbeauty.com.my,019-5916524,2020-03-11,2830.00,Active
+67,4,Zarina,Lim,Branch Manager,Manager,"No. 125, Jalan 3/10",George Town,Pulau Pinang,10100,1976-06-24,Female,zarina.67@glowbeauty.com.my,017-4899247,2022-04-11,5560.00,Active
+68,4,Mei Ling,binti Ismail,Senior Therapist,Lead,"No. 22, Jalan 3/2",George Town,Pulau Pinang,10100,1976-04-01,Female,mei.68@glowbeauty.com.my,015-7977819,2020-07-23,3970.00,Active
+69,4,Daniel,a/l Muthu,Senior Therapist,Lead,"No. 28, Jalan 12/1",George Town,Pulau Pinang,10100,2001-02-24,Male,daniel.69@glowbeauty.com.my,019-2438885,2021-09-29,3850.00,Active
+70,4,Li Wen,Chong,Cashier,Senior,"No. 121, Jalan 11/24",George Town,Pulau Pinang,10100,1998-11-18,Female,li.70@glowbeauty.com.my,015-4006777,2018-02-10,2120.00,Active
+71,4,Amelia,Lim,Sales Assistant,Junior,"No. 44, Jalan 6/22",George Town,Pulau Pinang,10100,1986-02-15,Female,amelia.71@glowbeauty.com.my,012-9434995,2020-07-09,1950.00,Active
+72,4,Zulkifli,Tan,Sales Assistant,Junior,"No. 114, Jalan 1/13",George Town,Pulau Pinang,10100,1978-07-01,Male,zulkifli.72@glowbeauty.com.my,010-4946033,2020-01-14,1930.00,Active
+73,4,Li Wen,binti Rahman,Beauty Therapist,Junior,"No. 155, Jalan 10/17",George Town,Pulau Pinang,10100,1980-03-01,Female,li.73@glowbeauty.com.my,014-5116503,2021-12-19,2370.00,Active
+74,4,Wan Nurul,a/l Muthu,Receptionist,Junior,"No. 171, Jalan 6/3",George Town,Pulau Pinang,10100,1977-12-09,Female,wan.74@glowbeauty.com.my,018-5255397,2020-05-03,2110.00,Active
+75,4,Anitha,a/l Muthu,Senior Therapist,Principal,"No. 149, Jalan 20/13",George Town,Pulau Pinang,10100,1987-01-21,Female,anitha.75@glowbeauty.com.my,015-3190985,2020-03-31,4160.00,Active
+76,4,Grace,Lim,Cashier,Senior,"No. 115, Jalan 14/5",George Town,Pulau Pinang,10100,1984-12-20,Female,grace.76@glowbeauty.com.my,015-8906284,2019-05-18,1980.00,Active
+77,4,Zarina,Yeoh,Senior Therapist,Principal,"No. 55, Jalan 12/7",George Town,Pulau Pinang,10100,1998-12-24,Female,zarina.77@glowbeauty.com.my,013-9060478,2020-03-01,3650.00,Active
+78,4,Elena,a/l Subramaniam,Beauty Therapist,Senior,"No. 96, Jalan 5/21",George Town,Pulau Pinang,10100,1986-11-08,Female,elena.78@glowbeauty.com.my,010-5885969,2018-11-21,2800.00,Active
+79,4,Nur Aisyah,binti Rahman,Beauty Therapist,Senior,"No. 101, Jalan 1/5",George Town,Pulau Pinang,10100,2000-08-16,Female,nur.79@glowbeauty.com.my,013-7989007,2019-02-16,2400.00,Active
+80,4,Hui Min,Goh,Sales Assistant,Junior,"No. 47, Jalan 11/12",George Town,Pulau Pinang,10100,1979-05-09,Female,hui.80@glowbeauty.com.my,013-7911272,2019-01-21,2090.00,Active
+81,4,Xin Yi,Loh,Cashier,Junior,"No. 93, Jalan 11/15",George Town,Pulau Pinang,10100,1982-02-03,Female,xin.81@glowbeauty.com.my,017-3014865,2021-09-05,2150.00,Active
+82,4,Hafiz,Wong,Beauty Therapist,Junior,"No. 151, Jalan 11/23",George Town,Pulau Pinang,10100,2000-03-17,Male,hafiz.82@glowbeauty.com.my,018-4665753,2020-06-20,2970.00,Active
+83,5,Chong Wei,bin Hassan,Branch Manager,Manager,"No. 150, Jalan 4/23",Melaka,Melaka,75000,1999-11-02,Male,chong.83@glowbeauty.com.my,010-4464071,2022-06-23,6300.00,Active
+84,5,Kumar,binti Ismail,Senior Therapist,Principal,"No. 200, Jalan 1/8",Melaka,Melaka,75000,1985-02-28,Male,kumar.84@glowbeauty.com.my,012-4602406,2021-06-22,3700.00,Active
+85,5,Anitha,Chong,Senior Therapist,Principal,"No. 22, Jalan 18/1",Melaka,Melaka,75000,1989-10-23,Female,anitha.85@glowbeauty.com.my,015-9287297,2022-04-26,4070.00,Active
+86,5,Sabrina,Tan,Sales Assistant,Senior,"No. 193, Jalan 10/22",Melaka,Melaka,75000,1987-02-17,Female,sabrina.86@glowbeauty.com.my,012-7371196,2022-03-08,2080.00,Active
+87,5,Sharmila,binti Ismail,Beauty Therapist,Senior,"No. 155, Jalan 2/30",Melaka,Melaka,75000,1995-10-12,Female,sharmila.87@glowbeauty.com.my,018-3560069,2021-03-18,2880.00,Active
+88,5,Zarina,bin Abdullah,Sales Assistant,Junior,"No. 110, Jalan 20/16",Melaka,Melaka,75000,1979-12-23,Female,zarina.88@glowbeauty.com.my,017-6693998,2022-04-22,2390.00,Active
+89,5,Elena,Wong,Beauty Therapist,Junior,"No. 50, Jalan 14/21",Melaka,Melaka,75000,2000-04-18,Female,elena.89@glowbeauty.com.my,015-6665749,2021-06-17,2290.00,Active
+90,5,Aminah,bin Abdullah,Beauty Therapist,Senior,"No. 39, Jalan 8/18",Melaka,Melaka,75000,1977-05-12,Female,aminah.90@glowbeauty.com.my,014-8494975,2018-09-01,2780.00,Active
+91,5,Yong Sheng,Yeoh,Beauty Therapist,Junior,"No. 195, Jalan 2/17",Melaka,Melaka,75000,1997-10-04,Male,yong.91@glowbeauty.com.my,012-3929229,2022-04-18,2220.00,Active
+92,5,Wan Nurul,Ng,Beauty Therapist,Junior,"No. 121, Jalan 14/20",Melaka,Melaka,75000,1999-06-07,Female,wan.92@glowbeauty.com.my,013-3684210,2019-02-18,2720.00,Active
+93,5,Divya,binti Rahman,Sales Assistant,Senior,"No. 20, Jalan 14/27",Melaka,Melaka,75000,2000-02-03,Female,divya.93@glowbeauty.com.my,019-6677551,2022-04-08,2060.00,Active
+94,5,Xin Yi,Lim,Beauty Therapist,Junior,"No. 106, Jalan 10/8",Melaka,Melaka,75000,1998-10-05,Female,xin.94@glowbeauty.com.my,015-4630912,2019-03-17,2520.00,Active
+95,5,Nurin,bin Hassan,Cashier,Senior,"No. 172, Jalan 1/11",Melaka,Melaka,75000,1997-03-28,Female,nurin.95@glowbeauty.com.my,013-4116563,2021-08-16,1880.00,Active
+96,5,Chloe,Loh,Beauty Therapist,Junior,"No. 26, Jalan 6/30",Melaka,Melaka,75000,1987-04-21,Female,chloe.96@glowbeauty.com.my,012-2193634,2020-01-31,2390.00,Active

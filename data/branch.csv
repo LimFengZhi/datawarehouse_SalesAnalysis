@@ -1,0 +1,6 @@
+br_ID,br_name,br_address_line,br_city,br_state,br_postcode,br_phone,br_email,br_open_date
+1,Glow Beauty Kuala Lumpur,"Lot 3-12, Jalan Bukit Bintang",Kuala Lumpur,Wilayah Persekutuan,55100,03-21445566,kl@glowbeauty.com.my,2016-03-15
+2,Glow Beauty Petaling Jaya,"G-08, Jalan SS2/24",Petaling Jaya,Selangor,47300,03-78765432,pj@glowbeauty.com.my,2016-09-01
+3,Glow Beauty Johor Bahru,"No. 22, Jalan Molek 1/29",Johor Bahru,Johor,81100,07-3559988,jb@glowbeauty.com.my,2017-06-20
+4,Glow Beauty George Town,"45, Lebuh Campbell",George Town,Pulau Pinang,10100,04-2618899,penang@glowbeauty.com.my,2018-01-10
+5,Glow Beauty Melaka,"12, Jalan Merdeka, Bandar Hilir",Melaka,Melaka,75000,06-2823344,melaka@glowbeauty.com.my,2018-08-05

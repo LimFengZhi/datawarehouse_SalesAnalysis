@@ -1,0 +1,53 @@
+
+SQL*Loader: Release 11.2.0.2.0 - Production on Sat Aug 15 13:29:51 2026
+
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+
+Control File:   C:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files\branch_expense.ctl
+Data File:      branch_expense.csv
+  Bad File:     branch_expense.bad
+  Discard File: branch_expense.dsc 
+ (Allow all discards)
+
+Number to load: ALL
+Number to skip: 1
+Errors allowed: 50
+Bind array:     5000 rows, maximum of 256000 bytes
+Continuation:    none specified
+Path used:      Conventional
+
+Table BRANCH_EXPENSE, loaded from every logical record.
+Insert option in effect for this table: APPEND
+TRAILING NULLCOLS option in effect
+
+   Column Name                  Position   Len  Term Encl Datatype
+------------------------------ ---------- ----- ---- ---- ---------------------
+BR_EXP_ID                           FIRST     *   ,  O(") CHARACTER            
+BR_ID                                NEXT     *   ,  O(") CHARACTER            
+BR_UTILS_ID                          NEXT     *   ,  O(") CHARACTER            
+BILLING_PERIOD                       NEXT     *   ,  O(") CHARACTER            
+PAYMENT_AMOUNT                       NEXT     *   ,  O(") CHARACTER            
+PAYMENT_DATE                         NEXT     *   ,  O(") DATE YYYY-MM-DD      
+
+value used for ROWS parameter changed from 5000 to 165
+
+Table BRANCH_EXPENSE:
+  1440 Rows successfully loaded.
+  0 Rows not loaded due to data errors.
+  0 Rows not loaded because all WHEN clauses were failed.
+  0 Rows not loaded because all fields were null.
+
+
+Space allocated for bind array:                 255420 bytes(165 rows)
+Read   buffer bytes: 1048576
+
+Total logical records skipped:          1
+Total logical records read:          1440
+Total logical records rejected:         0
+Total logical records discarded:        0
+
+Run began on Sat Aug 15 13:29:51 2026
+Run ended on Sat Aug 15 13:29:52 2026
+
+Elapsed time was:     00:00:00.19
+CPU time was:         00:00:00.04
