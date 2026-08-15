@@ -114,7 +114,10 @@ END;
 -- SECTION 4: RUN + VERIFICATION
 -- ===================================================================
 -- No argument -> the change is dated TODAY (SYSDATE).
-EXEC maintain_product_dim_scd2;
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_maintain_scd2.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC maintain_product_dim_scd2;
 
 -- Or date it to when the change ACTUALLY happened. The old version is
 -- closed the day before, the new one opens on that date:
@@ -154,7 +157,7 @@ WHERE  NOT EXISTS (SELECT 1 FROM product_dim d
 -- UPDATE product SET product_unit_price = 120.00 WHERE product_ID = 9001;
 -- COMMIT;
 -- -- No argument -> the change is dated TODAY (SYSDATE).
-EXEC maintain_product_dim_scd2;
+--   EXEC maintain_product_dim_scd2;
 
 -- Or date it to when the change ACTUALLY happened. The old version is
 -- closed the day before, the new one opens on that date:

@@ -1,5 +1,5 @@
 
-SQL*Loader: Release 11.2.0.2.0 - Production on Sat Aug 15 21:43:55 2026
+SQL*Loader: Release 11.2.0.2.0 - Production on Sat Aug 15 22:06:51 2026
 
 Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
 
@@ -43,7 +43,7 @@ ST_STATUS                            NEXT     *   ,  O(") CHARACTER
 value used for ROWS parameter changed from 5000 to 58
 
 Table STAFF:
-  96 Rows successfully loaded.
+  18 Rows successfully loaded.
   0 Rows not loaded due to data errors.
   0 Rows not loaded because all WHEN clauses were failed.
   0 Rows not loaded because all fields were null.
@@ -53,12 +53,12 @@ Space allocated for bind array:                 254388 bytes(58 rows)
 Read   buffer bytes: 1048576
 
 Total logical records skipped:          1
-Total logical records read:            96
+Total logical records read:            18
 Total logical records rejected:         0
 Total logical records discarded:        0
 
-Run began on Sat Aug 15 21:43:55 2026
-Run ended on Sat Aug 15 21:43:55 2026
+Run began on Sat Aug 15 22:06:51 2026
+Run ended on Sat Aug 15 22:06:51 2026
 
-Elapsed time was:     00:00:00.16
-CPU time was:         00:00:00.08
+Elapsed time was:     00:00:00.18
+CPU time was:         00:00:00.09

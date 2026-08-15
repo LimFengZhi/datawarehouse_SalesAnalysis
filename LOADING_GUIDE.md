@@ -1,106 +1,74 @@
-# Loading the CSVs into Oracle
+# Loading Guide
 
-Loads ~700,000 rows across 14 tables into an Oracle XE schema using SQL\*Loader.
-Takes 1–3 minutes.
+End to end, from an empty schema to a six-year warehouse.
 
-## What you have
+Two parts:
 
-```
-datawarehouseAnalysis\
-├── 01_create_operational_db.sql     the 14 CREATE TABLE statements
-├── data\                            the 14 .csv files
-└── sqlloader_control_files\         the 14 .ctl files + load_all.bat / load_all.sh
-```
+- **Part A — first build.** The OLTP tables, the 2019–2022 CSVs in [data/](data/), and the whole
+  warehouse. ~700,000 source rows.
+- **Part B — adding data2.** The 2023–2024 expansion in [data2/](data2/) *without* wiping what
+  Part A built. ~550,000 more rows, a new branch, new products, and a price rise that becomes
+  SCD Type 2 history.
 
-The `.ctl` files and the `.csv` files live in **different folders**. `load_all.bat`
-handles that for you — see step 2. It matters if you run `sqlldr` by hand.
-
-## Order of operations
-
-```
-1. @01_create_operational_db.sql     create the tables
-2. load_all.bat                      load the CSVs
-3. verify                            row counts + integrity
-4. create sequences                  only if you'll insert new rows later
-```
-
-Sequences come **last** on purpose. Every CSV already contains its own ID column, so
-you don't need them to load. You need them for rows you insert *afterwards*, and each
-must start above the highest ID already present — which you can't know until the data
-is in. Create them first and your first manual insert collides with row 1 → `ORA-00001`.
-
----
-
-## Step 1 — Create the tables
+Connect as your schema user for everything:
 
 ```
 sqlplus dwh/yourpassword@XE
 ```
 
-```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\01_create_operational_db.sql
+---
 
+## What you have
+
+```
+datawarehouseAnalysis\
+├── operationalDB\01_create_operational_db.sql    14 OLTP CREATE TABLEs
+├── create_dwh.sql                                13 warehouse tables
+├── data\                    14 CSVs, 2019-2022
+├── data2\                   14 CSVs, 2023-2024  + 99_price_increase_2023.sql
+├── sqlloader_control_files\ 14 .ctl + load_all.bat
+│
+├── initialLoading\
+│   ├── init_data_dim\   date_dim + gen_holidays.py
+│   ├── init_dimension\  the 7 source-fed dimensions
+│   └── init_fact\       the 5 fact tables  (+ 00_diagnose.sql)
+│
+├── subsequentLoading\
+│   ├── sub_dimension\   NEW dimension records only
+│   ├── maintain_SCD2\   CHANGED dimension records -> versions
+│   └── sub_fact\        new + changed fact rows
+│
+├── 00_clear_all.sql       empty the warehouse, keep the tables
+├── 99_drop_everything.sql destroy every object in the schema
+└── RUN_ALL.sql            Part A steps 3-6 in one command
+```
+
+Every `00_run_all_*.sql` runs its whole folder. The numbered files inside can also be run one at a
+time when something goes wrong.
+
+---
+
+# PART A — First build (2019–2022)
+
+## A1. Create the OLTP tables
+
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\operationalDB\01_create_operational_db.sql
 SELECT COUNT(*) FROM user_tables;    -- expect 14
 ```
 
 If you get `ORA-01950: no privileges on tablespace 'USERS'`, connect as SYSDBA and run
-`GRANT UNLIMITED TABLESPACE TO dwh;`, then try again.
+`GRANT UNLIMITED TABLESPACE TO dwh;`.
 
----
-
-## Step 2 — Load the data
+## A2. Load the 2019–2022 CSVs
 
 ```
 cd c:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files
 load_all.bat dwh yourpassword XE
 ```
 
-That's it. The script switches into `..\data` so each control file can find its CSV,
-loads all 14 tables in dependency order, and writes one `.log` per table next to itself.
-
-To load CSVs from somewhere else, pass the folder as a 4th argument:
-
-```
-load_all.bat dwh yourpassword XE "D:\my_csv_folder"
-```
-
-Linux/Mac: `./load_all.sh dwh yourpassword XE`
-
-If your password contains `&`, `^`, `%` or `@`, wrap it in double quotes or cmd will
-mangle it and you'll get `ORA-01017`.
-
-### Loading one table by hand
-
-You must be **inside the data folder** — `INFILE 'branch.csv'` in each `.ctl` is
-resolved against your current directory, not against the `.ctl` file's location:
-
-```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\data
-sqlldr dwh/yourpassword@XE control=..\sqlloader_control_files\branch.ctl log=branch.log
-```
-
-### Why the order matters
-
-`orders.cus_ID` is a foreign key to `customer.cus_ID`, and Oracle checks it on every
-row. Load `orders` first and all 161,470 rows are rejected with `ORA-02291`. Parents
-before children, always:
-
-```
-branch, supplier, product, service, branch_utils_category    no dependencies
-staff, customer                                              staff needs branch
-branch_expense, salary_payment                               need branch / utils / staff
-orders → order_detail                                        order_detail needs orders + product
-reservation → reservation_detail
-purchase                                                     needs product + branch + supplier
-```
-
-`load_all.bat` already uses this order.
-
----
-
-## Step 3 — Read the logs
-
-Each table writes `<table>.log` into `sqlloader_control_files\`. Look for:
+The script switches into `..\data` so each control file finds its CSV, then loads all 14 tables in
+dependency order. Logs land next to the script — check `branch.log` first:
 
 ```
 Table BRANCH:
@@ -108,110 +76,292 @@ Table BRANCH:
   0 Rows not loaded due to data errors.
 ```
 
-If the error count isn't 0, the rejected rows are sitting in `<table>.bad` in the
-`data\` folder — the original CSV lines, unchanged — and the log names the column and
-the `ORA-` code.
+Expect 1–3 minutes, nearly all of it in `order_detail` (349,396 rows).
 
-**Re-run only the table that failed.** The control files use `APPEND`, so re-running
-everything would double-insert the tables that already succeeded → `ORA-00001`.
+**Why the order matters.** `orders.cus_ID` is a foreign key to `customer.cus_ID`, checked on every
+row. Load `orders` before `customer` and all 161,470 rows bounce with `ORA-02291`. Parents before
+children — `load_all.bat` already does this.
 
----
-
-## Step 4 — Verify
-
-Expected row counts:
-
-| Table | Rows | | Table | Rows |
-|---|---:|---|---|---:|
-| branch | 5 | | branch_expense | 1,440 |
-| supplier | 6 | | salary_payment | 3,135 |
-| product | 43 | | orders | 161,470 |
-| service | 16 | | order_detail | 349,396 |
-| branch_utils_category | 6 | | reservation | 65,110 |
-| staff | 96 | | reservation_detail | 88,790 |
-| customer | 26,000 | | purchase | 10,615 |
+Verify:
 
 ```sql
-SELECT 'branch' t, COUNT(*) n FROM branch
-UNION ALL SELECT 'customer',     COUNT(*) FROM customer
+SELECT 'customer' t, COUNT(*) n FROM customer
 UNION ALL SELECT 'orders',       COUNT(*) FROM orders
 UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail;
+-- expect 26000 / 161470 / 349396
 ```
 
-**Check for orphans** — must return 0:
+## A3. Create the warehouse tables
 
 ```sql
-SELECT COUNT(*) FROM orders o
-WHERE NOT EXISTS (SELECT 1 FROM customer c WHERE c.cus_ID = o.cus_ID);
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\create_dwh.sql
+-- expect 13 tables: 8 dimensions + 5 facts
 ```
 
-**Check the dates parsed** — this is the one that catches a silent date-format problem:
+## A4. Date dimension, then holidays
 
 ```sql
-SELECT MIN(order_date), MAX(order_date) FROM orders;
--- expect 2019-01-01 and 2022-12-31
-
-SELECT COUNT(*) FROM reservation
-WHERE booking_date BETWEEN DATE '2021-06-01' AND DATE '2021-08-31';
--- expect 0 -- the FMCO lockdown is baked into the dataset
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim\initial_load_date_dim.sql
+-- expect 1462 rows (1,461 days + the Unknown member)
 ```
 
-**End-to-end join test:**
+Holidays are **not** automatic — every day loads with `holiday_ind = 'N'`:
+
+```
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim
+python gen_holidays.py 2019 2022 > holiday_update.sql
+```
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim\holiday_update.sql
+SELECT COUNT(*) FROM date_dim WHERE holiday_ind = 'Y';   -- must be > 0
+```
+
+## A5. Dimensions
+
+Run all seven, in order — each one is self-contained and ends with its own verification:
 
 ```sql
-SELECT TO_CHAR(o.order_date,'YYYY') yr, b.br_city,
-       ROUND(SUM(od.order_quantity * od.order_unit_price - od.order_discount),2) revenue
-FROM orders o
-JOIN order_detail od ON od.order_ID = o.order_ID
-JOIN branch b        ON b.br_ID     = o.br_ID
-WHERE o.order_status = 'Completed'
-GROUP BY TO_CHAR(o.order_date,'YYYY'), b.br_city
-ORDER BY 1, 3 DESC;
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_dimension
+```
+```sql
+@01_init_branch_dim.sql
+@02_init_branch_utils_dim.sql
+@03_init_supplier_dim.sql
+@04_init_service_dim.sql
+@05_init_product_dim.sql
+@06_init_staff_dim.sql
+@07_init_customer_dim.sql
 ```
 
-Kuala Lumpur should top every year and Melaka should be last, matching the branch
-ranking in [data/README_DATASET.md](data/README_DATASET.md).
+Expect 5 / 6 / 6 / 16 / 43 / 96 / 26,000.
+
+## A6. Facts
+
+```sql
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_fact
+```
+```sql
+@01_init_order_fact.sql
+@02_init_reservation_fact.sql
+@03_init_purchase_fact.sql
+@04_init_salary_payment_fact.sql
+@05_init_branch_expense_fact.sql
+```
+
+Expect 349,396 / 88,790 / 10,615 / 3,135 / 1,440.
+
+`order_fact` is the slow one — 349k rows joined to five dimensions. Give it a few minutes.
+
+**Steps A3–A6 in one command:** `@RUN_ALL.sql` (it clears the warehouse first, so only use it when
+that is what you want).
 
 ---
 
-## Step 5 — Sequences (only if you'll add data later)
+# PART B — Adding data2 (2023–2024)
 
-Each sequence must start above the highest existing ID. Let Oracle write the DDL:
+This appends. Nothing from Part A is deleted.
 
-```sql
-SELECT 'CREATE SEQUENCE seq_customer START WITH '||(MAX(cus_ID)+1)||
-       ' INCREMENT BY 1 NOCACHE NOCYCLE;' FROM customer;
+**Do the steps in this order.** Each one depends on the one before, and getting them out of order
+fails *silently* rather than loudly — see the note at the end of this part.
+
+## B1. Load the 2023–2024 CSVs
+
+```
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files
+load_all.bat dwh yourpassword XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\data2"
 ```
 
-Then use it explicitly, and commit — sqlplus does **not** autocommit:
+The 4th argument points the same control files at the other folder. Every file in `data2\` is named
+exactly like its counterpart in `data\` with identical headers, and every `.ctl` uses `APPEND`, so
+the rows are added to the existing tables. IDs continue from where `data\` stopped — no collisions.
+
+`supplier.log` and `branch_utils_category.log` will show **0 rows**. That is correct: those two
+files are header-only because data2 adds no new suppliers or utility categories.
+
+Verify the totals are now `data` + `data2`:
 
 ```sql
-INSERT INTO orders (order_ID, cus_ID, br_ID, st_ID, order_date, order_status)
-VALUES (seq_orders.NEXTVAL, 26001, 1, 48, DATE '2026-08-15', 'Completed');
-
-INSERT INTO order_detail (order_det_ID, order_ID, product_ID, order_quantity,
-                          order_unit_price, order_discount, order_tax)
-VALUES (seq_order_detail.NEXTVAL, seq_orders.CURRVAL, 26, 2, 58.00, 0.00, 6.96);
-
-COMMIT;
+SELECT 'branch'   t, COUNT(*) n, 6      expected FROM branch
+UNION ALL SELECT 'staff',        COUNT(*), 114    FROM staff
+UNION ALL SELECT 'product',      COUNT(*), 48     FROM product
+UNION ALL SELECT 'service',      COUNT(*), 18     FROM service
+UNION ALL SELECT 'customer',     COUNT(*), 32000  FROM customer
+UNION ALL SELECT 'orders',       COUNT(*), 290709 FROM orders
+UNION ALL SELECT 'order_detail', COUNT(*), 635340 FROM order_detail
+UNION ALL SELECT 'reservation',  COUNT(*), 119663 FROM reservation
+UNION ALL SELECT 'reservation_detail', COUNT(*), 156888 FROM reservation_detail
+UNION ALL SELECT 'purchase',       COUNT(*), 16937 FROM purchase
+UNION ALL SELECT 'salary_payment', COUNT(*), 5781  FROM salary_payment
+UNION ALL SELECT 'branch_expense', COUNT(*), 2292  FROM branch_expense;
 ```
 
-`seq_orders.CURRVAL` is the ID the previous statement just used, in your session only.
-Never use `MAX(order_ID)+1` — two sessions read the same value and one gets `ORA-00001`.
-
-Use `DATE '2026-08-15'` (an ANSI literal) rather than `'15-AUG-26'`. It always means
-`YYYY-MM-DD` regardless of your session's `NLS_DATE_FORMAT`.
-
-**If you bulk-load more CSVs later**, the sequence won't know about the new IDs. Resync it:
+## B2. Apply the 2023 price rise
 
 ```sql
--- suppose MAX(cus_ID) is now 30000 but the sequence is only at 26050
-ALTER SEQUENCE seq_customer INCREMENT BY 3950;
-SELECT seq_customer.NEXTVAL FROM dual;    -- jump the gap
-ALTER SEQUENCE seq_customer INCREMENT BY 1;
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\data2\99_price_increase_2023.sql
 ```
 
-(Oracle 11.2 has no `ALTER SEQUENCE ... RESTART` — that arrived in 12.2.)
+Seven top sellers go up, effective 2023-01-01. The data2 order lines already carry the new prices,
+so this brings the OLTP `product` table into step with them.
+
+Must run **before** B5, which turns the change into dimension history.
+
+## B3. Extend the calendar, then the holidays
+
+```sql
+EXEC load_date_dim_incremental(2024);
+SELECT COUNT(*) FROM date_dim;    -- expect 2193 (2,192 days + Unknown)
+```
+
+**This is the step people skip.** Without it `date_dim` stops at 2022-12-31 and every 2023–24
+transaction fails its date lookup and is silently dropped in B6.
+
+New years arrive with no holidays, so regenerate over the wider range:
+
+```
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim
+python gen_holidays.py 2019 2024 > holiday_update.sql
+```
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim\holiday_update.sql
+
+SELECT cal_year, COUNT(*) AS holidays FROM date_dim
+WHERE holiday_ind = 'Y' GROUP BY cal_year ORDER BY cal_year;
+-- every year 2019..2024 present, none zero
+```
+
+The generated file resets **only the years it covers**, so a partial regeneration
+(`gen_holidays.py 2023 2024`) leaves 2019–2022 untouched.
+
+## B4. New dimension records
+
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\sub_dimension\00_run_all_sub_dimensions.sql
+```
+
+Insert-new-only. Adds the Ipoh branch, its 18 staff, 5 products, 2 services and 6,000 customers.
+Nothing is updated or expired here.
+
+```sql
+SELECT 'branch_dim' t, COUNT(*) n, 6 expected FROM branch_dim
+UNION ALL SELECT 'staff_dim',    COUNT(*), 114   FROM staff_dim
+UNION ALL SELECT 'product_dim',  COUNT(*), 48    FROM product_dim
+UNION ALL SELECT 'service_dim',  COUNT(*), 18    FROM service_dim
+UNION ALL SELECT 'customer_dim', COUNT(*), 32000 FROM customer_dim;
+```
+
+## B5. SCD2 — turn the price rise into history
+
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\maintain_SCD2\00_run_all_maintain_scd2.sql
+```
+
+That runs every dimension with `SYSDATE` as the change date. For the price rise you want the **real**
+date instead, so run product on its own first:
+
+```sql
+EXEC maintain_product_dim_scd2(DATE '2023-01-01');
+-- expect 7 expired, 7 new versions
+```
+
+```sql
+SELECT product_key, product_ID, product_name, product_unit_price,
+       effective_start_date, effective_end_date, is_current_flag
+FROM   product_dim
+WHERE  product_ID IN (4, 12, 15, 16, 21, 23, 30)
+ORDER  BY product_ID, product_key;
+-- 14 rows: 7 flagged 'N' ending 2022-12-31, 7 flagged 'Y' from 2023-01-01
+```
+
+`product_dim` now holds **55 rows** — 48 current plus 7 expired. That is the point of Type 2: the
+2019–2022 order lines keep pointing at the old `product_key` and still report the old price.
+
+## B6. Facts
+
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\sub_fact\00_run_all_sub_facts.sql
+```
+
+Each script is preset to backfill all of data2:
+
+```sql
+EXEC load_order_fact_incremental(DATE '2023-01-02');   -- order_date >= 2023-01-01
+```
+
+The window has **no upper bound**, so one call from an early date loads everything after it. For a
+normal daily run, call it with no argument and it covers yesterday and today.
+
+Two steps run per fact — **insert** new rows, then **update** rows already loaded whose values
+moved. The update matters because `order_status` and `res_status` are not frozen: an order goes
+Processing → Completed, a booking goes Confirmed → No-Show. Insert-only would freeze every booking
+at Confirmed and report a no-show rate of zero forever.
+
+Verify fact equals source:
+
+```sql
+SELECT 'order_fact' t, (SELECT COUNT(*) FROM order_fact) n,
+       (SELECT COUNT(*) FROM order_detail) src FROM dual
+UNION ALL SELECT 'reservation_fact', (SELECT COUNT(*) FROM reservation_fact),
+       (SELECT COUNT(*) FROM reservation_detail) FROM dual
+UNION ALL SELECT 'purchase_fact', (SELECT COUNT(*) FROM purchase_fact),
+       (SELECT COUNT(*) FROM purchase) FROM dual
+UNION ALL SELECT 'salary_payment_fact', (SELECT COUNT(*) FROM salary_payment_fact),
+       (SELECT COUNT(*) FROM salary_payment) FROM dual
+UNION ALL SELECT 'branch_expense_fact', (SELECT COUNT(*) FROM branch_expense_fact),
+       (SELECT COUNT(*) FROM branch_expense) FROM dual;
+```
+
+Then six years of revenue:
+
+```sql
+SELECT d.cal_year,
+       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS product_rev
+FROM   order_fact f JOIN date_dim d ON d.date_key = f.date_key
+WHERE  f.order_status = 'Completed'
+GROUP  BY d.cal_year ORDER BY d.cal_year;
+-- 2020-2021 dip (lockdowns), 2022 recovers, 2023-24 grow on
+```
+
+## Why B3 before B6 — the silent failure
+
+Every fact staging view uses `INNER JOIN` to resolve its dimension keys. An unresolved key does not
+raise an error; the row is simply **dropped**. Skip B3 and all 285,944 new order lines vanish with
+no warning at all.
+
+Each procedure counts what it lost and prints a warning, and the runner's SUMMARY 2 shows which
+dimension is responsible. If a count looks wrong, that is the first place to look.
+
+---
+
+## Order of everything, at a glance
+
+```
+PART A                                     PART B
+A1  create OLTP tables                     B1  load_all.bat ... "...\data2"
+A2  load_all.bat  (data)                   B2  99_price_increase_2023.sql
+A3  create_dwh.sql                         B3  load_date_dim_incremental(2024)
+A4  date_dim + holidays                        + regenerate holidays
+A5  dimensions                             B4  sub_dimension    (new records)
+A6  facts                                  B5  maintain_SCD2    (changed records)
+                                           B6  sub_fact         (new + changed)
+```
+
+---
+
+## Three levels of reset
+
+| Script | What it does | When |
+|---|---|---|
+| `TRUNCATE TABLE order_fact;` | one fact table | a single load went wrong |
+| [00_clear_all.sql](00_clear_all.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
+| [99_drop_everything.sql](99_drop_everything.sql) | destroys every object in the schema, OLTP included | the DDL changed, or the schema is unreasonable |
+
+`00_clear_all.sql` is the one you want almost every time. `99_` costs you another full SQL\*Loader
+run over 1.2 million rows.
+
+**Dimensions need `DELETE`, not `TRUNCATE`** — Oracle blocks `TRUNCATE` on a parent table whenever
+an enabled foreign key references it, even when the child is empty (`ORA-02266`). Facts have no
+children, so `TRUNCATE` works there and is much faster.
 
 ---
 
@@ -219,68 +369,59 @@ ALTER SEQUENCE seq_customer INCREMENT BY 1;
 
 | Error | Cause | Fix |
 |---|---|---|
-| `SQL*Loader-500` / `553: file not found` | you ran `sqlldr` from the wrong folder — `INFILE` is relative to your **current directory** | `cd` into `data\` first, or just use `load_all.bat` |
+| `SQL*Loader-500` / `553: file not found` | ran `sqlldr` from the wrong folder — `INFILE` is relative to your **current directory** | use `load_all.bat`, which handles it |
 | `ORA-01017: invalid username/password` | typo, or cmd mangled a password containing `& ^ % @` | quote the password |
 | `ORA-01950: no privileges on tablespace` | user has no quota | `GRANT UNLIMITED TABLESPACE TO dwh;` as SYSDBA |
-| `ORA-02291: parent key not found` | loaded a child before its parent | follow the load order above |
-| `ORA-00001: unique constraint violated` | loaded the same table twice, or sequences created too early | `TRUNCATE` and reload; create sequences last |
-| `ORA-01861: literal does not match format string` | date format mismatch | the supplied `.ctl` files already set `DATE 'YYYY-MM-DD'` per column — check you're using them |
-| `ORA-02290: check constraint violated` | a status/gender value outside the allowed list | values are case-sensitive: `Completed`, not `complete` |
-| `ORA-12899: value too large for column` | a value longer than the column | widen the column, or check your column mapping |
-| `ORA-00942: table or view does not exist` | step 1 didn't run, or you're connected as the wrong user | re-run `01_create_operational_db.sql` as `dwh` |
+| `ORA-02291: parent key not found` | loaded a child before its parent | follow the load order |
+| `ORA-00001: unique constraint violated` | loaded the same CSV twice, or a sequence was not reset | `TRUNCATE` and reload; `00_clear_all.sql` drops the sequences |
+| `ORA-01861: literal does not match format string` | date format mismatch | the `.ctl` files already set `DATE 'YYYY-MM-DD'` per column |
+| `ORA-02290: check constraint violated` | a status or gender value outside the allowed list | values are case-sensitive: `Completed`, not `complete` |
+| `ORA-12899: value too large for column` | a value longer than the column | widen the column, or check the mapping |
+| `ORA-00942: table or view does not exist` | a step was skipped, or you are the wrong user | check the order above |
+| `ORA-02266: unique/primary keys referenced by enabled foreign keys` | `TRUNCATE` on a dimension | use `DELETE`, or `00_clear_all.sql` |
+| `PLS-00905: object ... is invalid` | the procedure compiled with errors | `SELECT line, text FROM user_errors WHERE name = '<PROC>' ORDER BY sequence;` — that shows the real message |
+| **loads 0 rows, no error** | a dimension is empty, or `date_dim` does not reach the transaction dates | run the dry-run query below |
 | `ORA-00903: invalid table name` on `ORDER` | `ORDER` is reserved in Oracle | the table is named **ORDERS** |
 
-### A note on `direct=true`
+The last two are the ones that cost the most time — a silent 0-row load is not an error, and
+`PLS-00905` deliberately hides the message you need.
 
-`sqlldr ... direct=true` is faster, but it bypasses foreign-key enforcement and can
-leave constraints in `ENABLE NOVALIDATE`. For this dataset it saves about a minute and
-costs you the integrity checking, so it isn't worth it. `load_all.bat` uses the
-conventional path with `rows=5000`, which is fast enough.
+### When a fact loads 0 rows
 
----
-
-## Reset and start over
-
-Truncate **child-first** (the reverse of load order):
+Run the exact join the procedure uses. If this returns a number but the load inserted nothing, the
+"already contains data" guard stopped it. If it returns **0**, a dimension is the problem:
 
 ```sql
-TRUNCATE TABLE order_detail;
-TRUNCATE TABLE orders;
-TRUNCATE TABLE reservation_detail;
-TRUNCATE TABLE reservation;
-TRUNCATE TABLE purchase;
-TRUNCATE TABLE salary_payment;
-TRUNCATE TABLE branch_expense;
-TRUNCATE TABLE staff;
-TRUNCATE TABLE customer;
-TRUNCATE TABLE service;
-TRUNCATE TABLE product;
-TRUNCATE TABLE supplier;
-TRUNCATE TABLE branch_utils_category;
-TRUNCATE TABLE branch;
+SELECT COUNT(*) AS would_insert
+FROM order_fact_staging_v ls
+JOIN date_dim     d ON d.cal_date   = ls.order_date
+JOIN product_dim  p ON p.product_ID = ls.product_ID AND p.is_current_flag='Y'
+JOIN customer_dim c ON c.cus_ID     = ls.cus_ID     AND c.is_current_flag='Y'
+JOIN staff_dim    s ON s.st_ID      = ls.st_ID      AND s.is_current_flag='Y'
+JOIN branch_dim   b ON b.br_ID      = ls.br_ID      AND b.is_current_flag='Y';
 ```
 
-Or disable every foreign key, load in any order, then re-enable:
+Then drop one join at a time until the count jumps — that names the culprit. Or check the usual
+suspects directly:
 
 ```sql
-BEGIN
-  FOR c IN (SELECT table_name, constraint_name FROM user_constraints
-            WHERE constraint_type = 'R') LOOP
-    EXECUTE IMMEDIATE 'ALTER TABLE '||c.table_name||
-                      ' DISABLE CONSTRAINT '||c.constraint_name;
-  END LOOP;
-END;
-/
--- ... truncate / load ...
-BEGIN
-  FOR c IN (SELECT table_name, constraint_name FROM user_constraints
-            WHERE constraint_type = 'R') LOOP
-    EXECUTE IMMEDIATE 'ALTER TABLE '||c.table_name||
-                      ' ENABLE CONSTRAINT '||c.constraint_name;
-  END LOOP;
-END;
-/
+-- does date_dim cover the transactions?
+SELECT (SELECT MAX(cal_date) FROM date_dim WHERE date_key <> 0) AS dim_last_day,
+       (SELECT MAX(order_date) FROM orders)                     AS last_order
+FROM dual;
+-- last_order after dim_last_day -> EXEC load_date_dim_incremental(2024);
+
+-- are the dimensions populated, and flagged 'Y'?
+SELECT 'customer_dim' d, COUNT(*) total,
+       SUM(CASE WHEN is_current_flag='Y' THEN 1 ELSE 0 END) current_rows
+FROM customer_dim
+UNION ALL SELECT 'product_dim', COUNT(*),
+       SUM(CASE WHEN is_current_flag='Y' THEN 1 ELSE 0 END) FROM product_dim;
 ```
 
-Re-enabling validates every existing row, so if it succeeds without error your
-referential integrity is provably clean — a free full integrity check.
+And when a procedure is invalid, this shows the message `PLS-00905` is hiding:
+
+```sql
+SELECT line, text FROM user_errors
+WHERE name = 'LOAD_ORDER_FACT_INITIAL' ORDER BY sequence;
+```

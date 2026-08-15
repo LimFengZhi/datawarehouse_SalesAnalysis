@@ -1,5 +1,5 @@
 
-SQL*Loader: Release 11.2.0.2.0 - Production on Sat Aug 15 21:43:57 2026
+SQL*Loader: Release 11.2.0.2.0 - Production on Sat Aug 15 22:06:53 2026
 
 Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
 
@@ -33,7 +33,7 @@ PAYMENT_DATE                         NEXT     *   ,  O(") DATE YYYY-MM-DD
 value used for ROWS parameter changed from 5000 to 141
 
 Table SALARY_PAYMENT:
-  3135 Rows successfully loaded.
+  2646 Rows successfully loaded.
   0 Rows not loaded due to data errors.
   0 Rows not loaded because all WHEN clauses were failed.
   0 Rows not loaded because all fields were null.
@@ -43,12 +43,12 @@ Space allocated for bind array:                 254646 bytes(141 rows)
 Read   buffer bytes: 1048576
 
 Total logical records skipped:          1
-Total logical records read:          3135
+Total logical records read:          2646
 Total logical records rejected:         0
 Total logical records discarded:        0
 
-Run began on Sat Aug 15 21:43:57 2026
-Run ended on Sat Aug 15 21:43:58 2026
+Run began on Sat Aug 15 22:06:53 2026
+Run ended on Sat Aug 15 22:06:53 2026
 
-Elapsed time was:     00:00:00.30
-CPU time was:         00:00:00.11
+Elapsed time was:     00:00:00.27
+CPU time was:         00:00:00.09

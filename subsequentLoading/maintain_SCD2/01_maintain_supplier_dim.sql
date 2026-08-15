@@ -118,29 +118,32 @@ END;
 -- SECTION 4: RUN + VERIFICATION
 -- ===================================================================
 -- No argument -> the change is dated TODAY (SYSDATE).
-EXEC maintain_supplier_dim_scd2;
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_maintain_scd2.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC maintain_supplier_dim_scd2;
 
 -- Or date it to when the change ACTUALLY happened. The old version is
 -- closed the day before, the new one opens on that date:
 --     EXEC maintain_supplier_dim_scd2(DATE '2024-07-01');
 
 -- Exactly ONE current row per natural key. Must return no rows.
-SELECT sup_ID, COUNT(*) AS current_versions
-FROM   supplier_dim
-WHERE  is_current_flag = 'Y'
-GROUP BY sup_ID HAVING COUNT(*) <> 1;
+-- SELECT sup_ID, COUNT(*) AS current_versions
+-- FROM   supplier_dim
+-- WHERE  is_current_flag = 'Y'
+-- GROUP BY sup_ID HAVING COUNT(*) <> 1;
 
--- Version history for anything that changed
-SELECT supplier_key, sup_ID, sup_name, sup_phone,
-       effective_start_date, effective_end_date, is_current_flag
-FROM   supplier_dim
-WHERE  sup_ID IN (SELECT sup_ID FROM supplier_dim
-                  GROUP BY sup_ID HAVING COUNT(*) > 1)
-ORDER BY sup_ID, supplier_key;
+-- -- Version history for anything that changed
+-- SELECT supplier_key, sup_ID, sup_name, sup_phone,
+--        effective_start_date, effective_end_date, is_current_flag
+-- FROM   supplier_dim
+-- WHERE  sup_ID IN (SELECT sup_ID FROM supplier_dim
+--                   GROUP BY sup_ID HAVING COUNT(*) > 1)
+-- ORDER BY sup_ID, supplier_key;
 
--- No expired row may still claim 9999-12-31
-SELECT COUNT(*) AS bad_end_dates FROM supplier_dim
-WHERE  is_current_flag = 'N' AND effective_end_date = DATE '9999-12-31';
--- expect 0
+-- -- No expired row may still claim 9999-12-31
+-- SELECT COUNT(*) AS bad_end_dates FROM supplier_dim
+-- WHERE  is_current_flag = 'N' AND effective_end_date = DATE '9999-12-31';
+-- -- expect 0
 
--- Re-run the EXEC above: must report 0 expired, 0 versions.
+-- -- Re-run the EXEC above: must report 0 expired, 0 versions.

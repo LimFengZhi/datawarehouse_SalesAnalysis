@@ -80,7 +80,10 @@ END;
 -- ===================================================================
 -- SECTION 4: RUN + VERIFICATION
 -- ===================================================================
-EXEC load_supplier_dim_incremental;
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_sub_dimensions.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC load_supplier_dim_incremental;
 
 -- One row per natural key. Must return no rows.
 SELECT sup_ID, COUNT(*) AS rows_per_key

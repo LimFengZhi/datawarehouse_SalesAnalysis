@@ -32,9 +32,7 @@
 -- it works from any working directory.
 --
 -- TIMING: expect a few minutes. Nearly all of it is order_fact -
--- 349,396 rows joined to 5 dimensions whose natural keys have no
--- index. Helper CREATE INDEX statements are at the bottom of
--- initialLoading\init_fact\00_run_all_facts.sql if it drags.
+-- 349,396 rows joined to 5 dimensions.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -63,14 +61,25 @@ PROMPT ##############################################
 PROMPT
 PROMPT ##############################################
 PROMPT #  STEP 3 of 4 - DIMENSIONS
+PROMPT #  expect 5 / 6 / 6 / 16 / 43 / 96 / 26000
 PROMPT ##############################################
-@@initialLoading\init_dimension\00_run_all_dimensions.sql
+@@initialLoading\init_dimension\01_init_branch_dim.sql
+@@initialLoading\init_dimension\02_init_branch_utils_dim.sql
+@@initialLoading\init_dimension\03_init_supplier_dim.sql
+@@initialLoading\init_dimension\04_init_service_dim.sql
+@@initialLoading\init_dimension\05_init_product_dim.sql
+@@initialLoading\init_dimension\06_init_staff_dim.sql
+@@initialLoading\init_dimension\07_init_customer_dim.sql
 
 PROMPT
 PROMPT ##############################################
 PROMPT #  STEP 4 of 4 - FACTS
 PROMPT ##############################################
-@@initialLoading\init_fact\00_run_all_facts.sql
+@@initialLoading\init_fact\01_init_order_fact.sql
+@@initialLoading\init_fact\02_init_reservation_fact.sql
+@@initialLoading\init_fact\03_init_purchase_fact.sql
+@@initialLoading\init_fact\04_init_salary_payment_fact.sql
+@@initialLoading\init_fact\05_init_branch_expense_fact.sql
 
 
 -- ===================================================================

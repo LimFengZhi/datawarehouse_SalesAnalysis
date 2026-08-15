@@ -118,7 +118,10 @@ END;
 -- SECTION 4: RUN + VERIFICATION
 -- ===================================================================
 -- EXEC load_salary_fact_incremental;                 -- daily
-EXEC load_salary_fact_incremental(DATE '2023-01-02'); -- backfill data2
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_sub_facts.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC load_salary_fact_incremental(DATE '2023-01-02'); -- backfill data2
 
 SELECT (SELECT COUNT(*) FROM salary_payment_fact) AS fact_rows,
        (SELECT COUNT(*) FROM salary_payment)      AS source_rows

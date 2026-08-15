@@ -132,7 +132,10 @@ END;
 -- SECTION 4: RUN + VERIFICATION
 -- ===================================================================
 -- No argument -> the change is dated TODAY (SYSDATE).
-EXEC maintain_service_dim_scd2;
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_maintain_scd2.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC maintain_service_dim_scd2;
 
 -- Or date it to when the change ACTUALLY happened. The old version is
 -- closed the day before, the new one opens on that date:

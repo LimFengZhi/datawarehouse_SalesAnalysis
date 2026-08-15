@@ -131,7 +131,10 @@ END;
 -- SECTION 4: RUN + HOLIDAYS + VERIFICATION
 -- ===================================================================
 -- Change the year to whatever you need.
-EXEC load_date_dim_incremental(2026);
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_sub_dimensions.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC load_date_dim_incremental(2026);
 
 -- ---------- HOLIDAYS FOR THE NEW YEARS ----------
 -- New days land with holiday_ind = 'N'. Regenerate the holiday file to

@@ -73,7 +73,10 @@ END;
 -- ===================================================================
 -- SECTION 4: RUN + VERIFICATION
 -- ===================================================================
-EXEC load_br_utils_dim_incremental;
+-- Procedure created above. The EXEC now lives in the folder runner
+--   00_run_all_sub_dimensions.sql
+-- so every call and its arguments sit in ONE place.
+--   EXEC load_br_utils_dim_incremental;
 
 -- One row per natural key, enforced by uq_branch_utils_nk.
 -- Must return no rows.
