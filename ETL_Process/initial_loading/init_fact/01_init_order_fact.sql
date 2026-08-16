@@ -1,0 +1,207 @@
+-- ===================================================================
+-- 01_init_order_fact.sql        ORDER_FACT
+-- Grain: one row per product line on an order  (349,396 rows in data\)
+-- Source: ORDER_DETAIL joined to ORDERS
+--
+--   SECTION 1: staging VIEW - OLTP cleansing ONLY
+--   SECTION 2: no sequence   - the PK is the degenerate order_det_ID
+--   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
+--   SECTION 4: run
+--
+-- The view never touches the dimensions: it exposes NATURAL keys
+-- (cus_ID, br_ID, st_ID, product_ID) and the raw order_date. The
+-- surrogate-key lookups live in the procedure, and the same view is
+-- reused by the incremental load in ETL_Process\subsequent_loading\sub_fact\.
+-- ===================================================================
+
+SET SERVEROUTPUT ON
+
+-- ===================================================================
+-- SECTION 1: CORE ETL TRANSFORMATION LOGIC (VIEW)
+-- OLTP cleansing only. Natural keys out, no dimension joins.
+-- ===================================================================
+CREATE OR REPLACE VIEW order_fact_staging_v AS
+SELECT
+    od.order_det_ID,                              -- degenerate dim / PK
+    o.order_ID,                                   -- degenerate dim
+
+    -- ---------- NATURAL keys, resolved to surrogates in SECTION 3 ----
+    o.cus_ID,
+    o.br_ID,
+    o.st_ID,
+    od.product_ID,
+    TRUNC(o.order_date)                            AS order_date,
+
+    -- ---------- cleansed attributes ----------
+    -- All statuses are kept (not just Completed) so the warehouse can
+    -- report cancellation and fulfilment rates. Filter in your queries.
+    CASE
+        WHEN UPPER(TRIM(o.order_status)) IN ('COMPLETED','COMPLETE','DONE')
+            THEN 'Completed'
+        WHEN UPPER(TRIM(o.order_status)) IN ('CANCELLED','CANCELED','VOID')
+            THEN 'Cancelled'
+        WHEN UPPER(TRIM(o.order_status)) IN ('PROCESSING','IN PROGRESS')
+            THEN 'Processing'
+        WHEN UPPER(TRIM(o.order_status)) IN ('PENDING','NEW')
+            THEN 'Pending'
+        WHEN o.order_status IS NULL THEN 'Pending'
+        ELSE INITCAP(TRIM(o.order_status))
+    END                                            AS clean_order_status,
+
+    -- Quantity must be at least 1 - the OLTP CHECK says > 0, but a
+    -- staging view should never assume the source honoured it.
+    CASE
+        WHEN od.order_quantity IS NULL OR od.order_quantity <= 0 THEN 1
+        WHEN od.order_quantity > 999 THEN 999
+        ELSE od.order_quantity
+    END                                            AS clean_order_qty,
+
+    CASE
+        WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
+            THEN 0
+        ELSE od.order_unit_price
+    END                                            AS clean_unit_price,
+
+    ROUND(NVL(od.order_discount, 0), 2)            AS clean_discount_amt,
+    ROUND(NVL(od.order_tax, 0), 2)                 AS clean_tax_amt,
+
+    -- ---------- derived measures ----------
+    ROUND(
+        CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
+             THEN 1 ELSE od.order_quantity END
+      * CASE WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
+             THEN 0 ELSE od.order_unit_price END, 2)
+                                                   AS order_gross_amt,
+    ROUND(
+        CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
+             THEN 1 ELSE od.order_quantity END
+      * CASE WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
+             THEN 0 ELSE od.order_unit_price END
+      - NVL(od.order_discount, 0)
+      + NVL(od.order_tax, 0), 2)                   AS order_total_amt,
+
+    -- ---------- data quality flags ----------
+    CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
+              OR od.order_quantity > 999
+         THEN 'Y' ELSE 'N' END                     AS qty_corrected,
+    CASE WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
+         THEN 'Y' ELSE 'N' END                     AS price_corrected,
+    CASE WHEN o.order_status IS NULL
+         THEN 'Y' ELSE 'N' END                     AS status_defaulted,
+    CASE WHEN od.order_discount IS NULL OR od.order_tax IS NULL
+         THEN 'Y' ELSE 'N' END                     AS money_defaulted
+
+FROM order_detail od
+JOIN orders o ON o.order_ID = od.order_ID
+-- Rows missing a key cannot be loaded at all. Excluding them HERE makes
+-- the loss explicit and countable, instead of letting a dimension join
+-- drop them silently later.
+WHERE od.order_det_ID IS NOT NULL
+  AND o.order_ID      IS NOT NULL
+  AND o.order_date    IS NOT NULL
+  AND o.cus_ID        IS NOT NULL
+  AND o.br_ID         IS NOT NULL
+  AND o.st_ID         IS NOT NULL
+  AND od.product_ID   IS NOT NULL;
+
+-- ===================================================================
+-- SECTION 2: SEQUENCE - NOT REQUIRED
+-- Facts carry no surrogate key. order_det_ID comes straight from the
+-- source and is both the primary key and a degenerate dimension.
+-- ===================================================================
+
+-- ===================================================================
+-- SECTION 3: ETL (INITIAL LOADING)
+-- This is where the natural keys become surrogate keys.
+-- ===================================================================
+CREATE OR REPLACE PROCEDURE load_order_fact_initial AS
+    v_count    NUMBER;
+    v_errors   NUMBER := 0;
+    v_orphaned NUMBER := 0;
+    v_source   NUMBER := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_count FROM order_fact;
+
+    IF v_count > 0 THEN
+        DBMS_OUTPUT.PUT_LINE('ORDER_FACT already contains data. Use '
+            || 'load_order_fact_incremental for updates.');
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_source FROM order_detail;
+
+    INSERT INTO order_fact (
+        date_key, product_key, customer_key, staff_key, branch_key,
+        order_ID, order_det_ID, order_status,
+        order_qty, order_unit_price, order_gross_amt,
+        order_discount_amt, order_tax_amt, order_total_amt
+    )
+    SELECT
+        d.date_key,
+        p.product_key,
+        c.customer_key,
+        s.staff_key,
+        b.branch_key,
+        ls.order_ID,
+        ls.order_det_ID,
+        ls.clean_order_status,
+        ls.clean_order_qty,
+        ls.clean_unit_price,
+        ls.order_gross_amt,
+        ls.clean_discount_amt,
+        ls.clean_tax_amt,
+        ls.order_total_amt
+    -- Each SCD2 join picks the version IN FORCE ON THE ORDER DATE, not
+    -- whichever version happens to be current at load time - so a
+    -- backfill after later maintenance still lands on the right version.
+    FROM order_fact_staging_v ls
+    JOIN date_dim     d ON d.cal_date   = ls.order_date
+    JOIN product_dim  p ON p.product_ID = ls.product_ID
+                       AND ls.order_date BETWEEN p.effective_start_date
+                                             AND p.effective_end_date
+    JOIN customer_dim c ON c.cus_ID     = ls.cus_ID
+                       AND ls.order_date BETWEEN c.effective_start_date
+                                             AND c.effective_end_date
+    JOIN staff_dim    s ON s.st_ID      = ls.st_ID
+                       AND ls.order_date BETWEEN s.effective_start_date
+                                             AND s.effective_end_date
+    JOIN branch_dim   b ON b.br_ID      = ls.br_ID
+                       AND ls.order_date BETWEEN b.effective_start_date
+                                             AND b.effective_end_date;
+
+    v_count := SQL%ROWCOUNT;
+
+    -- How many rows the cleansing had to repair
+    SELECT COUNT(*) INTO v_errors
+    FROM   order_fact_staging_v
+    WHERE  qty_corrected = 'Y' OR price_corrected = 'Y'
+       OR  status_defaulted = 'Y' OR money_defaulted = 'Y';
+
+    -- How many source rows never made it, for any reason
+    v_orphaned := v_source - v_count;
+
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('ORDER_FACT initial load completed:');
+    DBMS_OUTPUT.PUT_LINE(' - Records inserted        : ' || v_count);
+    DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);
+    DBMS_OUTPUT.PUT_LINE(' - Source rows not loaded  : ' || v_orphaned);
+
+    IF v_orphaned <> 0 THEN
+        DBMS_OUTPUT.PUT_LINE('*** WARNING: a dimension lookup failed for '
+            || 'those rows. Run the orphan checks in SECTION 4.');
+    END IF;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error in ORDER_FACT initial load: '
+            || SQLERRM);
+        RAISE;
+END;
+/
+
+-- ===================================================================
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
+-- ===================================================================
+EXEC load_order_fact_initial;
