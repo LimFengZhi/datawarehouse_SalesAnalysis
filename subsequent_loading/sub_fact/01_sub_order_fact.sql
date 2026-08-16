@@ -156,11 +156,3 @@ EXCEPTION
         RAISE;
 END;
 /
-
--- ===================================================================
--- SECTION 4: RUN + VERIFICATION - moved out
--- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
---   daily:    EXEC load_order_fact_incremental;
---   backfill: EXEC load_order_fact_incremental(DATE '2023-01-01');
--- Verification queries live in ..\validate_subsequent_loading.sql
--- ===================================================================

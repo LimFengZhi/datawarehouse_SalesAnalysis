@@ -4,7 +4,6 @@
 --   SECTION 1: no new view - reuses supplier_staging_v
 --   SECTION 2: no new sequence - reuses seq_supplier_key
 --   SECTION 3: PROCEDURE - insert new records only
---   SECTION 4: run + verification
 --
 -- SCOPE: NEW RECORDS ONLY. A supplier that exists in the OLTP but not
 -- in the dimension gets a surrogate key and is added. Nothing is ever
@@ -70,9 +69,3 @@ EXCEPTION
         RAISE;
 END;
 /
-
--- ===================================================================
--- SECTION 4: RUN + VERIFICATION - moved out
--- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
--- Verification queries live in ..\validate_subsequent_loading.sql
--- ===================================================================

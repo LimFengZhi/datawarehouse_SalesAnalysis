@@ -75,9 +75,3 @@ EXCEPTION
         RAISE;
 END;
 /
-
--- ===================================================================
--- SECTION 4: RUN + VERIFICATION - moved out
--- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
--- Verification queries live in ..\validate_subsequent_loading.sql
--- ===================================================================

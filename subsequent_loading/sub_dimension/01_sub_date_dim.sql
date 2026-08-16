@@ -118,17 +118,3 @@ EXCEPTION
         RAISE;
 END;
 /
-
--- ===================================================================
--- SECTION 4: RUN + VERIFICATION - moved out
--- The EXECs live in execute_sub_procedure.sql (data2, 2023-2024) and
--- execute_sub2.sql (data3, 2025).
--- Verification queries live in ..\validate_subsequent_loading.sql
---
--- HOLIDAYS: new days land with holiday_ind = 'N'. After extending the
--- calendar, regenerate and run the holiday file:
---     cd initial_loading\init_data_dim
---     python gen_holidays.py 2019 <last year> > holiday_update.sql
---     @holiday_update.sql
--- The generated file resets ONLY the years it covers.
--- ===================================================================
