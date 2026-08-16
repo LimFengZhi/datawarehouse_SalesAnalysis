@@ -112,11 +112,3 @@ EXCEPTION
         RAISE;
 END;
 /
-
--- ===================================================================
--- SECTION 4: RUN + VERIFICATION - moved out
--- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
--- Pass p_effective_date as the date the change ACTUALLY happened,
--- e.g. EXEC maintain_supplier_dim_scd2(DATE '2025-01-01');
--- Verification queries live in ..\validate_subsequent_loading.sql
--- ===================================================================

@@ -95,3 +95,5 @@ credentials*.txt
 # (without deleting it from disk) with:
 #   git rm --cached <path>
 # ===================================================================
+
+CLAUDE.md

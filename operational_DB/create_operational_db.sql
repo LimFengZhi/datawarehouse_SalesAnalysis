@@ -1,17 +1,5 @@
 -- ============================================================
 -- DWH Assignment - Operational Database (OLTP)
--- Oracle SQL*Plus - CREATE TABLE script
--- Naming convention: table prefix + snake_case
---   Branch->br_, Staff->st_, Customer->cus_, Product->product_,
---   Purchase->purchase_, Supplier->sup_, Service->serv_,
---   Order->order_, OrderDetail->order_det_,
---   Reservation->res_, ReservationDetail->res_det_,
---   Salary_Payment->sal_pay_, Branch_Expense->br_exp_,
---   Branch_Utils_Category->br_utils_
--- NOTE: "ORDER" is a reserved word in Oracle, so the table
---       is named ORDERS.
--- Run order = dependency order (parents before children).
--- To wipe everything, use drop_all.sql.
 -- ============================================================
 
 -- ============================================================
