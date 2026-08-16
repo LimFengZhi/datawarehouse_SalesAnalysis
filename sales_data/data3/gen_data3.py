@@ -8,7 +8,7 @@ Writes CSVs into this folder, named EXACTLY like the originals in
 data\\ and data2\\ so the existing SQL*Loader control files load them
 unchanged:
 
-    load_all.bat dwh <password> XE "c:\\...\\datawarehouseAnalysis\\data3"
+    load_all.bat dwh <password> XE "c:\\...\\sales_data\\data3"
 
 Every .ctl uses APPEND and every ID continues from where data2\\
 stopped, so nothing collides.

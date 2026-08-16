@@ -7,7 +7,7 @@
 -- *******************************************************************
 --
 -- Usage:
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\clear_dwh.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\dwh\clear_dwh.sql
 --
 -- WHAT IT CLEARS
 --   - all 5 fact tables
@@ -147,6 +147,6 @@ ORDER BY 1;
 -- TRUNCATE TABLE branch;
 --
 -- Then reload:
---   cd sqlloader_control_files
+--   cd operational_DB\sqlloader_control_files
 --   load_all.bat dwh <password> XE
 -- ===================================================================

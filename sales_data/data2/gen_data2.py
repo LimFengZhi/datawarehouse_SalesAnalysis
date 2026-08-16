@@ -7,7 +7,7 @@ Generates the 2023-2024 expansion dataset for Glow Beauty.
 Writes CSVs into this folder, named EXACTLY like the originals in
 data\\ so the existing SQL*Loader control files load them unchanged:
 
-    load_all.bat dwh <password> XE "c:\\...\\datawarehouseAnalysis\\data2"
+    load_all.bat dwh <password> XE "c:\\...\\sales_data\\data2"
 
 Every .ctl uses APPEND and every ID continues from where data\\ stopped,
 so nothing collides.

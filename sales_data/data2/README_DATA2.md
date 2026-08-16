@@ -9,8 +9,8 @@ Regenerate at any time with `python gen_data2.py` (seeded, so output is identica
 ## Loading it
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files
-load_all.bat dwh <password> XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\data2"
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\sqlloader_control_files
+load_all.bat dwh <password> XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\sales_data\data2"
 ```
 
 The 4th argument points the same control files at this folder. All 14 `.ctl` files use `APPEND`,
@@ -135,14 +135,14 @@ against the orders that actually paid each one.
 ## Full load order
 
 ```
-1.  load_all.bat dwh <pw> XE "...\data2"              append the new source rows
-2.  @data2\99_price_increase_2023.sql                 raise the 7 prices in the OLTP
-3.  run the 19 numbered subsequent_loading scripts    create the procedures (once)
-4.  @subsequent_loading\execute_sub_procedure.sql     calendar to 2024, new dimension
+1.  load_all.bat dwh <pw> XE "...\sales_data\data2"  append the new source rows
+2.  @sales_data\data2\99_price_increase_2023.sql                 raise the 7 prices in the OLTP
+3.  run the 19 numbered ETL_Process\subsequent_loading scripts    create the procedures (once)
+4.  @ETL_Process\subsequent_loading\execute_sub_procedure.sql     calendar to 2024, new dimension
                                                       records, SCD2 versions, facts
 5.  python gen_holidays.py 2019 2024 > holiday_update.sql
     @holiday_update.sql                               holidays for the new years
-6.  @subsequent_loading\validate_subsequent_loading.sql
+6.  @ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 ```
 
 See LOADING_GUIDE.md Part B for the full walk-through.

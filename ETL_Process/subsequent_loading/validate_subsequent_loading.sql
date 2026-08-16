@@ -4,7 +4,7 @@
 -- execute_sub_procedure.sql (data2, 2023-2024) or execute_sub2.sql
 -- (data3, 2025):
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\validate_subsequent_loading.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 --
 -- The checks compare the warehouse against the OLTP, so the same file
 -- works after ANY load - no hard-coded row counts except where a

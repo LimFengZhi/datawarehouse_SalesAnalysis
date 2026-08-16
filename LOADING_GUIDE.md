@@ -4,11 +4,11 @@ End to end, from an empty schema to a six-year warehouse.
 
 Two parts:
 
-- **Part A — first build.** The OLTP tables, the 2019–2022 CSVs in [data/](data/), and the whole
-  warehouse. ~700,000 source rows.
-- **Part B — adding data2.** The 2023–2024 expansion in [data2/](data2/) *without* wiping what
-  Part A built. ~550,000 more rows, a new branch, new products, and a price rise that becomes
-  SCD Type 2 history.
+- **Part A — first build.** The OLTP tables, the 2019–2022 CSVs in
+  [sales_data/data/](sales_data/data/), and the whole warehouse. ~700,000 source rows.
+- **Part B — adding data2.** The 2023–2024 expansion in [sales_data/data2/](sales_data/data2/)
+  *without* wiping what Part A built. ~550,000 more rows, a new branch, new products, and a price
+  rise that becomes SCD Type 2 history.
 
 Connect as your schema user for everything:
 
@@ -22,33 +22,42 @@ sqlplus dwh/yourpassword@XE
 
 ```
 datawarehouseAnalysis\
-├── operational_DB\01_create_operational_db.sql   14 OLTP CREATE TABLEs
-├── create_dwh.sql                                13 warehouse tables
-├── data\                    14 CSVs, 2019-2022
-├── data2\                   14 CSVs, 2023-2024  + 99_price_increase_2023.sql
-├── data3\                   14 CSVs, 2025       + 99_price_change_2025.sql
-├── sqlloader_control_files\ 14 .ctl + load_all.bat
+├── operational_DB\                     THE SOURCE SYSTEM (OLTP)
+│   ├── create_operational_db.sql           14 CREATE TABLEs
+│   └── sqlloader_control_files\            14 .ctl + load_all.bat
 │
-├── initial_loading\
-│   ├── init_data_dim\   date_dim + gen_holidays.py
-│   ├── init_dimension\  the 7 source-fed dimensions
-│   ├── init_fact\       the 5 fact tables
-│   └── validate_initial_loading.sql     all Part A checks
+├── sales_data\                         THE RAW CSVs
+│   ├── data\      14 CSVs, 2019-2022
+│   ├── data2\     14 CSVs, 2023-2024  + 99_price_increase_2023.sql
+│   └── data3\     14 CSVs, 2025       + 99_price_change_2025.sql
 │
-├── subsequent_loading\
-│   ├── sub_dimension\   NEW dimension records only     (create-only)
-│   ├── maintain_SCD2\   CHANGED records -> versions    (create-only)
-│   ├── sub_fact\        new + changed fact rows        (create-only)
-│   ├── execute_sub_procedure.sql        RUNS the data2 load (2023-24)
-│   ├── execute_sub2.sql                 RUNS the data3 load (2025)
-│   └── validate_subsequent_loading.sql  all Part B checks
+├── dwh\                                THE WAREHOUSE SCHEMA
+│   ├── create_dwh.sql                      13 tables: 8 dims + 5 facts
+│   └── clear_dwh.sql                       empty it, keep the tables
 │
-├── clear_dwh.sql          empty the warehouse, keep the tables
-└── drop_all.sql           destroy every object in the schema
+├── ETL_Process\                        THE ETL
+│   ├── initial_loading\
+│   │   ├── init_data_dim\   date_dim + gen_holidays.py
+│   │   ├── init_dimension\  the 7 source-fed dimensions
+│   │   ├── init_fact\       the 5 fact tables
+│   │   └── validate_initial_loading.sql     all Part A checks
+│   └── subsequent_loading\
+│       ├── sub_dimension\   NEW dimension records only     (create-only)
+│       ├── maintain_SCD2\   CHANGED records -> versions    (create-only)
+│       ├── sub_fact\        new + changed fact rows        (create-only)
+│       ├── execute_sub_procedure.sql        RUNS the data2 load (2023-24)
+│       ├── execute_sub2.sql                 RUNS the data3 load (2025)
+│       └── validate_subsequent_loading.sql  all Part B checks
+│
+├── analysis\                           reporting queries
+└── drop_all.sql                        destroy every object in the schema
 ```
 
 The numbered `subsequent_loading` scripts only CREATE views and procedures — the `execute_*` files
 run them. The `initial_loading` scripts create **and run** their own procedure.
+
+Paths below are written in full from `c:\Users\laoli\Downloads\datawarehouseAnalysis\`. If you
+keep the repo elsewhere, swap that prefix.
 
 ---
 
@@ -57,7 +66,7 @@ run them. The `initial_loading` scripts create **and run** their own procedure.
 ## A1. Create the OLTP tables
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\01_create_operational_db.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\create_operational_db.sql
 SELECT COUNT(*) FROM user_tables;    -- expect 14
 ```
 
@@ -67,13 +76,14 @@ If you get `ORA-01950: no privileges on tablespace 'USERS'`, connect as SYSDBA a
 ## A2. Load the 2019–2022 CSVs
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\sqlloader_control_files
 load_all.bat dwh yourpassword XE
 ```
 
-The script switches into `..\data` so each control file finds its CSV, then loads all 14 tables in
-dependency order. Logs land next to the script, **suffixed with the data folder** so a later run
-against `data2\` doesn't overwrite them — check `branch_data.log` first:
+With no 4th argument the script defaults to `..\..\sales_data\data`. It switches into that folder
+so each control file finds its CSV, then loads all 14 tables in dependency order. Logs land next to
+the script, **suffixed with the data folder** so a later run against `data2\` doesn't overwrite
+them — check `branch_data.log` first:
 
 ```
 Table BRANCH:
@@ -99,25 +109,25 @@ UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail;
 ## A3. Create the warehouse tables
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\create_dwh.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\dwh\create_dwh.sql
 -- expect 13 tables: 8 dimensions + 5 facts
 ```
 
 ## A4. Date dimension, then holidays
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim\initial_load_date_dim.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
 -- expect 1462 rows (1,461 days + the Unknown member)
 ```
 
 Holidays are **not** automatic — every day loads with `holiday_ind = 'N'`:
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim
 python gen_holidays.py 2019 2022 > holiday_update.sql
 ```
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
 SELECT COUNT(*) FROM date_dim WHERE holiday_ind = 'Y';   -- must be > 0
 ```
 
@@ -126,7 +136,7 @@ SELECT COUNT(*) FROM date_dim WHERE holiday_ind = 'Y';   -- must be > 0
 Run all seven, in order — each one creates its staging view, sequence and procedure, then runs it:
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_dimension
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_dimension
 ```
 ```sql
 @01_init_branch_dim.sql
@@ -143,7 +153,7 @@ Expect 5 / 6 / 6 / 16 / 43 / 96 / 26,000.
 ## A6. Facts
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_fact
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_fact
 ```
 ```sql
 @01_init_order_fact.sql
@@ -163,7 +173,7 @@ One script runs every Part A check — row counts, orphans, duplicate keys, fail
 lookups, measure arithmetic and the COVID/revenue patterns:
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\validate_initial_loading.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\validate_initial_loading.sql
 ```
 
 Every check labelled "must be 0" that comes back non-zero tells you exactly which table and which
@@ -181,8 +191,8 @@ fails *silently* rather than loudly — see the note at the end of this part.
 ## B1. Load the 2023–2024 CSVs
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files
-load_all.bat dwh yourpassword XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\data2"
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\sqlloader_control_files
+load_all.bat dwh yourpassword XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\sales_data\data2"
 ```
 
 The 4th argument points the same control files at the other folder. Every file in `data2\` is named
@@ -216,7 +226,7 @@ UNION ALL SELECT 'branch_expense', COUNT(*), 2292  FROM branch_expense;
 ## B2. Apply the 2023 price rise
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\data2\99_price_increase_2023.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\sales_data\data2\99_price_increase_2023.sql
 ```
 
 Seven top sellers go up, effective 2023-01-01. The data2 order lines already carry the new prices,
@@ -230,7 +240,7 @@ The `subsequent_loading` numbered scripts are **create-only** — each defines o
 executes nothing. Run all 19 once, in any order:
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading
 ```
 ```sql
 @sub_dimension\01_sub_date_dim.sql
@@ -259,7 +269,7 @@ Already ran them for an earlier load? Skip this step — the procedures are stil
 ## B4. Run the whole load
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\execute_sub_procedure.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\execute_sub_procedure.sql
 ```
 
 One file does everything, in the only safe order:
@@ -285,11 +295,11 @@ dimension keys. An unresolved key does not raise an error — the row is silentl
 The 2023–24 days arrive with `holiday_ind = 'N'`, so regenerate over the wider range:
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim
 python gen_holidays.py 2019 2024 > holiday_update.sql
 ```
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
 
 SELECT cal_year, COUNT(*) AS holidays FROM date_dim
 WHERE holiday_ind = 'Y' GROUP BY cal_year ORDER BY cal_year;
@@ -302,7 +312,7 @@ The generated file resets **only the years it covers**, so a partial regeneratio
 ## B6. Validate everything
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\validate_subsequent_loading.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 ```
 
 Covers calendar continuity, dimension coverage, SCD2 integrity (one current row per key, no
@@ -311,9 +321,11 @@ business patterns. Every "must be 0" that is not 0 names the table to investigat
 
 ## Loading data3 (2025) later
 
-Same pattern, different file: load the `data3\` CSVs with `load_all.bat ... "...\data3"`, apply
-`data3\99_price_change_2025.sql`, then run `execute_sub2.sql` and regenerate holidays to 2025.
-The procedures from B3 are reused as-is.
+Same pattern, different file: load the CSVs with
+`load_all.bat ... "...\sales_data\data3"`, apply
+[sales_data/data3/99_price_change_2025.sql](sales_data/data3/99_price_change_2025.sql), then run
+[ETL_Process/subsequent_loading/execute_sub2.sql](ETL_Process/subsequent_loading/execute_sub2.sql)
+and regenerate holidays to 2025. The procedures from B3 are reused as-is.
 
 ---
 
@@ -321,9 +333,9 @@ The procedures from B3 are reused as-is.
 
 ```
 PART A                                     PART B
-A1  create OLTP tables                     B1  load_all.bat ... "...\data2"
-A2  load_all.bat  (data)                   B2  99_price_increase_2023.sql
-A3  create_dwh.sql                         B3  create the 19 procedures (once)
+A1  create_operational_db.sql              B1  load_all.bat ... "...\sales_data\data2"
+A2  load_all.bat  (sales_data\data)        B2  99_price_increase_2023.sql
+A3  dwh\create_dwh.sql                     B3  create the 19 procedures (once)
 A4  date_dim + holidays                    B4  execute_sub_procedure.sql
 A5  dimensions                             B5  regenerate holidays to 2024
 A6  facts                                  B6  validate_subsequent_loading.sql
@@ -337,7 +349,7 @@ A7  validate_initial_loading.sql
 | Script | What it does | When |
 |---|---|---|
 | `TRUNCATE TABLE order_fact;` | one fact table | a single load went wrong |
-| [clear_dwh.sql](clear_dwh.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
+| [dwh/clear_dwh.sql](dwh/clear_dwh.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
 | [drop_all.sql](drop_all.sql) | destroys every object in the schema, OLTP included | the DDL changed, or the schema is unreasonable |
 
 `clear_dwh.sql` is the one you want almost every time. `drop_all.sql` costs you another full

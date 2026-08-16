@@ -10,8 +10,8 @@ Regenerate at any time with `python gen_data3.py` (seeded, so output is identica
 ## Loading it
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\sqlloader_control_files
-load_all.bat dwh <password> XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\data3"
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\sqlloader_control_files
+load_all.bat dwh <password> XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\sales_data\data3"
 ```
 
 ## What is NEW in 2025
@@ -139,12 +139,12 @@ bonus in **March** this year (following the festival). Salaries up 4% on 2024; r
 ## Loading order
 
 ```
-1.  load_all.bat dwh <pw> XE "...\data3"
-2.  @data3\99_price_change_2025.sql
-3.  @subsequent_loading\execute_sub2.sql              already set to 2025 throughout
+1.  load_all.bat dwh <pw> XE "...\sales_data\data3"
+2.  @sales_data\data3\99_price_change_2025.sql
+3.  @ETL_Process\subsequent_loading\execute_sub2.sql              already set to 2025 throughout
 4.  python gen_holidays.py 2019 2025 > holiday_update.sql
     @holiday_update.sql
-5.  @subsequent_loading\validate_subsequent_loading.sql
+5.  @ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 ```
 
 Step 2 matters: the maintain procedures compare the dimension against the OLTP, so the 2025 prices

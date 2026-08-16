@@ -2,7 +2,7 @@
 -- execute_sub2.sql
 -- RUNS the subsequent load for DATA3 (2025). Creates nothing.
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\execute_sub2.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\execute_sub2.sql
 --
 -- ===================================================================
 -- HOW THIS DIFFERS FROM execute_sub_procedure.sql
@@ -28,10 +28,10 @@
 --   1. the 19 numbered scripts have been run at least once, so the
 --      procedures exist  (STEP 0 below checks)
 --   2. the data3 CSVs are loaded into the OLTP
---        cd sqlloader_control_files
---        load_all.bat dwh <password> XE "...\datawarehouseAnalysis\data3"
+--        cd operational_DB\sqlloader_control_files
+--        load_all.bat dwh <password> XE "...\sales_data\data3"
 --   3. the 2025 price changes are applied to the OLTP
---        @data3\99_price_change_2025.sql
+--        @sales_data\data3\99_price_change_2025.sql
 --
 --   Step 3 must come BEFORE this file. The maintain procedures compare
 --   the dimension against the OLTP, so the OLTP has to carry the new
@@ -105,7 +105,7 @@ EXEC load_date_dim_incremental(2025);
 
 -- The new 2025 days arrive with holiday_ind = 'N'. AFTER this file
 -- finishes, regenerate and apply the holiday file:
---     cd initial_loading\init_data_dim
+--     cd ETL_Process\initial_loading\init_data_dim
 --     python gen_holidays.py 2019 2025 > holiday_update.sql
 --     @holiday_update.sql
 

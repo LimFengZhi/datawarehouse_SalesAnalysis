@@ -2,7 +2,7 @@
 -- execute_sub_procedure.sql
 -- RUNS the whole subsequent load. Creates nothing.
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\execute_sub_procedure.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\execute_sub_procedure.sql
 --
 -- ===================================================================
 -- BEFORE YOU RUN THIS
@@ -53,12 +53,13 @@
 -- ===================================================================
 -- PREREQUISITES
 -- ===================================================================
---   1. the warehouse is already built from data\  (LOADING_GUIDE.md)
+--   1. the warehouse is already built from sales_data\data\
+--      (see LOADING_GUIDE.md Part A)
 --   2. the data2 CSVs are loaded into the OLTP
---        cd sqlloader_control_files
---        load_all.bat dwh <password> XE "...\datawarehouseAnalysis\data2"
+--        cd operational_DB\sqlloader_control_files
+--        load_all.bat dwh <password> XE "...\sales_data\data2"
 --   3. the 2023 price rise is applied to the OLTP
---        @data2\99_price_increase_2023.sql
+--        @sales_data\data2\99_price_increase_2023.sql
 --
 --   Step 3 must come BEFORE this file. maintain_SCD2 compares the
 --   dimension against the OLTP, so the OLTP has to carry the new
@@ -137,7 +138,7 @@ EXEC load_date_dim_incremental(2024);
 
 -- The new 2023-2024 days arrive with holiday_ind = 'N'. AFTER this
 -- file finishes, regenerate and apply the holiday file:
---     cd initial_loading\init_data_dim
+--     cd ETL_Process\initial_loading\init_data_dim
 --     python gen_holidays.py 2019 2024 > holiday_update.sql
 --     @holiday_update.sql
 

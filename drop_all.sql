@@ -242,27 +242,27 @@ FROM   user_segments;
 -- REBUILDING FROM NOTHING
 -- ===================================================================
 -- 1. operational tables
---      @operational_DB\01_create_operational_db.sql
+--      @operational_DB\create_operational_db.sql
 --
 -- 2. the CSVs - data first, then data2 / data3
---      cd sqlloader_control_files
+--      cd operational_DB\sqlloader_control_files
 --      load_all.bat dwh <password> XE
---      load_all.bat dwh <password> XE "c:\...\datawarehouseAnalysis\data2"
+--      load_all.bat dwh <password> XE "c:\...\sales_data\data2"
 --
 -- 3. warehouse tables
---      @create_dwh.sql
+--      @dwh\create_dwh.sql
 --
 -- 4. date dimension, then holidays
---      @initial_loading\init_data_dim\initial_load_date_dim.sql
---      (cd initial_loading\init_data_dim
+--      @ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
+--      (cd ETL_Process\initial_loading\init_data_dim
 --       python gen_holidays.py 2019 2022 > holiday_update.sql)
---      @initial_loading\init_data_dim\holiday_update.sql
+--      @ETL_Process\initial_loading\init_data_dim\holiday_update.sql
 --
 -- 5. dimensions - run the seven init_dimension scripts 01..07
 --
 -- 6. facts - run the five init_fact scripts 01..05
 --
--- 7. check it all with initial_loading\validate_initial_loading.sql
+-- 7. check it with ETL_Process\initial_loading\validate_initial_loading.sql
 --
 -- Then follow LOADING_GUIDE.md Part B for data2 / data3.
 -- ===================================================================

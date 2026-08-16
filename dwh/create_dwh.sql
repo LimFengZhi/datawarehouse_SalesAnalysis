@@ -3,7 +3,7 @@
 -- Data Warehouse - Star Schema (Oracle)
 --
 -- Run order: operational DB -> load CSVs -> this file
---            -> initial_loading\
+--            -> ETL_Process\initial_loading\
 -- ============================================================
 
 -- ############################################################

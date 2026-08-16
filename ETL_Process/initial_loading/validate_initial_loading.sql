@@ -4,7 +4,7 @@
 -- Run AFTER initial_load_date_dim.sql + holiday_update.sql, the seven
 -- init_dimension scripts and the five init_fact scripts:
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\validate_initial_loading.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\validate_initial_loading.sql
 --
 -- Every "expect 0" query is an integrity check - a non-zero result
 -- means something is wrong. The other queries are eyeball checks

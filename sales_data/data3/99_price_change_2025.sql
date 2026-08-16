@@ -26,9 +26,9 @@
 --   AFTER loading data3 (the CSVs carry the new prices), and BEFORE
 --   the SCD2 maintenance run.
 --
---       1. load_all.bat dwh <pw> XE "...\data3"
---       2. @data3\99_price_change_2025.sql          <- you are here
---       3. @subsequent_loading\execute_sub2.sql
+--       1. load_all.bat dwh <pw> XE "...\sales_data\data3"
+--       2. @sales_data\data3\99_price_change_2025.sql     <- you are here
+--       3. @ETL_Process\subsequent_loading\execute_sub2.sql
 --          (already set to 2025 - see the bottom of this file)
 -- ===================================================================
 
@@ -84,7 +84,7 @@ ORDER  BY serv_ID;
 -- ===================================================================
 -- NEXT: turn the change into dimension history
 -- ===================================================================
--- Run subsequent_loading\execute_sub2.sql - it already carries the
+-- Run ETL_Process\subsequent_loading\execute_sub2.sql - it carries the
 -- 2025 dates:
 --
 --   EXEC load_date_dim_incremental(2025);
