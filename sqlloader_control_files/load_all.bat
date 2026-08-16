@@ -38,22 +38,35 @@ IF NOT EXIST "%DATA%\branch.csv" (
     EXIT /B 1
 )
 
+REM ---- folder NAME only, e.g. "data2". A trailing backslash would make
+REM ---- %%~nxI come back empty, so strip it first.
+IF "%DATA:~-1%"=="\" SET DATA=%DATA:~0,-1%
+FOR %%I IN ("%DATA%") DO SET DNAME=%%~nxI
+
 ECHO Control files : %CTL%
 ECHO CSV folder    : %DATA%
+ECHO Log suffix    : _%DNAME%
 ECHO.
 
 PUSHD "%DATA%"
 
 FOR %%T IN (branch supplier product service branch_utils_category staff customer branch_expense salary_payment orders order_detail reservation reservation_detail purchase) DO (
     ECHO Loading %%T ...
-    sqlldr %U%/%P%@%DB% control="%CTL%%%T.ctl" log="%CTL%%%T.log" rows=5000
-    IF ERRORLEVEL 1 ECHO    *** %%T reported errors - check %%T.log
+    REM SQL*Loader only WRITES a .bad when a row is rejected - it never
+    REM clears an old one. Delete it first, so a .bad existing after
+    REM this run always means THIS run rejected rows.
+    IF EXIST "%%T.bad" DEL /Q "%%T.bad"
+    sqlldr %U%/%P%@%DB% control="%CTL%%%T.ctl" log="%CTL%%%T_%DNAME%.log" rows=5000
+    IF ERRORLEVEL 1 ECHO    *** %%T reported errors - check %%T_%DNAME%.log
 )
 
 POPD
 
 ECHO.
 ECHO Done. Logs are in %CTL%
-ECHO Check each .log for "Rows successfully loaded".
+ECHO   named ^<table^>_%DNAME%.log, so loading another folder does not
+ECHO   overwrite this run's logs.
+ECHO Check each for "Rows successfully loaded".
 ECHO Rejected rows (if any) land in .bad files in %DATA%
+ECHO   - no .bad file means nothing was rejected.
 PAUSE

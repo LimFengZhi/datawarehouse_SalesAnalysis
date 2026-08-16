@@ -32,8 +32,12 @@ if [ ! -f "$DATA/branch.csv" ]; then
     exit 1
 fi
 
+# folder NAME only, e.g. "data2" - basename strips any trailing slash
+DNAME=$(basename "$DATA")
+
 echo "Control files : $CTL"
 echo "CSV folder    : $DATA"
+echo "Log suffix    : _$DNAME"
 echo
 
 cd "$DATA" || exit 1
@@ -42,11 +46,18 @@ for T in branch supplier product service branch_utils_category staff customer \
          branch_expense salary_payment orders order_detail reservation \
          reservation_detail purchase; do
     echo "Loading $T ..."
-    sqlldr "$U/$P@$DB" control="$CTL/$T.ctl" log="$CTL/$T.log" rows=5000 \
-        || echo "   *** $T reported errors - check $T.log"
+    # SQL*Loader only WRITES a .bad when a row is rejected - it never
+    # clears an old one. Delete it first, so a .bad existing after this
+    # run always means THIS run rejected rows.
+    rm -f "$T.bad"
+    sqlldr "$U/$P@$DB" control="$CTL/$T.ctl" log="$CTL/${T}_${DNAME}.log" rows=5000 \
+        || echo "   *** $T reported errors - check ${T}_${DNAME}.log"
 done
 
 echo
 echo "Done. Logs are in $CTL"
-echo "Check each .log for 'Rows successfully loaded'."
+echo "  named <table>_$DNAME.log, so loading another folder does not"
+echo "  overwrite this run's logs."
+echo "Check each for 'Rows successfully loaded'."
 echo "Rejected rows (if any) land in .bad files in $DATA"
+echo "  - no .bad file means nothing was rejected."

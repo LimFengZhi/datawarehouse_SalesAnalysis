@@ -68,7 +68,8 @@ load_all.bat dwh yourpassword XE
 ```
 
 The script switches into `..\data` so each control file finds its CSV, then loads all 14 tables in
-dependency order. Logs land next to the script — check `branch.log` first:
+dependency order. Logs land next to the script, **suffixed with the data folder** so a later run
+against `data2\` doesn't overwrite them — check `branch_data.log` first:
 
 ```
 Table BRANCH:
@@ -175,8 +176,12 @@ The 4th argument points the same control files at the other folder. Every file i
 exactly like its counterpart in `data\` with identical headers, and every `.ctl` uses `APPEND`, so
 the rows are added to the existing tables. IDs continue from where `data\` stopped — no collisions.
 
-`supplier.log` and `branch_utils_category.log` will show **0 rows**. That is correct: those two
-files are header-only because data2 adds no new suppliers or utility categories.
+`supplier_data2.log` and `branch_utils_category_data2.log` will show **0 rows**. That is correct:
+those two files are header-only because data2 adds no new suppliers or utility categories.
+
+**Nothing to clean before a re-run.** SQL\*Loader overwrites its log each time — it never appends.
+And `load_all.bat` now deletes any old `.bad` before each table loads, so a `.bad` file present
+afterwards always means *this* run rejected rows. No `.bad` file means nothing was rejected.
 
 Verify the totals are now `data` + `data2`:
 
