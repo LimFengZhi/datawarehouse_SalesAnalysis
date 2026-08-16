@@ -41,7 +41,7 @@ BEGIN
         seq_branch_key.NEXTVAL,
         s.br_ID, s.clean_br_name, s.clean_br_city, s.clean_br_state,
         s.clean_br_email, s.clean_br_open_date,
-        TRUNC(SYSDATE),
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   branch_staging_v s

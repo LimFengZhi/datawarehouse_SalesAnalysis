@@ -114,7 +114,7 @@ BEGIN
         seq_service_key.NEXTVAL,
         serv_ID, clean_serv_name, clean_serv_category, clean_serv_price,
         derived_serv_duration,
-        SYSDATE,
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM service_staging_v;

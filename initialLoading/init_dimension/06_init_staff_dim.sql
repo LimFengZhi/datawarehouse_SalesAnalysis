@@ -219,7 +219,7 @@ BEGIN
         clean_st_city, clean_st_state, clean_st_gender, derived_st_age,
         clean_st_email, clean_st_hire_date, clean_st_salary,
         clean_st_status,
-        SYSDATE,
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM staff_staging_v;

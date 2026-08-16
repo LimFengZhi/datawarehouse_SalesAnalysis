@@ -209,7 +209,7 @@ BEGIN
         cus_ID, clean_cus_name, clean_cus_email, clean_cus_gender,
         clean_cus_age, derived_cus_age_band, clean_cus_city,
         clean_cus_state, clean_cus_loyalty_tier, clean_cus_reg_date,
-        SYSDATE,
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM customer_staging_v;

@@ -128,7 +128,7 @@ BEGIN
         seq_branch_key.NEXTVAL,
         br_ID, clean_br_name, clean_br_city, clean_br_state,
         clean_br_email, clean_br_open_date,
-        SYSDATE,
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'                       -- CHECK constraint allows 'Y' or 'N'
     FROM branch_staging_v;

@@ -55,7 +55,7 @@ BEGIN
         s.clean_cus_gender, s.clean_cus_age, s.derived_cus_age_band,
         s.clean_cus_city, s.clean_cus_state, s.clean_cus_loyalty_tier,
         s.clean_cus_reg_date,
-        TRUNC(SYSDATE),
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   customer_staging_v s

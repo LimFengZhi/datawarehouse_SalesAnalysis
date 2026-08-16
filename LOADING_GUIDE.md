@@ -285,8 +285,13 @@ ORDER  BY product_ID, product_key;
 Each script is preset to backfill all of data2:
 
 ```sql
-EXEC load_order_fact_incremental(DATE '2023-01-02');   -- order_date >= 2023-01-01
+EXEC load_order_fact_incremental(DATE '2023-01-01');   -- order_date >= 2022-12-31
 ```
+
+**Just pass the first date you want — don't add a day.** The procedure filters
+`src_date >= p_load_date - 1`, so it already opens the window one day early. That extra day is what
+makes a daily run safe (it catches rows that arrived late for yesterday); on a backfill it simply
+re-reads one already-loaded day, which the `NOT EXISTS` anti-join skips.
 
 The window has **no upper bound**, so one call from an early date loads everything after it. For a
 normal daily run, call it with no argument and it covers yesterday and today.

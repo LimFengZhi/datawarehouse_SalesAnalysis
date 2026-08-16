@@ -127,7 +127,7 @@ BEGIN
         seq_product_key.NEXTVAL,
         product_ID, clean_product_name, clean_product_brand,
         clean_product_category, clean_product_price,
-        SYSDATE,
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM product_staging_v;

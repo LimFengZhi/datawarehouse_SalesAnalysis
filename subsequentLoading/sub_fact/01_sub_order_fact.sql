@@ -21,10 +21,16 @@
 --       order_date >= TRUNC(p_load_date) - 1
 --   so a bare call picks up yesterday and today.
 --
---   To BACKFILL a historical range, pass the day AFTER the earliest
---   date you want. Loading the whole of data2 (2023-2024):
---       EXEC load_order_fact_incremental(DATE '2023-01-02');
---   which resolves to order_date >= 2023-01-01.
+--   To BACKFILL a historical range, just pass the first date you want.
+--   Loading the whole of data2 (2023-2024):
+--       EXEC load_order_fact_incremental(DATE '2023-01-01');
+--   which filters order_date >= 2022-12-31.
+--
+--   Note the window opens ONE DAY EARLIER than the date you pass -
+--   that is the "- 1" above, and it is deliberate. On a daily run it
+--   catches rows that arrived late for yesterday. On a backfill it
+--   just re-reads one already-loaded day, which the NOT EXISTS
+--   anti-join skips. So there is no need to add a day yourself.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -167,7 +173,7 @@ END;
 -- Procedure created above. The EXEC now lives in the folder runner
 --   00_run_all_sub_facts.sql
 -- so every call and its arguments sit in ONE place.
---   EXEC load_order_fact_incremental(DATE '2023-01-02');
+--   EXEC load_order_fact_incremental(DATE '2023-01-01');
 
 -- Fact must now equal the source exactly
 SELECT (SELECT COUNT(*) FROM order_fact)   AS fact_rows,

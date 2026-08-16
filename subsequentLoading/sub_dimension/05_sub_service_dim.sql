@@ -45,7 +45,7 @@ BEGIN
         seq_service_key.NEXTVAL,
         s.serv_ID, s.clean_serv_name, s.clean_serv_category,
         s.clean_serv_price, s.derived_serv_duration,
-        TRUNC(SYSDATE),
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   service_staging_v s

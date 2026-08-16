@@ -11,7 +11,7 @@
 -- fact. Both move branch profitability, so they are refreshed.
 --
 -- Backfill the whole of data2 (2023-2024):
---     EXEC load_br_exp_fact_incremental(DATE '2023-01-02');
+--     EXEC load_br_exp_fact_incremental(DATE '2023-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -110,7 +110,7 @@ END;
 -- Procedure created above. The EXEC now lives in the folder runner
 --   00_run_all_sub_facts.sql
 -- so every call and its arguments sit in ONE place.
---   EXEC load_br_exp_fact_incremental(DATE '2023-01-02'); -- backfill data2
+--   EXEC load_br_exp_fact_incremental(DATE '2023-01-01'); -- backfill data2
 
 SELECT (SELECT COUNT(*) FROM branch_expense_fact) AS fact_rows,
        (SELECT COUNT(*) FROM branch_expense)      AS source_rows

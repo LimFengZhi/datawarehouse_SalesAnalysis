@@ -47,7 +47,7 @@ BEGIN
         seq_product_key.NEXTVAL,
         s.product_ID, s.clean_product_name, s.clean_product_brand,
         s.clean_product_category, s.clean_product_price,
-        TRUNC(SYSDATE),
+        DATE '2019-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   product_staging_v s
