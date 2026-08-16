@@ -148,16 +148,21 @@ BEGIN
         ls.clean_discount_amt,
         ls.clean_tax_amt,
         ls.serv_total_amt
+    -- SCD2 joins pick the version in force on the appointment date.
     FROM reservation_fact_staging_v ls
     JOIN date_dim     d ON d.cal_date = ls.res_date
     JOIN customer_dim c ON c.cus_ID   = ls.cus_ID
-                       AND c.is_current_flag = 'Y'
+                       AND ls.res_date BETWEEN c.effective_start_date
+                                           AND c.effective_end_date
     JOIN staff_dim    s ON s.st_ID    = ls.st_ID
-                       AND s.is_current_flag = 'Y'
+                       AND ls.res_date BETWEEN s.effective_start_date
+                                           AND s.effective_end_date
     JOIN branch_dim   b ON b.br_ID    = ls.br_ID
-                       AND b.is_current_flag = 'Y'
+                       AND ls.res_date BETWEEN b.effective_start_date
+                                           AND b.effective_end_date
     JOIN service_dim  v ON v.serv_ID  = ls.serv_ID
-                       AND v.is_current_flag = 'Y';
+                       AND ls.res_date BETWEEN v.effective_start_date
+                                           AND v.effective_end_date;
 
     v_count := SQL%ROWCOUNT;
 

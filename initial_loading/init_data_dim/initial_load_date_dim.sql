@@ -19,7 +19,10 @@ SELECT
     TO_NUMBER(TO_CHAR(v_date, 'DDD'))                       AS day_num_year,
     CASE WHEN v_date = LAST_DAY(v_date) THEN 'Y' ELSE 'N' END AS last_day_ind,
     NEXT_DAY(v_date - 1, 'SUNDAY')                          AS cal_week_end_date,
-    TO_CHAR(v_date, 'YYYY') || '-W' || TO_CHAR(v_date, 'IW') AS cal_week_year,
+    -- IYYY (ISO year), not YYYY: IW is the ISO week number, and the days
+    -- around New Year belong to the ISO year that owns the week -
+    -- 2019-12-30 is 2020-W01, not "2019-W01" (which does not exist).
+    TO_CHAR(v_date, 'IYYY') || '-W' || TO_CHAR(v_date, 'IW') AS cal_week_year,
     TRIM(TO_CHAR(v_date, 'Month', 'NLS_DATE_LANGUAGE=ENGLISH')) AS cal_month_name,
     TO_CHAR(v_date, 'Mon-YYYY', 'NLS_DATE_LANGUAGE=ENGLISH') AS cal_month_year,
     TO_NUMBER(TO_CHAR(v_date, 'YYYYMM'))                    AS cal_year_month,

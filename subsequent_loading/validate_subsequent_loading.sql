@@ -135,6 +135,40 @@ UNION ALL SELECT 'customer bad_end_dates', COUNT(*) FROM customer_dim
   WHERE is_current_flag = 'N'
     AND effective_end_date = DATE '9999-12-31';
 
+-- No OVERLAPPING version ranges per natural key. The fact loads pick
+-- the version whose date range covers the transaction date, so every
+-- date must belong to exactly one version. All must be 0.
+SELECT 'branch overlaps' AS chk, COUNT(*) AS bad
+  FROM branch_dim a JOIN branch_dim b
+    ON a.br_ID = b.br_ID AND a.branch_key < b.branch_key
+   AND a.effective_start_date <= b.effective_end_date
+   AND b.effective_start_date <= a.effective_end_date
+UNION ALL SELECT 'supplier overlaps', COUNT(*)
+  FROM supplier_dim a JOIN supplier_dim b
+    ON a.sup_ID = b.sup_ID AND a.supplier_key < b.supplier_key
+   AND a.effective_start_date <= b.effective_end_date
+   AND b.effective_start_date <= a.effective_end_date
+UNION ALL SELECT 'product overlaps', COUNT(*)
+  FROM product_dim a JOIN product_dim b
+    ON a.product_ID = b.product_ID AND a.product_key < b.product_key
+   AND a.effective_start_date <= b.effective_end_date
+   AND b.effective_start_date <= a.effective_end_date
+UNION ALL SELECT 'service overlaps', COUNT(*)
+  FROM service_dim a JOIN service_dim b
+    ON a.serv_ID = b.serv_ID AND a.service_key < b.service_key
+   AND a.effective_start_date <= b.effective_end_date
+   AND b.effective_start_date <= a.effective_end_date
+UNION ALL SELECT 'staff overlaps', COUNT(*)
+  FROM staff_dim a JOIN staff_dim b
+    ON a.st_ID = b.st_ID AND a.staff_key < b.staff_key
+   AND a.effective_start_date <= b.effective_end_date
+   AND b.effective_start_date <= a.effective_end_date
+UNION ALL SELECT 'customer overlaps', COUNT(*)
+  FROM customer_dim a JOIN customer_dim b
+    ON a.cus_ID = b.cus_ID AND a.customer_key < b.customer_key
+   AND a.effective_start_date <= b.effective_end_date
+   AND b.effective_start_date <= a.effective_end_date;
+
 -- Versioning must never orphan a fact: old surrogate keys stay valid
 SELECT 'order->product orphans' AS chk, COUNT(*) AS bad FROM order_fact f
   WHERE NOT EXISTS (SELECT 1 FROM product_dim d
@@ -237,23 +271,31 @@ ORDER BY 1;
 -- If a fact is short, these say WHICH lookup dropped rows. All 0.
 -- 'no_date' non-zero usually means date_dim was not extended:
 --     EXEC load_date_dim_incremental(<year>);
+-- SCD2 lookups use the same date-range predicate as the load
+-- procedures: the version in force on the transaction date.
 SELECT 'order no_date' AS chk, COUNT(*) AS bad FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
                     WHERE d.cal_date = ls.order_date)
 UNION ALL SELECT 'order no_product', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM product_dim p
                     WHERE p.product_ID = ls.product_ID
-                      AND p.is_current_flag = 'Y')
+                      AND ls.order_date BETWEEN p.effective_start_date
+                                            AND p.effective_end_date)
 UNION ALL SELECT 'order no_customer', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM customer_dim c
                     WHERE c.cus_ID = ls.cus_ID
-                      AND c.is_current_flag = 'Y')
+                      AND ls.order_date BETWEEN c.effective_start_date
+                                            AND c.effective_end_date)
 UNION ALL SELECT 'order no_staff', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
-                    WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y')
+                    WHERE s.st_ID = ls.st_ID
+                      AND ls.order_date BETWEEN s.effective_start_date
+                                            AND s.effective_end_date)
 UNION ALL SELECT 'order no_branch', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                    WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y')
+                    WHERE b.br_ID = ls.br_ID
+                      AND ls.order_date BETWEEN b.effective_start_date
+                                            AND b.effective_end_date)
 UNION ALL SELECT 'reservation no_date', COUNT(*)
   FROM reservation_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
@@ -262,7 +304,8 @@ UNION ALL SELECT 'reservation no_service', COUNT(*)
   FROM reservation_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM service_dim v
                     WHERE v.serv_ID = ls.serv_ID
-                      AND v.is_current_flag = 'Y')
+                      AND ls.res_date BETWEEN v.effective_start_date
+                                          AND v.effective_end_date)
 UNION ALL SELECT 'purchase no_date', COUNT(*)
   FROM purchase_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
@@ -271,7 +314,8 @@ UNION ALL SELECT 'purchase no_supplier', COUNT(*)
   FROM purchase_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM supplier_dim u
                     WHERE u.sup_ID = ls.sup_ID
-                      AND u.is_current_flag = 'Y')
+                      AND ls.purchase_date BETWEEN u.effective_start_date
+                                               AND u.effective_end_date)
 UNION ALL SELECT 'salary no_date', COUNT(*)
   FROM salary_payment_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d

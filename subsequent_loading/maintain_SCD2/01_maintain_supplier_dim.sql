@@ -50,6 +50,10 @@ BEGIN
                                            d.effective_start_date),
            d.is_current_flag    = 'N'
     WHERE  d.is_current_flag = 'Y'
+    -- Never version BACKWARDS: expiring a version that starts on or
+    -- after the effective date would corrupt the timeline (overlapping
+    -- ranges). A backdated call becomes a safe no-op instead.
+    AND    d.effective_start_date < v_eff
     AND EXISTS (
         SELECT 1
         FROM   supplier_staging_v s

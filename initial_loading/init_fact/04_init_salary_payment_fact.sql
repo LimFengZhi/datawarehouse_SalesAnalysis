@@ -105,12 +105,15 @@ BEGIN
         ls.clean_deduction_amount,
         ls.gross_amount,
         ls.net_amount
+    -- SCD2 joins pick the version in force on the payment date.
     FROM salary_payment_fact_staging_v ls
     JOIN date_dim   d ON d.cal_date = ls.payment_date
     JOIN staff_dim  s ON s.st_ID    = ls.st_ID
-                     AND s.is_current_flag = 'Y'
+                     AND ls.payment_date BETWEEN s.effective_start_date
+                                             AND s.effective_end_date
     JOIN branch_dim b ON b.br_ID    = ls.br_ID
-                     AND b.is_current_flag = 'Y';
+                     AND ls.payment_date BETWEEN b.effective_start_date
+                                             AND b.effective_end_date;
 
     v_count := SQL%ROWCOUNT;
 

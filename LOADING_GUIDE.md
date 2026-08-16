@@ -379,10 +379,14 @@ Run the exact join the procedure uses. If this returns a number but the load ins
 SELECT COUNT(*) AS would_insert
 FROM order_fact_staging_v ls
 JOIN date_dim     d ON d.cal_date   = ls.order_date
-JOIN product_dim  p ON p.product_ID = ls.product_ID AND p.is_current_flag='Y'
-JOIN customer_dim c ON c.cus_ID     = ls.cus_ID     AND c.is_current_flag='Y'
-JOIN staff_dim    s ON s.st_ID      = ls.st_ID      AND s.is_current_flag='Y'
-JOIN branch_dim   b ON b.br_ID      = ls.br_ID      AND b.is_current_flag='Y';
+JOIN product_dim  p ON p.product_ID = ls.product_ID
+   AND ls.order_date BETWEEN p.effective_start_date AND p.effective_end_date
+JOIN customer_dim c ON c.cus_ID     = ls.cus_ID
+   AND ls.order_date BETWEEN c.effective_start_date AND c.effective_end_date
+JOIN staff_dim    s ON s.st_ID      = ls.st_ID
+   AND ls.order_date BETWEEN s.effective_start_date AND s.effective_end_date
+JOIN branch_dim   b ON b.br_ID      = ls.br_ID
+   AND ls.order_date BETWEEN b.effective_start_date AND b.effective_end_date;
 ```
 
 Then drop one join at a time until the count jumps — that names the culprit. Or check the usual

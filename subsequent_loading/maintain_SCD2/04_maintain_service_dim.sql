@@ -50,6 +50,9 @@ BEGIN
                                            d.effective_start_date),
            d.is_current_flag    = 'N'
     WHERE  d.is_current_flag = 'Y'
+    -- Never version BACKWARDS: expiring a version that starts on or
+    -- after the effective date would corrupt the timeline.
+    AND    d.effective_start_date < v_eff
     AND EXISTS (
         SELECT 1
         FROM   service_staging_v s

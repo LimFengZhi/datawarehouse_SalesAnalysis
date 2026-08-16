@@ -242,24 +242,32 @@ UNION ALL SELECT 'expense rejected_by_view',
        (SELECT COUNT(*) FROM branch_expense)
      - (SELECT COUNT(*) FROM branch_expense_fact_staging_v) FROM dual;
 
--- Failed dimension lookups per staging view
+-- Failed dimension lookups per staging view. SCD2 lookups use the same
+-- date-range predicate as the load procedures: the version in force on
+-- the transaction date.
 SELECT 'order no_date' AS chk, COUNT(*) AS bad FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
                     WHERE d.cal_date = ls.order_date)
 UNION ALL SELECT 'order no_product', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM product_dim p
                     WHERE p.product_ID = ls.product_ID
-                      AND p.is_current_flag = 'Y')
+                      AND ls.order_date BETWEEN p.effective_start_date
+                                            AND p.effective_end_date)
 UNION ALL SELECT 'order no_customer', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM customer_dim c
                     WHERE c.cus_ID = ls.cus_ID
-                      AND c.is_current_flag = 'Y')
+                      AND ls.order_date BETWEEN c.effective_start_date
+                                            AND c.effective_end_date)
 UNION ALL SELECT 'order no_staff', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
-                    WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y')
+                    WHERE s.st_ID = ls.st_ID
+                      AND ls.order_date BETWEEN s.effective_start_date
+                                            AND s.effective_end_date)
 UNION ALL SELECT 'order no_branch', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                    WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y')
+                    WHERE b.br_ID = ls.br_ID
+                      AND ls.order_date BETWEEN b.effective_start_date
+                                            AND b.effective_end_date)
 UNION ALL SELECT 'reservation no_date', COUNT(*)
   FROM reservation_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
@@ -268,7 +276,8 @@ UNION ALL SELECT 'reservation no_service', COUNT(*)
   FROM reservation_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM service_dim v
                     WHERE v.serv_ID = ls.serv_ID
-                      AND v.is_current_flag = 'Y')
+                      AND ls.res_date BETWEEN v.effective_start_date
+                                          AND v.effective_end_date)
 UNION ALL SELECT 'purchase no_date', COUNT(*) FROM purchase_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
                     WHERE d.cal_date = ls.purchase_date)
@@ -276,7 +285,8 @@ UNION ALL SELECT 'purchase no_supplier', COUNT(*)
   FROM purchase_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM supplier_dim u
                     WHERE u.sup_ID = ls.sup_ID
-                      AND u.is_current_flag = 'Y')
+                      AND ls.purchase_date BETWEEN u.effective_start_date
+                                               AND u.effective_end_date)
 UNION ALL SELECT 'salary no_date', COUNT(*)
   FROM salary_payment_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d

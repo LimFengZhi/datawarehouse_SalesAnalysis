@@ -50,14 +50,18 @@ BEGIN
         d.date_key, u.supplier_key, b.branch_key, p.product_key,
         ls.purchase_ID, ls.clean_purchase_qty, ls.clean_unit_cost,
         ls.purchase_total_cost
+    -- SCD2 joins pick the version in force on the purchase date.
     FROM purchase_fact_staging_v ls
     JOIN date_dim     d ON d.cal_date   = ls.purchase_date
     JOIN supplier_dim u ON u.sup_ID     = ls.sup_ID
-                       AND u.is_current_flag = 'Y'
+                       AND ls.purchase_date BETWEEN u.effective_start_date
+                                                AND u.effective_end_date
     JOIN branch_dim   b ON b.br_ID      = ls.br_ID
-                       AND b.is_current_flag = 'Y'
+                       AND ls.purchase_date BETWEEN b.effective_start_date
+                                                AND b.effective_end_date
     JOIN product_dim  p ON p.product_ID = ls.product_ID
-                       AND p.is_current_flag = 'Y'
+                       AND ls.purchase_date BETWEEN p.effective_start_date
+                                                AND p.effective_end_date
     WHERE ls.purchase_date >= v_from
     AND   NOT EXISTS (SELECT 1 FROM purchase_fact f
                       WHERE f.purchase_ID = ls.purchase_ID);
