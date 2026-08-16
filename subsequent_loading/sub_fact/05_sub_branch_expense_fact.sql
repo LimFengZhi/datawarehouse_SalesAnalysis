@@ -17,11 +17,9 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- branch_expense_fact_staging_v is defined in
---   initialLoading\init_fact\05_init_branch_expense_fact.sql
--- OLTP cleansing only: natural keys (br_ID, br_utils_ID) and the raw
--- payment_date. Surrogate joins are written out below.
+-- SECTION 1: STAGING VIEW - reuses branch_expense_fact_staging_v from
+--   initial_loading\init_fact\05_init_branch_expense_fact.sql
+-- OLTP cleansing only; surrogate-key joins are written out below.
 -- ===================================================================
 
 -- ===================================================================
@@ -104,51 +102,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- EXEC load_br_exp_fact_incremental;                 -- daily
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_facts.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_br_exp_fact_incremental(DATE '2023-01-01'); -- backfill data2
-
-SELECT (SELECT COUNT(*) FROM branch_expense_fact) AS fact_rows,
-       (SELECT COUNT(*) FROM branch_expense)      AS source_rows
-FROM dual;
-
--- Which lookup dropped rows, if any. Both must be 0.
-SELECT COUNT(*) AS no_date FROM branch_expense_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.payment_date);
-
-SELECT COUNT(*) AS no_utils FROM branch_expense_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM branch_utils_dim u
-                  WHERE u.br_utils_ID = ls.br_utils_ID);
-
--- Fixed vs variable overhead per branch per year
-SELECT SUBSTR(f.billing_period, 1, 4) AS yr, b.br_city, u.util_category,
-       ROUND(SUM(f.payment_amount), 2) AS total_expense
-FROM branch_expense_fact f
-JOIN branch_dim       b ON b.branch_key       = f.branch_key
-JOIN branch_utils_dim u ON u.branch_utils_key = f.branch_utils_key
-GROUP BY SUBSTR(f.billing_period, 1, 4), b.br_city, u.util_category
-ORDER BY yr, b.br_city, u.util_category;
-
--- Ipoh should only start billing from 2023-03
-SELECT b.br_city, MIN(f.billing_period) AS first_period,
-       MAX(f.billing_period) AS last_period
-FROM branch_expense_fact f
-JOIN branch_dim b ON b.branch_key = f.branch_key
-GROUP BY b.br_city
-ORDER BY first_period;
-
--- Rent trend: the 2020 lockdown rebate dip, then the 3%/yr rise
-SELECT SUBSTR(f.billing_period, 1, 4) AS yr,
-       ROUND(SUM(f.payment_amount), 2) AS total_rent
-FROM branch_expense_fact f
-JOIN branch_utils_dim u ON u.branch_utils_key = f.branch_utils_key
-WHERE u.util_name = 'Rent'
-GROUP BY SUBSTR(f.billing_period, 1, 4)
-ORDER BY yr;
-
--- Re-run the EXEC above: expect 0 inserted, 0 updated.

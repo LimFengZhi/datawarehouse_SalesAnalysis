@@ -22,29 +22,33 @@ sqlplus dwh/yourpassword@XE
 
 ```
 datawarehouseAnalysis\
-├── operationalDB\01_create_operational_db.sql    14 OLTP CREATE TABLEs
+├── operational_DB\01_create_operational_db.sql   14 OLTP CREATE TABLEs
 ├── create_dwh.sql                                13 warehouse tables
 ├── data\                    14 CSVs, 2019-2022
 ├── data2\                   14 CSVs, 2023-2024  + 99_price_increase_2023.sql
+├── data3\                   14 CSVs, 2025       + 99_price_change_2025.sql
 ├── sqlloader_control_files\ 14 .ctl + load_all.bat
 │
-├── initialLoading\
+├── initial_loading\
 │   ├── init_data_dim\   date_dim + gen_holidays.py
 │   ├── init_dimension\  the 7 source-fed dimensions
-│   └── init_fact\       the 5 fact tables  (+ 00_diagnose.sql)
+│   ├── init_fact\       the 5 fact tables
+│   └── validate_initial_loading.sql     all Part A checks
 │
-├── subsequentLoading\
-│   ├── sub_dimension\   NEW dimension records only
-│   ├── maintain_SCD2\   CHANGED dimension records -> versions
-│   └── sub_fact\        new + changed fact rows
+├── subsequent_loading\
+│   ├── sub_dimension\   NEW dimension records only     (create-only)
+│   ├── maintain_SCD2\   CHANGED records -> versions    (create-only)
+│   ├── sub_fact\        new + changed fact rows        (create-only)
+│   ├── execute_sub_procedure.sql        RUNS the data2 load (2023-24)
+│   ├── execute_sub2.sql                 RUNS the data3 load (2025)
+│   └── validate_subsequent_loading.sql  all Part B checks
 │
-├── 00_clear_all.sql       empty the warehouse, keep the tables
-├── 99_drop_everything.sql destroy every object in the schema
-└── RUN_ALL.sql            Part A steps 3-6 in one command
+├── clear_dwh.sql          empty the warehouse, keep the tables
+└── drop_all.sql           destroy every object in the schema
 ```
 
-Every `00_run_all_*.sql` runs its whole folder. The numbered files inside can also be run one at a
-time when something goes wrong.
+The numbered `subsequent_loading` scripts only CREATE views and procedures — the `execute_*` files
+run them. The `initial_loading` scripts create **and run** their own procedure.
 
 ---
 
@@ -53,7 +57,7 @@ time when something goes wrong.
 ## A1. Create the OLTP tables
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\operationalDB\01_create_operational_db.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\01_create_operational_db.sql
 SELECT COUNT(*) FROM user_tables;    -- expect 14
 ```
 
@@ -102,27 +106,27 @@ UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail;
 ## A4. Date dimension, then holidays
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim\initial_load_date_dim.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim\initial_load_date_dim.sql
 -- expect 1462 rows (1,461 days + the Unknown member)
 ```
 
 Holidays are **not** automatic — every day loads with `holiday_ind = 'N'`:
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim
 python gen_holidays.py 2019 2022 > holiday_update.sql
 ```
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim\holiday_update.sql
 SELECT COUNT(*) FROM date_dim WHERE holiday_ind = 'Y';   -- must be > 0
 ```
 
 ## A5. Dimensions
 
-Run all seven, in order — each one is self-contained and ends with its own verification:
+Run all seven, in order — each one creates its staging view, sequence and procedure, then runs it:
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_dimension
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_dimension
 ```
 ```sql
 @01_init_branch_dim.sql
@@ -139,7 +143,7 @@ Expect 5 / 6 / 6 / 16 / 43 / 96 / 26,000.
 ## A6. Facts
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_fact
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_fact
 ```
 ```sql
 @01_init_order_fact.sql
@@ -153,8 +157,17 @@ Expect 349,396 / 88,790 / 10,615 / 3,135 / 1,440.
 
 `order_fact` is the slow one — 349k rows joined to five dimensions. Give it a few minutes.
 
-**Steps A3–A6 in one command:** `@RUN_ALL.sql` (it clears the warehouse first, so only use it when
-that is what you want).
+## A7. Validate everything
+
+One script runs every Part A check — row counts, orphans, duplicate keys, failed dimension
+lookups, measure arithmetic and the COVID/revenue patterns:
+
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\validate_initial_loading.sql
+```
+
+Every check labelled "must be 0" that comes back non-zero tells you exactly which table and which
+lookup to investigate.
 
 ---
 
@@ -211,24 +224,72 @@ so this brings the OLTP `product` table into step with them.
 
 Must run **before** B5, which turns the change into dimension history.
 
-## B3. Extend the calendar, then the holidays
+## B3. Create the 19 procedures (first time only)
+
+The `subsequent_loading` numbered scripts are **create-only** — each defines one procedure and
+executes nothing. Run all 19 once, in any order:
 
 ```sql
-EXEC load_date_dim_incremental(2024);
-SELECT COUNT(*) FROM date_dim;    -- expect 2193 (2,192 days + Unknown)
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading
+```
+```sql
+@sub_dimension\01_sub_date_dim.sql
+@sub_dimension\02_sub_supplier_dim.sql
+@sub_dimension\03_sub_product_dim.sql
+@sub_dimension\04_sub_branch_dim.sql
+@sub_dimension\05_sub_service_dim.sql
+@sub_dimension\06_sub_branch_utils_dim.sql
+@sub_dimension\07_sub_staff_dim.sql
+@sub_dimension\08_sub_customer_dim.sql
+@maintain_SCD2\01_maintain_supplier_dim.sql
+@maintain_SCD2\02_maintain_product_dim.sql
+@maintain_SCD2\03_maintain_branch_dim.sql
+@maintain_SCD2\04_maintain_service_dim.sql
+@maintain_SCD2\05_maintain_staff_dim.sql
+@maintain_SCD2\06_maintain_customer_dim.sql
+@sub_fact\01_sub_order_fact.sql
+@sub_fact\02_sub_reservation_fact.sql
+@sub_fact\03_sub_purchase_fact.sql
+@sub_fact\04_sub_salary_payment_fact.sql
+@sub_fact\05_sub_branch_expense_fact.sql
 ```
 
-**This is the step people skip.** Without it `date_dim` stops at 2022-12-31 and every 2023–24
-transaction fails its date lookup and is silently dropped in B6.
+Already ran them for an earlier load? Skip this step — the procedures are still there.
 
-New years arrive with no holidays, so regenerate over the wider range:
+## B4. Run the whole load
+
+```sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\execute_sub_procedure.sql
+```
+
+One file does everything, in the only safe order:
+
+- **STEP 0** — checks all 19 procedures exist and are VALID before calling any of them
+- **STEP 1** — extends the calendar to 2024, then inserts the NEW records: the Ipoh branch, its
+  18 staff, 5 products, 2 services and 6,000 customers
+- **STEP 2** — turns the price rise into SCD2 history:
+  `maintain_product_dim_scd2(DATE '2023-01-01')` expires the 7 old price versions on 2022-12-31
+  and opens the new ones on 2023-01-01. `product_dim` now holds 55 rows — 48 current + 7 expired
+- **STEP 3** — the facts, each backfilled with `(DATE '2023-01-01')`. The window opens one day
+  early by design (`src_date >= p_load_date - 1`) and has no upper bound, so one call loads all of
+  data2. The `NOT EXISTS` anti-join skips anything already loaded
+
+**Why the calendar comes first.** Every fact staging view uses `INNER JOIN` to resolve its
+dimension keys. An unresolved key does not raise an error — the row is silently **dropped**. If
+`date_dim` stopped at 2022-12-31, all 285,944 new order lines would vanish with no warning.
+
+**Idempotent:** run the file twice and the second pass reports 0 inserted, 0 expired, 0 updated.
+
+## B5. Holidays for the new years
+
+The 2023–24 days arrive with `holiday_ind = 'N'`, so regenerate over the wider range:
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim
+cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim
 python gen_holidays.py 2019 2024 > holiday_update.sql
 ```
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\initial_loading\init_data_dim\holiday_update.sql
 
 SELECT cal_year, COUNT(*) AS holidays FROM date_dim
 WHERE holiday_ind = 'Y' GROUP BY cal_year ORDER BY cal_year;
@@ -238,108 +299,21 @@ WHERE holiday_ind = 'Y' GROUP BY cal_year ORDER BY cal_year;
 The generated file resets **only the years it covers**, so a partial regeneration
 (`gen_holidays.py 2023 2024`) leaves 2019–2022 untouched.
 
-## B4. New dimension records
+## B6. Validate everything
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\sub_dimension\00_run_all_sub_dimensions.sql
+@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\validate_subsequent_loading.sql
 ```
 
-Insert-new-only. Adds the Ipoh branch, its 18 staff, 5 products, 2 services and 6,000 customers.
-Nothing is updated or expired here.
+Covers calendar continuity, dimension coverage, SCD2 integrity (one current row per key, no
+dangling 9999-12-31 end dates, no orphaned facts), version history, fact-vs-source counts and the
+business patterns. Every "must be 0" that is not 0 names the table to investigate.
 
-```sql
-SELECT 'branch_dim' t, COUNT(*) n, 6 expected FROM branch_dim
-UNION ALL SELECT 'staff_dim',    COUNT(*), 114   FROM staff_dim
-UNION ALL SELECT 'product_dim',  COUNT(*), 48    FROM product_dim
-UNION ALL SELECT 'service_dim',  COUNT(*), 18    FROM service_dim
-UNION ALL SELECT 'customer_dim', COUNT(*), 32000 FROM customer_dim;
-```
+## Loading data3 (2025) later
 
-## B5. SCD2 — turn the price rise into history
-
-```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\maintain_SCD2\00_run_all_maintain_scd2.sql
-```
-
-That runs every dimension with `SYSDATE` as the change date. For the price rise you want the **real**
-date instead, so run product on its own first:
-
-```sql
-EXEC maintain_product_dim_scd2(DATE '2023-01-01');
--- expect 7 expired, 7 new versions
-```
-
-```sql
-SELECT product_key, product_ID, product_name, product_unit_price,
-       effective_start_date, effective_end_date, is_current_flag
-FROM   product_dim
-WHERE  product_ID IN (4, 12, 15, 16, 21, 23, 30)
-ORDER  BY product_ID, product_key;
--- 14 rows: 7 flagged 'N' ending 2022-12-31, 7 flagged 'Y' from 2023-01-01
-```
-
-`product_dim` now holds **55 rows** — 48 current plus 7 expired. That is the point of Type 2: the
-2019–2022 order lines keep pointing at the old `product_key` and still report the old price.
-
-## B6. Facts
-
-```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\sub_fact\00_run_all_sub_facts.sql
-```
-
-Each script is preset to backfill all of data2:
-
-```sql
-EXEC load_order_fact_incremental(DATE '2023-01-01');   -- order_date >= 2022-12-31
-```
-
-**Just pass the first date you want — don't add a day.** The procedure filters
-`src_date >= p_load_date - 1`, so it already opens the window one day early. That extra day is what
-makes a daily run safe (it catches rows that arrived late for yesterday); on a backfill it simply
-re-reads one already-loaded day, which the `NOT EXISTS` anti-join skips.
-
-The window has **no upper bound**, so one call from an early date loads everything after it. For a
-normal daily run, call it with no argument and it covers yesterday and today.
-
-Two steps run per fact — **insert** new rows, then **update** rows already loaded whose values
-moved. The update matters because `order_status` and `res_status` are not frozen: an order goes
-Processing → Completed, a booking goes Confirmed → No-Show. Insert-only would freeze every booking
-at Confirmed and report a no-show rate of zero forever.
-
-Verify fact equals source:
-
-```sql
-SELECT 'order_fact' t, (SELECT COUNT(*) FROM order_fact) n,
-       (SELECT COUNT(*) FROM order_detail) src FROM dual
-UNION ALL SELECT 'reservation_fact', (SELECT COUNT(*) FROM reservation_fact),
-       (SELECT COUNT(*) FROM reservation_detail) FROM dual
-UNION ALL SELECT 'purchase_fact', (SELECT COUNT(*) FROM purchase_fact),
-       (SELECT COUNT(*) FROM purchase) FROM dual
-UNION ALL SELECT 'salary_payment_fact', (SELECT COUNT(*) FROM salary_payment_fact),
-       (SELECT COUNT(*) FROM salary_payment) FROM dual
-UNION ALL SELECT 'branch_expense_fact', (SELECT COUNT(*) FROM branch_expense_fact),
-       (SELECT COUNT(*) FROM branch_expense) FROM dual;
-```
-
-Then six years of revenue:
-
-```sql
-SELECT d.cal_year,
-       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS product_rev
-FROM   order_fact f JOIN date_dim d ON d.date_key = f.date_key
-WHERE  f.order_status = 'Completed'
-GROUP  BY d.cal_year ORDER BY d.cal_year;
--- 2020-2021 dip (lockdowns), 2022 recovers, 2023-24 grow on
-```
-
-## Why B3 before B6 — the silent failure
-
-Every fact staging view uses `INNER JOIN` to resolve its dimension keys. An unresolved key does not
-raise an error; the row is simply **dropped**. Skip B3 and all 285,944 new order lines vanish with
-no warning at all.
-
-Each procedure counts what it lost and prints a warning, and the runner's SUMMARY 2 shows which
-dimension is responsible. If a count looks wrong, that is the first place to look.
+Same pattern, different file: load the `data3\` CSVs with `load_all.bat ... "...\data3"`, apply
+`data3\99_price_change_2025.sql`, then run `execute_sub2.sql` and regenerate holidays to 2025.
+The procedures from B3 are reused as-is.
 
 ---
 
@@ -349,11 +323,11 @@ dimension is responsible. If a count looks wrong, that is the first place to loo
 PART A                                     PART B
 A1  create OLTP tables                     B1  load_all.bat ... "...\data2"
 A2  load_all.bat  (data)                   B2  99_price_increase_2023.sql
-A3  create_dwh.sql                         B3  load_date_dim_incremental(2024)
-A4  date_dim + holidays                        + regenerate holidays
-A5  dimensions                             B4  sub_dimension    (new records)
-A6  facts                                  B5  maintain_SCD2    (changed records)
-                                           B6  sub_fact         (new + changed)
+A3  create_dwh.sql                         B3  create the 19 procedures (once)
+A4  date_dim + holidays                    B4  execute_sub_procedure.sql
+A5  dimensions                             B5  regenerate holidays to 2024
+A6  facts                                  B6  validate_subsequent_loading.sql
+A7  validate_initial_loading.sql
 ```
 
 ---
@@ -363,11 +337,11 @@ A6  facts                                  B5  maintain_SCD2    (changed records
 | Script | What it does | When |
 |---|---|---|
 | `TRUNCATE TABLE order_fact;` | one fact table | a single load went wrong |
-| [00_clear_all.sql](00_clear_all.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
-| [99_drop_everything.sql](99_drop_everything.sql) | destroys every object in the schema, OLTP included | the DDL changed, or the schema is unreasonable |
+| [clear_dwh.sql](clear_dwh.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
+| [drop_all.sql](drop_all.sql) | destroys every object in the schema, OLTP included | the DDL changed, or the schema is unreasonable |
 
-`00_clear_all.sql` is the one you want almost every time. `99_` costs you another full SQL\*Loader
-run over 1.2 million rows.
+`clear_dwh.sql` is the one you want almost every time. `drop_all.sql` costs you another full
+SQL\*Loader run over 1.2 million rows.
 
 **Dimensions need `DELETE`, not `TRUNCATE`** — Oracle blocks `TRUNCATE` on a parent table whenever
 an enabled foreign key references it, even when the child is empty (`ORA-02266`). Facts have no
@@ -383,12 +357,12 @@ children, so `TRUNCATE` works there and is much faster.
 | `ORA-01017: invalid username/password` | typo, or cmd mangled a password containing `& ^ % @` | quote the password |
 | `ORA-01950: no privileges on tablespace` | user has no quota | `GRANT UNLIMITED TABLESPACE TO dwh;` as SYSDBA |
 | `ORA-02291: parent key not found` | loaded a child before its parent | follow the load order |
-| `ORA-00001: unique constraint violated` | loaded the same CSV twice, or a sequence was not reset | `TRUNCATE` and reload; `00_clear_all.sql` drops the sequences |
+| `ORA-00001: unique constraint violated` | loaded the same CSV twice, or a sequence was not reset | `TRUNCATE` and reload; `clear_dwh.sql` drops the sequences |
 | `ORA-01861: literal does not match format string` | date format mismatch | the `.ctl` files already set `DATE 'YYYY-MM-DD'` per column |
 | `ORA-02290: check constraint violated` | a status or gender value outside the allowed list | values are case-sensitive: `Completed`, not `complete` |
 | `ORA-12899: value too large for column` | a value longer than the column | widen the column, or check the mapping |
 | `ORA-00942: table or view does not exist` | a step was skipped, or you are the wrong user | check the order above |
-| `ORA-02266: unique/primary keys referenced by enabled foreign keys` | `TRUNCATE` on a dimension | use `DELETE`, or `00_clear_all.sql` |
+| `ORA-02266: unique/primary keys referenced by enabled foreign keys` | `TRUNCATE` on a dimension | use `DELETE`, or `clear_dwh.sql` |
 | `PLS-00905: object ... is invalid` | the procedure compiled with errors | `SELECT line, text FROM user_errors WHERE name = '<PROC>' ORDER BY sequence;` — that shows the real message |
 | **loads 0 rows, no error** | a dimension is empty, or `date_dim` does not reach the transaction dates | run the dry-run query below |
 | `ORA-00903: invalid table name` on `ORDER` | `ORDER` is reserved in Oracle | the table is named **ORDERS** |

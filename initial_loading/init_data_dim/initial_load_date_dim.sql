@@ -42,7 +42,9 @@ FROM (
 )
 WHERE v_date IS NOT NULL;
 
-
+-- ===================================================================
+-- SECTION 2: CREATE SEQUENCE  (surrogate key: 1, 2, 3, ...)
+-- ===================================================================
 CREATE SEQUENCE date_dim_seq
     START WITH 1
     INCREMENT BY 1
@@ -119,42 +121,3 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('Unknown member already present - skipped.');
 END;
 /
-
--- ===================================================================
--- SECTION 5: VERIFICATION
---
--- Holidays are NOT applied by this script. Generate and run them
--- separately, after this script finishes:
---     python gen_holidays.py > holiday_update.sql
---     @holiday_update.sql
--- ===================================================================
-
--- Row count: expect 1462 (1,461 days + 1 unknown member)
-SELECT COUNT(*) AS total_rows FROM date_dim;
-
--- Days & holidays per year: expect 365/366/365/365 days
-SELECT cal_year, COUNT(*) AS days,
-       SUM(CASE WHEN holiday_ind = 'Y' THEN 1 ELSE 0 END) AS holidays
-FROM date_dim
-WHERE cal_year BETWEEN 2019 AND 2022
-GROUP BY cal_year
-ORDER BY cal_year;
-
--- Expected to be 0 until you run holiday_update.sql. After running it,
--- re-run this query - a 0 here means the holiday file never executed.
-SELECT COUNT(*) AS holiday_days FROM date_dim WHERE holiday_ind = 'Y';
-
--- All holidays, chronological
-SELECT cal_date, day_week, holiday_name
-FROM date_dim
-WHERE holiday_ind = 'Y'
-ORDER BY cal_date;
-
--- Sanity check on the festive days the dataset actually models
--- (see data/README_DATASET.md). Each should return at least one row.
-SELECT holiday_name, COUNT(*) AS days
-FROM date_dim
-WHERE holiday_name IN ('Chinese New Year', 'Hari Raya Aidilfitri',
-                       'Deepavali', 'Christmas Day')
-GROUP BY holiday_name
-ORDER BY holiday_name;

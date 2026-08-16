@@ -2,7 +2,7 @@
 -- execute_sub2.sql
 -- RUNS the subsequent load for DATA3 (2025). Creates nothing.
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\execute_sub2.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\execute_sub2.sql
 --
 -- ===================================================================
 -- HOW THIS DIFFERS FROM execute_sub_procedure.sql
@@ -102,6 +102,12 @@ PROMPT ##############################################
 -- fail SILENTLY - the staging views use INNER JOIN, so an unresolved
 -- key drops the row with no error at all.
 EXEC load_date_dim_incremental(2025);
+
+-- The new 2025 days arrive with holiday_ind = 'N'. AFTER this file
+-- finishes, regenerate and apply the holiday file:
+--     cd initial_loading\init_data_dim
+--     python gen_holidays.py 2019 2025 > holiday_update.sql
+--     @holiday_update.sql
 
 -- expect 2 new
 EXEC load_supplier_dim_incremental;
@@ -321,4 +327,6 @@ ORDER  BY serv_ID, service_key;
 -- ===================================================================
 -- Run this file a SECOND time. Every procedure must report 0 inserted,
 -- 0 expired and 0 updated, and the counts above must not move.
+--
+-- Deeper integrity checks live in validate_subsequent_loading.sql.
 -- ===================================================================

@@ -18,11 +18,9 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- purchase_fact_staging_v is defined in
---   initialLoading\init_fact\03_init_purchase_fact.sql
--- OLTP cleansing only: natural keys (product_ID, br_ID, sup_ID) and
--- the raw purchase_date. Surrogate joins are written out below.
+-- SECTION 1: STAGING VIEW - reuses purchase_fact_staging_v from
+--   initial_loading\init_fact\03_init_purchase_fact.sql
+-- OLTP cleansing only; surrogate-key joins are written out below.
 -- ===================================================================
 
 -- ===================================================================
@@ -112,41 +110,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- EXEC load_purchase_fact_incremental;                 -- daily
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_facts.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_purchase_fact_incremental(DATE '2023-01-01'); -- backfill data2
-
-SELECT (SELECT COUNT(*) FROM purchase_fact) AS fact_rows,
-       (SELECT COUNT(*) FROM purchase)      AS source_rows
-FROM dual;
-
--- Which lookup dropped rows, if any. Both must be 0.
-SELECT COUNT(*) AS no_date FROM purchase_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.purchase_date);
-
-SELECT COUNT(*) AS no_supplier FROM purchase_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM supplier_dim u
-                  WHERE u.sup_ID = ls.sup_ID AND u.is_current_flag = 'Y');
-
--- Cost never exceeds the shelf price it was bought against
-SELECT COUNT(*) AS cost_above_price
-FROM   purchase_fact f
-JOIN   product_dim p ON p.product_key = f.product_key
-WHERE  f.purchase_unit_cost > p.product_unit_price;
--- expect 0
-
--- COGS by year and branch - feeds branch profitability
-SELECT d.cal_year, b.br_city,
-       ROUND(SUM(f.purchase_total_cost), 2) AS cogs
-FROM purchase_fact f
-JOIN date_dim   d ON d.date_key   = f.date_key
-JOIN branch_dim b ON b.branch_key = f.branch_key
-GROUP BY d.cal_year, b.br_city
-ORDER BY d.cal_year, cogs DESC;
-
--- Re-run the EXEC above: expect 0 inserted, 0 updated.

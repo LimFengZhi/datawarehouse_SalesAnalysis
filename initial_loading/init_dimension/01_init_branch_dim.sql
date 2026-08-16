@@ -155,21 +155,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_branch_dim_initial;
-
--- Expect 5
-SELECT COUNT(*) AS total_rows FROM branch_dim;
-
--- Every branch, one current row each
-SELECT branch_key, br_ID, br_name, br_city, br_state, is_current_flag
-FROM branch_dim
-ORDER BY branch_key;
-
--- No orphans against the OLTP source, no duplicated natural key
-SELECT COUNT(*) AS orphan_rows FROM branch_dim d
-WHERE NOT EXISTS (SELECT 1 FROM branch b WHERE b.br_ID = d.br_ID);
-
-SELECT br_ID, COUNT(*) AS versions FROM branch_dim
-GROUP BY br_ID HAVING COUNT(*) > 1;

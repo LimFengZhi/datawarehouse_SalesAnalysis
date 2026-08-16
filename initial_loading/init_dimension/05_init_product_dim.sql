@@ -155,30 +155,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_product_dim_initial;
-
--- Expect 43
-SELECT COUNT(*) AS total_rows FROM product_dim;
-
--- Expect 10 categories, none 'Uncategorised'
-SELECT product_category, COUNT(*) AS products,
-       ROUND(AVG(product_unit_price),2) AS avg_price
-FROM product_dim
-GROUP BY product_category
-ORDER BY products DESC;
-
--- Expect 7 brands, none 'Unbranded'
-SELECT product_brand, COUNT(*) AS products
-FROM product_dim
-GROUP BY product_brand
-ORDER BY products DESC;
-
--- No orphans, no duplicate natural key
-SELECT COUNT(*) AS orphan_rows FROM product_dim d
-WHERE NOT EXISTS (SELECT 1 FROM product p
-                  WHERE p.product_ID = d.product_ID);
-
-SELECT product_ID, COUNT(*) AS versions FROM product_dim
-GROUP BY product_ID HAVING COUNT(*) > 1;

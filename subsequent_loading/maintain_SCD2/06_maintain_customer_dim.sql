@@ -8,7 +8,7 @@
 --   SECTION 4: run + verification
 --
 -- SCOPE: CHANGED RECORDS ONLY. New customers belong to
---   subsequentLoading\sub_dimension\08_sub_customer_dim.sql
+--   sub_dimension\08_sub_customer_dim.sql
 --
 -- THE MOST IMPORTANT SCD2 CASE IN THIS WAREHOUSE: cus_loyalty_tier.
 -- When a customer is upgraded Silver -> Gold, orders placed BEFORE the
@@ -25,14 +25,11 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- customer_staging_v is defined in
---   initialLoading\init_dimension\07_init_customer_dim.sql
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_customer_key continues from wherever the last load left it.
+-- SECTION 1: STAGING VIEW - reuses customer_staging_v from
+--   initial_loading\init_dimension\07_init_customer_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_customer_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -138,51 +135,9 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Pass p_effective_date as the date the change ACTUALLY happened,
+-- e.g. EXEC maintain_customer_dim_scd2(DATE '2025-01-01');
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- No argument -> the change is dated TODAY (SYSDATE).
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_maintain_scd2.sql
--- so every call and its arguments sit in ONE place.
---   EXEC maintain_customer_dim_scd2;
-
--- Or date it to when the change ACTUALLY happened. The old version is
--- closed the day before, the new one opens on that date:
---     EXEC maintain_customer_dim_scd2(DATE '2024-07-01');
-
--- Exactly ONE current row per natural key. Must return 0.
-SELECT COUNT(*) AS keys_with_wrong_version_count FROM (
-    SELECT cus_ID FROM customer_dim
-    WHERE  is_current_flag = 'Y'
-    GROUP BY cus_ID HAVING COUNT(*) <> 1
-);
-
--- Current tier distribution. Expect Bronze 14332, Silver 6936,
--- Gold 3384, Platinum 1348 until someone actually changes tier.
-SELECT cus_loyalty_tier, COUNT(*) AS customers
-FROM   customer_dim
-WHERE  is_current_flag = 'Y'
-GROUP BY cus_loyalty_tier
-ORDER BY customers DESC;
-
--- Customers who have changed tier: the payoff of Type 2
-SELECT customer_key, cus_ID, cus_name, cus_loyalty_tier,
-       effective_start_date, effective_end_date, is_current_flag
-FROM   customer_dim
-WHERE  cus_ID IN (SELECT cus_ID FROM customer_dim
-                  GROUP BY cus_ID HAVING COUNT(*) > 1)
-ORDER BY cus_ID, customer_key;
-
--- No expired row may still claim 9999-12-31
-SELECT COUNT(*) AS bad_end_dates FROM customer_dim
-WHERE  is_current_flag = 'N' AND effective_end_date = DATE '9999-12-31';
--- expect 0
-
--- Existing facts must not be orphaned by a new version
-SELECT COUNT(*) AS orphaned_facts
-FROM   order_fact f
-WHERE  NOT EXISTS (SELECT 1 FROM customer_dim d
-                   WHERE d.customer_key = f.customer_key);
--- expect 0
-
--- Re-run the EXEC: expect 0 expired, 0 versions, 0 ages refreshed.

@@ -142,27 +142,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_service_dim_initial;
-
--- Expect 16
-SELECT COUNT(*) AS total_rows FROM service_dim;
-
--- Derived duration should look sensible (add-ons short, anti-aging long)
-SELECT service_key, serv_name, serv_category, serv_price, serv_duration
-FROM service_dim
-ORDER BY serv_category, serv_price;
-
--- Expect 7 categories, none 'Uncategorised'
-SELECT serv_category, COUNT(*) AS services, AVG(serv_duration) AS avg_mins
-FROM service_dim
-GROUP BY serv_category
-ORDER BY serv_category;
-
--- No orphans, no duplicate natural key
-SELECT COUNT(*) AS orphan_rows FROM service_dim d
-WHERE NOT EXISTS (SELECT 1 FROM service s WHERE s.serv_ID = d.serv_ID);
-
-SELECT serv_ID, COUNT(*) AS versions FROM service_dim
-GROUP BY serv_ID HAVING COUNT(*) > 1;

@@ -7,7 +7,7 @@
 --   SECTION 4: run + verification
 --
 -- SCOPE: CHANGED RECORDS ONLY. New products belong to
---   subsequentLoading\sub_dimension\03_sub_product_dim.sql
+--   sub_dimension\03_sub_product_dim.sql
 --
 -- WHY THIS MATTERS HERE MORE THAN ANYWHERE ELSE:
 -- when a price changes, orders placed BEFORE the change keep pointing
@@ -19,14 +19,11 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- product_staging_v is defined in
---   initialLoading\init_dimension\05_init_product_dim.sql
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_product_key continues from wherever the last load left it.
+-- SECTION 1: STAGING VIEW - reuses product_staging_v from
+--   initial_loading\init_dimension\05_init_product_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_product_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -111,59 +108,9 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Pass p_effective_date as the date the change ACTUALLY happened,
+-- e.g. EXEC maintain_product_dim_scd2(DATE '2025-01-01');
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- No argument -> the change is dated TODAY (SYSDATE).
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_maintain_scd2.sql
--- so every call and its arguments sit in ONE place.
---   EXEC maintain_product_dim_scd2;
-
--- Or date it to when the change ACTUALLY happened. The old version is
--- closed the day before, the new one opens on that date:
---     EXEC maintain_product_dim_scd2(DATE '2024-07-01');
-
--- Exactly ONE current row per natural key. Must return no rows.
-SELECT product_ID, COUNT(*) AS current_versions
-FROM   product_dim
-WHERE  is_current_flag = 'Y'
-GROUP BY product_ID HAVING COUNT(*) <> 1;
-
--- Price history for anything that changed
-SELECT product_key, product_ID, product_name, product_unit_price,
-       effective_start_date, effective_end_date, is_current_flag
-FROM   product_dim
-WHERE  product_ID IN (SELECT product_ID FROM product_dim
-                      GROUP BY product_ID HAVING COUNT(*) > 1)
-ORDER BY product_ID, product_key;
-
--- No expired row may still claim 9999-12-31
-SELECT COUNT(*) AS bad_end_dates FROM product_dim
-WHERE  is_current_flag = 'N' AND effective_end_date = DATE '9999-12-31';
--- expect 0
-
--- Existing facts must NOT be orphaned: they keep pointing at the OLD
--- product_key, which still exists. That is the point of Type 2.
-SELECT COUNT(*) AS orphaned_facts
-FROM   order_fact f
-WHERE  NOT EXISTS (SELECT 1 FROM product_dim d
-                   WHERE d.product_key = f.product_key);
--- expect 0
-
--- ---------- END-TO-END TEST (optional, run by hand) ----------
--- Assumes product 9001 already exists in BOTH product and product_dim
--- (add it with sub_dimension\03_sub_product_dim.sql first).
---
--- UPDATE product SET product_unit_price = 120.00 WHERE product_ID = 9001;
--- COMMIT;
--- -- No argument -> the change is dated TODAY (SYSDATE).
---   EXEC maintain_product_dim_scd2;
-
--- Or date it to when the change ACTUALLY happened. The old version is
--- closed the day before, the new one opens on that date:
---     EXEC maintain_product_dim_scd2(DATE '2024-07-01');      -- expect 1 expired, 1 version
---
--- SELECT product_key, product_unit_price, effective_start_date,
---        effective_end_date, is_current_flag
--- FROM   product_dim WHERE product_ID = 9001 ORDER BY product_key;
--- -- expect 2 rows: 99.00 flagged 'N', 120.00 flagged 'Y'

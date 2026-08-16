@@ -6,12 +6,9 @@
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - the PK is the degenerate purchase_ID
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
---   SECTION 4: run + verification
+--   SECTION 4: run
 --
--- THE VIEW DOES NOT TOUCH THE DIMENSIONS - natural keys out
--- (product_ID, br_ID, sup_ID) and the raw purchase_date.
---
--- This is your COGS fact. Branch profitability =
+-- This is the COGS fact. Branch profitability =
 --   order_fact revenue - purchase_fact cost
 --   - salary_payment_fact - branch_expense_fact
 -- ===================================================================
@@ -141,44 +138,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_purchase_fact_initial;
-
-SELECT (SELECT COUNT(*) FROM purchase_fact) AS fact_rows,
-       (SELECT COUNT(*) FROM purchase)      AS source_rows
-FROM dual;
-
-SELECT (SELECT COUNT(*) FROM purchase)
-     - (SELECT COUNT(*) FROM purchase_fact_staging_v) AS rejected_by_view
-FROM dual;
--- expect 0
-
--- Which DIMENSION lookup failed, if any. Both must return 0.
-SELECT COUNT(*) AS no_date FROM purchase_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.purchase_date);
-
-SELECT COUNT(*) AS no_supplier FROM purchase_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM supplier_dim u
-                  WHERE u.sup_ID = ls.sup_ID
-                    AND u.is_current_flag = 'Y');
-
--- Cost by supplier
-SELECT s.sup_name,
-       ROUND(SUM(f.purchase_total_cost), 2) AS total_cost,
-       SUM(f.purchase_qty)                  AS units
-FROM purchase_fact f
-JOIN supplier_dim s ON s.supplier_key = f.supplier_key
-GROUP BY s.sup_name
-ORDER BY total_cost DESC;
-
--- COGS per product category. Purchase cost should sit well below the
--- sell price.
-SELECT p.product_category,
-       ROUND(SUM(f.purchase_total_cost), 2) AS cogs,
-       ROUND(AVG(f.purchase_unit_cost), 2)  AS avg_unit_cost
-FROM purchase_fact f
-JOIN product_dim p ON p.product_key = f.product_key
-GROUP BY p.product_category
-ORDER BY cogs DESC;

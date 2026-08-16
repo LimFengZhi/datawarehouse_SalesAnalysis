@@ -14,15 +14,11 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- branch_staging_v is defined in
---   initialLoading\init_dimension\01_init_branch_dim.sql
--- It normalises the 5 cities and 5 Malaysian states.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_branch_key already issued keys 1..5. It continues at 6.
+-- SECTION 1: STAGING VIEW - reuses branch_staging_v from
+--   initial_loading\init_dimension\01_init_branch_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_branch_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -69,28 +65,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_dimensions.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_branch_dim_incremental;
-
--- One row per natural key. Must return no rows.
-SELECT br_ID, COUNT(*) AS rows_per_key
-FROM   branch_dim
-GROUP BY br_ID HAVING COUNT(*) > 1;
-
-SELECT branch_key, br_ID, br_name, br_city, br_state,
-       effective_start_date, is_current_flag
-FROM   branch_dim
-ORDER BY branch_key;
-
--- Every OLTP branch is represented
-SELECT COUNT(*) AS missing_from_dim
-FROM   branch b
-WHERE  NOT EXISTS (SELECT 1 FROM branch_dim d
-                   WHERE d.br_ID = b.br_ID);
--- expect 0
-
--- Re-run the EXEC above: must report 0 new branches inserted.

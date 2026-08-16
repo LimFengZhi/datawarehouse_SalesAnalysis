@@ -36,16 +36,10 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- order_fact_staging_v is defined in
---   initialLoading\init_fact\01_init_order_fact.sql
---
--- It does OLTP cleansing only and exposes NATURAL keys (cus_ID, br_ID,
--- st_ID, product_ID) plus the raw order_date. The surrogate-key joins
--- are written out below, in this procedure - the same way the initial
--- load does it. Keeping them here rather than in the view means the
--- is_current_flag = 'Y' filter is visible at the point of loading, and
--- the raw date is available for the window filter.
+-- SECTION 1: STAGING VIEW - reuses order_fact_staging_v from
+--   initial_loading\init_fact\01_init_order_fact.sql
+-- OLTP cleansing only; the surrogate-key joins are written out in the
+-- procedure below, where the raw date drives the window filter.
 -- ===================================================================
 
 -- ===================================================================
@@ -164,68 +158,9 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+--   daily:    EXEC load_order_fact_incremental;
+--   backfill: EXEC load_order_fact_incremental(DATE '2023-01-01');
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- Daily run - yesterday and today:
--- EXEC load_order_fact_incremental;
-
--- BACKFILL the whole of data2 (2023-2024). This is the one to use now:
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_facts.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_order_fact_incremental(DATE '2023-01-01');
-
--- Fact must now equal the source exactly
-SELECT (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
-       (SELECT COUNT(*) FROM order_detail) AS source_rows
-FROM dual;
-
--- Which dimension is dropping rows, if any. All must be 0.
-SELECT COUNT(*) AS no_date FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.order_date);
--- non-zero here usually means date_dim does not reach 2024 yet:
---   EXEC load_date_dim_incremental(2024);
-
-SELECT COUNT(*) AS no_product FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM product_dim p
-                  WHERE p.product_ID = ls.product_ID
-                    AND p.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_customer FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM customer_dim c
-                  WHERE c.cus_ID = ls.cus_ID AND c.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_staff FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
-                  WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_branch FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                  WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y');
-
--- Arithmetic still reconciles
-SELECT COUNT(*) AS bad_arithmetic FROM order_fact
-WHERE ABS(order_gross_amt - order_discount_amt + order_tax_amt
-          - order_total_amt) > 0.01;
-
--- Six years of product revenue. 2023 and 2024 should continue the 2022
--- recovery, and the new Ipoh branch should appear from March 2023.
-SELECT d.cal_year,
-       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS net_revenue,
-       COUNT(*) AS order_lines
-FROM order_fact f
-JOIN date_dim d ON d.date_key = f.date_key
-WHERE f.order_status = 'Completed'
-GROUP BY d.cal_year
-ORDER BY d.cal_year;
-
-SELECT b.br_city, MIN(d.cal_date) AS first_sale, COUNT(*) AS lines
-FROM order_fact f
-JOIN branch_dim b ON b.branch_key = f.branch_key
-JOIN date_dim   d ON d.date_key   = f.date_key
-GROUP BY b.br_city
-ORDER BY first_sale;
--- Ipoh should show a first sale of 2023-03-01
-
--- Re-run the EXEC above: expect 0 inserted, 0 updated.

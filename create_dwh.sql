@@ -1,53 +1,10 @@
 -- ============================================================
--- 04_create_dwh.sql
+-- create_dwh.sql
 -- Data Warehouse - Star Schema (Oracle)
 --
--- Run order: 01 (OLTP) -> load CSVs -> this file -> 05 (date_dim)
+-- Run order: operational DB -> load CSVs -> this file
+--            -> initial_loading\
 -- ============================================================
-
--- ---------- Drop if re-running (facts first, then dims) ----------
--- DROP TABLE order_fact           CASCADE CONSTRAINTS;
--- DROP TABLE reservation_fact     CASCADE CONSTRAINTS;
--- DROP TABLE purchase_fact        CASCADE CONSTRAINTS;
--- DROP TABLE salary_payment_fact  CASCADE CONSTRAINTS;
--- DROP TABLE branch_expense_fact  CASCADE CONSTRAINTS;
--- DROP TABLE branch_dim           CASCADE CONSTRAINTS;
--- DROP TABLE staff_dim            CASCADE CONSTRAINTS;
--- DROP TABLE customer_dim         CASCADE CONSTRAINTS;
--- DROP TABLE product_dim          CASCADE CONSTRAINTS;
--- DROP TABLE supplier_dim         CASCADE CONSTRAINTS;
--- DROP TABLE service_dim          CASCADE CONSTRAINTS;
--- DROP TABLE branch_utils_dim     CASCADE CONSTRAINTS;
--- DROP TABLE date_dim             CASCADE CONSTRAINTS;
--- DROP SEQUENCE seq_branch_key;
--- DROP SEQUENCE seq_staff_key;
--- DROP SEQUENCE seq_customer_key;
--- DROP SEQUENCE seq_product_key;
--- DROP SEQUENCE seq_supplier_key;
--- DROP SEQUENCE seq_service_key;
--- DROP SEQUENCE seq_branch_utils_key;
--- DROP SEQUENCE date_dim_seq;
-
-
--- ############################################################
---        SURROGATE-KEY SEQUENCES  (dimensions only)
--- ############################################################
--- Each dimension starts in its OWN number range, so any
--- surrogate key value instantly identifies which dimension it
--- belongs to (e.g. 20000-range = customer). This also prevents
--- accidentally joining a fact to the wrong dimension without
--- noticing, since key values will not overlap between dims.
--- date_dim uses date_dim_seq (1, 2, 3, ...), created in
--- initial_load_date_dim.sql rather than here.
-
--- CREATE SEQUENCE seq_branch_key       START WITH 1     INCREMENT BY 1 NOCYCLE;  -- 1..999      (5 branches)
--- CREATE SEQUENCE seq_branch_utils_key START WITH 100   INCREMENT BY 1 NOCYCLE;  -- 100..999    (6 categories)
--- CREATE SEQUENCE seq_supplier_key     START WITH 500   INCREMENT BY 1 NOCYCLE;  -- 500..999    (6 suppliers)
--- CREATE SEQUENCE seq_service_key      START WITH 1000  INCREMENT BY 1 NOCYCLE;  -- 1000-range  (16 services)
--- CREATE SEQUENCE seq_product_key      START WITH 2000  INCREMENT BY 1 NOCYCLE;  -- 2000-range  (43 products)
--- CREATE SEQUENCE seq_staff_key        START WITH 5000  INCREMENT BY 1 NOCYCLE;  -- 5000-range  (96 staff)
--- CREATE SEQUENCE seq_customer_key     START WITH 20000 INCREMENT BY 1 NOCYCLE; -- 20000-range (26k customers)
-
 
 -- ############################################################
 --                        DIMENSIONS
@@ -77,7 +34,6 @@ CREATE TABLE date_dim (
     holiday_ind       CHAR(1) DEFAULT 'N',
     holiday_name      VARCHAR2(80),
     weekday_ind       CHAR(1),
-    covid_phase       VARCHAR2(40),
     CONSTRAINT pk_date_dim PRIMARY KEY (date_key),
     CONSTRAINT uq_date_dim_date UNIQUE (cal_date)
 );
@@ -364,16 +320,3 @@ WHERE table_name IN ('DATE_DIM','BRANCH_DIM','STAFF_DIM','CUSTOMER_DIM',
                      'SALARY_PAYMENT_FACT','BRANCH_EXPENSE_FACT')
 ORDER BY table_name;
 -- expect 13 rows
-
-SELECT sequence_name, last_number FROM user_sequences
-WHERE sequence_name LIKE 'SEQ_%KEY'
-ORDER BY last_number;
--- expect 7 rows starting at 1, 100, 500, 1000, 2000, 5000, 20000
-
--- Sequence usage example (ETL insert into a dimension):
--- INSERT INTO branch_dim
---   (branch_key, br_ID, br_name, br_city, br_state, br_email,
---    br_open_date, effective_start_date)
--- SELECT seq_branch_key.NEXTVAL, br_ID, br_name, br_city, br_state,
---        br_email, br_open_date, DATE '2019-01-01'
--- FROM branch;

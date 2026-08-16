@@ -238,37 +238,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_customer_dim_initial;
-
--- Expect 26000
-SELECT COUNT(*) AS total_rows FROM customer_dim;
-
--- Expect Bronze 14332, Silver 6936, Gold 3384, Platinum 1348
-SELECT cus_loyalty_tier, COUNT(*) AS customers
-FROM customer_dim
-GROUP BY cus_loyalty_tier
-ORDER BY customers DESC;
-
--- Expect 5 states, none 'Unknown'
-SELECT cus_state, COUNT(*) AS customers
-FROM customer_dim
-GROUP BY cus_state
-ORDER BY customers DESC;
-
--- Age bands should be populated, none 'Unknown'
-SELECT cus_age_band, COUNT(*) AS customers,
-       MIN(cus_age) AS min_age, MAX(cus_age) AS max_age
-FROM customer_dim
-GROUP BY cus_age_band
-ORDER BY cus_age_band;
-
--- No orphans, no duplicate natural key
-SELECT COUNT(*) AS orphan_rows FROM customer_dim d
-WHERE NOT EXISTS (SELECT 1 FROM customer c WHERE c.cus_ID = d.cus_ID);
-
-SELECT COUNT(*) AS duplicated_nk FROM (
-    SELECT cus_ID FROM customer_dim
-    GROUP BY cus_ID HAVING COUNT(*) > 1
-);

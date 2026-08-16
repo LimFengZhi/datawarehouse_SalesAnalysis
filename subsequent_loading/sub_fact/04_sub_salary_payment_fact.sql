@@ -17,13 +17,10 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- salary_payment_fact_staging_v is defined in
---   initialLoading\init_fact\04_init_salary_payment_fact.sql
---
--- It joins the OLTP STAFF table to expose br_ID, because
--- salary_payment has no br_ID by design. That is an OLTP-to-OLTP join,
--- so the view stays free of any dimension. Surrogate joins are below.
+-- SECTION 1: STAGING VIEW - reuses salary_payment_fact_staging_v from
+--   initial_loading\init_fact\04_init_salary_payment_fact.sql
+-- It joins the OLTP STAFF table to expose br_ID (salary_payment has
+-- none by design). Surrogate-key joins are written out below.
 -- ===================================================================
 
 -- ===================================================================
@@ -115,48 +112,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- EXEC load_salary_fact_incremental;                 -- daily
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_facts.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_salary_fact_incremental(DATE '2023-01-01'); -- backfill data2
-
-SELECT (SELECT COUNT(*) FROM salary_payment_fact) AS fact_rows,
-       (SELECT COUNT(*) FROM salary_payment)      AS source_rows
-FROM dual;
-
--- Which lookup dropped rows, if any. Both must be 0.
-SELECT COUNT(*) AS no_date FROM salary_payment_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.payment_date);
-
-SELECT COUNT(*) AS no_branch FROM salary_payment_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                  WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y');
-
--- Arithmetic reconciles
-SELECT COUNT(*) AS bad_arithmetic FROM salary_payment_fact
-WHERE ABS(gross_amount - deduction_amount - net_amount) > 0.01;
--- expect 0
-
--- Payroll by year and branch. 2023-24 should step up as the Ipoh team
--- joins from February 2023.
-SELECT SUBSTR(f.pay_period, 1, 4) AS yr, b.br_city,
-       ROUND(SUM(f.net_amount), 2) AS payroll,
-       COUNT(DISTINCT f.staff_key) AS headcount
-FROM salary_payment_fact f
-JOIN branch_dim b ON b.branch_key = f.branch_key
-GROUP BY SUBSTR(f.pay_period, 1, 4), b.br_city
-ORDER BY yr, b.br_city;
-
--- Bonus pattern: December 13th-month and the April Raya bonus
-SELECT f.pay_period, ROUND(SUM(f.bonus_amount), 2) AS total_bonus
-FROM salary_payment_fact f
-WHERE f.pay_period LIKE '2023%' OR f.pay_period LIKE '2024%'
-GROUP BY f.pay_period
-HAVING SUM(f.bonus_amount) > 0
-ORDER BY f.pay_period;
-
--- Re-run the EXEC above: expect 0 inserted, 0 updated.

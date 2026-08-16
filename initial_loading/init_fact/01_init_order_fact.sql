@@ -6,19 +6,12 @@
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - the PK is the degenerate order_det_ID
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
---   SECTION 4: run + verification
+--   SECTION 4: run
 --
--- THE VIEW DOES NOT TOUCH THE DIMENSIONS.
--- It exposes the NATURAL keys (cus_ID, br_ID, st_ID, product_ID) and
--- the raw order_date. The surrogate-key lookups live in SECTION 3.
--- Three reasons that split matters:
---   1. the view compiles and can be inspected before any dimension is
---      loaded - it depends only on the OLTP tables
---   2. is_current_flag = 'Y' is a LOAD-TIME decision, not a cleansing
---      rule, so it belongs in the procedure where it is visible
---   3. the same view serves BOTH the initial load and the incremental
---      one in subsequentLoading\sub_fact\, and the incremental needs
---      the raw date to apply its lookback window
+-- The view never touches the dimensions: it exposes NATURAL keys
+-- (cus_ID, br_ID, st_ID, product_ID) and the raw order_date. The
+-- surrogate-key lookups live in the procedure, and the same view is
+-- reused by the incremental load in subsequent_loading\sub_fact\.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -201,65 +194,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_order_fact_initial;
-
--- Expect fact_rows = source_rows
-SELECT (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
-       (SELECT COUNT(*) FROM order_detail) AS source_rows
-FROM dual;
-
--- Rows the STAGING VIEW itself rejected (a NULL key in the source)
-SELECT (SELECT COUNT(*) FROM order_detail)
-     - (SELECT COUNT(*) FROM order_fact_staging_v) AS rejected_by_view
-FROM dual;
--- expect 0
-
--- Which DIMENSION lookup failed, if any. All five must return 0.
-SELECT COUNT(*) AS no_date FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.order_date);
-
-SELECT COUNT(*) AS no_product FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM product_dim p
-                  WHERE p.product_ID = ls.product_ID
-                    AND p.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_customer FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM customer_dim c
-                  WHERE c.cus_ID = ls.cus_ID
-                    AND c.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_staff FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
-                  WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_branch FROM order_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                  WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y');
-
--- Measures must reconcile: gross - discount + tax = total
-SELECT COUNT(*) AS bad_arithmetic FROM order_fact
-WHERE ABS(order_gross_amt - order_discount_amt + order_tax_amt
-          - order_total_amt) > 0.01;
-
--- Product revenue by year, net of discount and ex-tax.
--- Expect roughly 5.48m / 4.57m / 4.14m / 7.47m for 2019-2022.
-SELECT d.cal_year,
-       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS net_revenue,
-       COUNT(*) AS order_lines
-FROM order_fact f
-JOIN date_dim d ON d.date_key = f.date_key
-WHERE f.order_status = 'Completed'
-GROUP BY d.cal_year
-ORDER BY d.cal_year;
-
--- Branch ranking. Expect Kuala Lumpur top, Melaka last.
-SELECT b.br_city,
-       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS net_revenue
-FROM order_fact f
-JOIN branch_dim b ON b.branch_key = f.branch_key
-WHERE f.order_status = 'Completed'
-GROUP BY b.br_city
-ORDER BY net_revenue DESC;

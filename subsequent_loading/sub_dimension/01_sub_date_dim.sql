@@ -16,22 +16,14 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- date_staging_v is defined in
---   initialLoading\init_data_dim\initial_load_date_dim.sql
+-- SECTION 1: STAGING VIEW - reuses date_staging_v from
+--   initial_loading\init_data_dim\initial_load_date_dim.sql
+-- Its row generator runs to 2035-12-31; the initial load bounds itself
+-- to 2022-12-31. This procedure moves that bound outward.
 --
--- Its row generator runs to 2035-12-31 (6,209 days). The INITIAL load
--- bounds itself to 2022-12-31 with a WHERE clause, so it inserts only
--- 1,461 days. This procedure moves that bound outward to the year you
--- pass in - the transformation logic lives in exactly one place.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- date_dim_seq was created by the initial load and has already issued
--- keys 1..1461. It carries on from 1462, which is exactly what new
--- calendar days need. Recreating it would restart at 1 and collide
--- with the existing primary keys.
+-- SECTION 2: SEQUENCE - reuses date_dim_seq. It carries on from where
+-- the initial load stopped; recreating it would restart at 1 and
+-- collide with existing primary keys.
 -- ===================================================================
 
 -- ===================================================================
@@ -128,56 +120,15 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + HOLIDAYS + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- The EXECs live in execute_sub_procedure.sql (data2, 2023-2024) and
+-- execute_sub2.sql (data3, 2025).
+-- Verification queries live in ..\validate_subsequent_loading.sql
+--
+-- HOLIDAYS: new days land with holiday_ind = 'N'. After extending the
+-- calendar, regenerate and run the holiday file:
+--     cd initial_loading\init_data_dim
+--     python gen_holidays.py 2019 <last year> > holiday_update.sql
+--     @holiday_update.sql
+-- The generated file resets ONLY the years it covers.
 -- ===================================================================
--- Change the year to whatever you need.
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_dimensions.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_date_dim_incremental(2026);
-
--- ---------- HOLIDAYS FOR THE NEW YEARS ----------
--- New days land with holiday_ind = 'N'. Regenerate the holiday file to
--- cover the wider range, then run it:
---
---     cd c:\Users\laoli\Downloads\datawarehouseAnalysis\initialLoading\init_data_dim
---     python gen_holidays.py 2019 2026 > holiday_update.sql
---
--- The generated file resets ONLY the years it covers, so regenerating
--- a partial range (e.g. 2025 2026) leaves 2019-2022 untouched.
--- Uncomment the next line to apply it as part of this script:
---
--- @@..\..\initialLoading\init_data_dim\holiday_update.sql
-
--- Days per year. Expect 365, except 366 in 2020 and 2024.
-SELECT cal_year, COUNT(*) AS days,
-       SUM(CASE WHEN holiday_ind = 'Y' THEN 1 ELSE 0 END) AS holidays
-FROM   date_dim
-WHERE  date_key <> 0
-GROUP BY cal_year
-ORDER BY cal_year;
-
--- Surrogate keys must stay unique
-SELECT COUNT(*)                 AS total_rows,
-       MIN(date_key)            AS min_key,
-       MAX(date_key)            AS max_key,
-       COUNT(DISTINCT date_key) AS distinct_keys
-FROM   date_dim;
-
--- No duplicate calendar dates
-SELECT cal_date, COUNT(*) AS dupes
-FROM   date_dim WHERE date_key <> 0
-GROUP BY cal_date HAVING COUNT(*) > 1;
-
--- No gaps in the run of days
-SELECT COUNT(*) AS missing_days
-FROM (
-    SELECT cal_date,
-           LEAD(cal_date) OVER (ORDER BY cal_date) AS next_date
-    FROM   date_dim WHERE date_key <> 0
-)
-WHERE next_date IS NOT NULL
-  AND next_date <> cal_date + 1;
--- expect 0
-
--- Re-run the EXEC above: it must report "Nothing to add".

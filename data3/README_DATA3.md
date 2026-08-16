@@ -141,18 +141,17 @@ bonus in **March** this year (following the festival). Salaries up 4% on 2024; r
 ```
 1.  load_all.bat dwh <pw> XE "...\data3"
 2.  @data3\99_price_change_2025.sql
-3.  run the sub_dimension scripts (create the procedures)
-4.  edit subsequentLoading\execute_sub_procedure.sql to 2025:
-        EXEC load_date_dim_incremental(2025);
-        EXEC maintain_product_dim_scd2(DATE '2025-01-01');
-        EXEC maintain_service_dim_scd2(DATE '2025-01-01');
-        EXEC load_order_fact_incremental(DATE '2025-01-01');   -- and the rest
-5.  @subsequentLoading\execute_sub_procedure.sql
+3.  @subsequent_loading\execute_sub2.sql              already set to 2025 throughout
+4.  python gen_holidays.py 2019 2025 > holiday_update.sql
+    @holiday_update.sql
+5.  @subsequent_loading\validate_subsequent_loading.sql
 ```
 
-Step 4 matters: leave the dates at 2023 and the new versions get stamped with the wrong effective
-dates, and `date_dim` never reaches 2025 so every 2025 transaction is silently dropped by the fact
-loads.
+Step 2 matters: the maintain procedures compare the dimension against the OLTP, so the 2025 prices
+must be in the OLTP *before* execute_sub2.sql runs, or there is nothing for them to detect — and
+the 2025 fact rows would attach to the old price versions.
+
+(The 19 procedures must already exist from the data2 run; execute_sub2.sql's STEP 0 checks.)
 
 ## Verified before shipping
 

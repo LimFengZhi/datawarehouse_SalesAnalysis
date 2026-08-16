@@ -13,14 +13,12 @@ SELECT
     s.sup_ID,
 
     -- Name: trim, collapse spaces, title case, standardise the
-    -- Malaysian company suffix (Sdn Bhd appears in every supplier).
+    -- Malaysian company suffix ('Sdn. Bhd.' -> 'Sdn Bhd').
     CASE
         WHEN s.sup_name IS NULL OR LENGTH(TRIM(s.sup_name)) < 2
             THEN 'Unknown Supplier'
         ELSE REPLACE(
-                 REPLACE(
-                     INITCAP(REGEXP_REPLACE(TRIM(s.sup_name), '\s+', ' ')),
-                 'Sdn Bhd', 'Sdn Bhd'),
+                 INITCAP(REGEXP_REPLACE(TRIM(s.sup_name), '\s+', ' ')),
              'Sdn. Bhd.', 'Sdn Bhd')
     END                                            AS clean_sup_name,
 
@@ -115,20 +113,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_supplier_dim_initial;
-
--- Expect 6
-SELECT COUNT(*) AS total_rows FROM supplier_dim;
-
-SELECT supplier_key, sup_ID, sup_name, sup_phone, sup_email
-FROM supplier_dim
-ORDER BY supplier_key;
-
--- No orphans, no duplicate natural key
-SELECT COUNT(*) AS orphan_rows FROM supplier_dim d
-WHERE NOT EXISTS (SELECT 1 FROM supplier s WHERE s.sup_ID = d.sup_ID);
-
-SELECT sup_ID, COUNT(*) AS versions FROM supplier_dim
-GROUP BY sup_ID HAVING COUNT(*) > 1;

@@ -1,5 +1,5 @@
 -- ===================================================================
--- 99_drop_everything.sql        TOTAL RESET OF THE DWH SCHEMA
+-- drop_all.sql                  TOTAL RESET OF THE DWH SCHEMA
 --
 -- *******************************************************************
 -- *                                                                 *
@@ -16,7 +16,7 @@
 --
 -- Usage:
 --   sqlplus dwh/<password>@XE
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\99_drop_everything.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\drop_all.sql
 --
 -- CONNECT AS dwh. Never run this as SYSTEM or SYS - it would try to
 -- drop whatever schema you happen to be in.
@@ -24,13 +24,13 @@
 -- ===================================================================
 -- WHICH RESET DO YOU ACTUALLY WANT?
 -- ===================================================================
---   00_clear_all.sql      empties the WAREHOUSE data, keeps every
+--   clear_dwh.sql         empties the WAREHOUSE data, keeps every
 --                         table, leaves the OLTP untouched. This is
 --                         what you want 9 times out of 10 - it lets
 --                         you re-run the loads without touching
 --                         SQL*Loader again.
 --
---   99_drop_everything.sql  (this file) destroys the objects
+--   drop_all.sql          (this file) destroys the objects
 --                         themselves, OLTP included. Use it when the
 --                         DDL itself changed, or when the schema has
 --                         got into a state you cannot reason about.
@@ -242,9 +242,9 @@ FROM   user_segments;
 -- REBUILDING FROM NOTHING
 -- ===================================================================
 -- 1. operational tables
---      @operationalDB\01_create_operational_db.sql
+--      @operational_DB\01_create_operational_db.sql
 --
--- 2. the CSVs - both folders, data first
+-- 2. the CSVs - data first, then data2 / data3
 --      cd sqlloader_control_files
 --      load_all.bat dwh <password> XE
 --      load_all.bat dwh <password> XE "c:\...\datawarehouseAnalysis\data2"
@@ -253,18 +253,16 @@ FROM   user_segments;
 --      @create_dwh.sql
 --
 -- 4. date dimension, then holidays
---      @initialLoading\init_data_dim\initial_load_date_dim.sql
---      EXEC load_date_dim_incremental(2024);
---      (cd initialLoading\init_data_dim
---       python gen_holidays.py 2019 2024 > holiday_update.sql)
---      @initialLoading\init_data_dim\holiday_update.sql
+--      @initial_loading\init_data_dim\initial_load_date_dim.sql
+--      (cd initial_loading\init_data_dim
+--       python gen_holidays.py 2019 2022 > holiday_update.sql)
+--      @initial_loading\init_data_dim\holiday_update.sql
 --
--- 5. dimensions
---      @initialLoading\init_dimension\00_run_all_dimensions.sql
+-- 5. dimensions - run the seven init_dimension scripts 01..07
 --
--- 6. facts
---      @initialLoading\init_fact\00_run_all_facts.sql
+-- 6. facts - run the five init_fact scripts 01..05
 --
--- Steps 3-6 are what RUN_ALL.sql does in one command, once the tables
--- from step 1 and the data from step 2 are in place.
+-- 7. check it all with initial_loading\validate_initial_loading.sql
+--
+-- Then follow LOADING_GUIDE.md Part B for data2 / data3.
 -- ===================================================================

@@ -6,19 +6,13 @@
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - the PK is the degenerate res_det_ID
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
---   SECTION 4: run + verification
+--   SECTION 4: run
 --
--- THE VIEW DOES NOT TOUCH THE DIMENSIONS - it exposes natural keys
--- (cus_ID, br_ID, st_ID, serv_ID) and the raw appointment date. The
--- surrogate lookups are in SECTION 3.
---
--- THREE THINGS THE SOURCE DOES NOT STORE, all resolved in the view:
---   1. serv_price - reservation_detail has a discount and a tax but no
---      price. It is joined from the OLTP SERVICE table (not
---      service_dim, which would couple the view to a dimension).
+-- The view exposes natural keys and the raw appointment date only.
+-- Three things the source does not store, resolved in the view:
+--   1. serv_price   - joined from the OLTP SERVICE table (not the dim)
 --   2. start_hour   - derived, for peak-hour analysis
 --   3. res_duration - derived, actual minutes
---
 -- staff_key comes from RESERVATION_DETAIL (the therapist who performed
 -- the service), NOT from the reservation header.
 -- ===================================================================
@@ -195,63 +189,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_reservation_fact_initial;
-
-SELECT (SELECT COUNT(*) FROM reservation_fact)   AS fact_rows,
-       (SELECT COUNT(*) FROM reservation_detail) AS source_rows
-FROM dual;
-
-SELECT (SELECT COUNT(*) FROM reservation_detail)
-     - (SELECT COUNT(*) FROM reservation_fact_staging_v) AS rejected_by_view
-FROM dual;
--- expect 0
-
--- Which DIMENSION lookup failed, if any. All must return 0.
-SELECT COUNT(*) AS no_date FROM reservation_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d WHERE d.cal_date = ls.res_date);
-
-SELECT COUNT(*) AS no_service FROM reservation_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM service_dim v
-                  WHERE v.serv_ID = ls.serv_ID
-                    AND v.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_staff FROM reservation_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
-                  WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y');
-
--- Derived columns must be sane: hours 10..20, no negative durations
-SELECT MIN(start_hour) AS min_hr, MAX(start_hour) AS max_hr,
-       MIN(res_duration) AS min_mins, MAX(res_duration) AS max_mins,
-       COUNT(*) - COUNT(res_duration) AS null_durations
-FROM reservation_fact;
-
--- THE COVID CHECK. Services were banned during MCO 1.0 and FMCO, so
--- these two windows must return ZERO completed reservations.
-SELECT d.cal_year, d.cal_quarter, COUNT(*) AS completed_services
-FROM reservation_fact f
-JOIN date_dim d ON d.date_key = f.date_key
-WHERE f.res_status = 'Completed'
-  AND ( (d.cal_date BETWEEN DATE '2020-04-01' AND DATE '2020-04-30')
-     OR (d.cal_date BETWEEN DATE '2021-06-01' AND DATE '2021-08-31') )
-GROUP BY d.cal_year, d.cal_quarter
-ORDER BY 1, 2;
--- expect NO ROWS
-
--- Service revenue by year. Expect ~2.48m / 1.66m / 1.18m / 3.52m
-SELECT d.cal_year,
-       ROUND(SUM(f.serv_price - f.serv_discount_amt), 2) AS net_revenue,
-       COUNT(*) AS service_lines
-FROM reservation_fact f
-JOIN date_dim d ON d.date_key = f.date_key
-WHERE f.res_status = 'Completed'
-GROUP BY d.cal_year
-ORDER BY d.cal_year;
-
--- Peak booking hour. Expect a bulge at 16:00-18:00.
-SELECT start_hour, COUNT(*) AS bookings
-FROM reservation_fact
-WHERE res_status = 'Completed'
-GROUP BY start_hour
-ORDER BY start_hour;

@@ -19,14 +19,9 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- reservation_fact_staging_v is defined in
---   initialLoading\init_fact\02_init_reservation_fact.sql
---
--- OLTP cleansing only: natural keys (cus_ID, br_ID, st_ID, serv_ID),
--- the raw res_date, serv_price carried from the OLTP SERVICE table,
--- and the derived start_hour / res_duration. Surrogate-key joins are
--- written out below.
+-- SECTION 1: STAGING VIEW - reuses reservation_fact_staging_v from
+--   initial_loading\init_fact\02_init_reservation_fact.sql
+-- OLTP cleansing only; surrogate-key joins are written out below.
 -- ===================================================================
 
 -- ===================================================================
@@ -129,52 +124,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- EXEC load_res_fact_incremental;                 -- daily
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_facts.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_res_fact_incremental(DATE '2023-01-01'); -- backfill data2
-
-SELECT (SELECT COUNT(*) FROM reservation_fact)   AS fact_rows,
-       (SELECT COUNT(*) FROM reservation_detail) AS source_rows
-FROM dual;
-
--- Which lookup dropped rows, if any. All must be 0.
-SELECT COUNT(*) AS no_date FROM reservation_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d WHERE d.cal_date = ls.res_date);
-
-SELECT COUNT(*) AS no_service FROM reservation_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM service_dim v
-                  WHERE v.serv_ID = ls.serv_ID
-                    AND v.is_current_flag = 'Y');
-
-SELECT COUNT(*) AS no_staff FROM reservation_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM staff_dim s
-                  WHERE s.st_ID = ls.st_ID AND s.is_current_flag = 'Y');
-
--- Derived columns still sane
-SELECT MIN(start_hour) AS min_hr, MAX(start_hour) AS max_hr,
-       MIN(res_duration) AS min_mins, MAX(res_duration) AS max_mins
-FROM reservation_fact;
--- expect hours 10..19 and no negative durations
-
--- Status mix per year. 2023-24 should show a healthy no-show rate,
--- and the 2020/2021 lockdown gaps should still be visible.
-SELECT d.cal_year, f.res_status, COUNT(*) AS bookings
-FROM reservation_fact f
-JOIN date_dim d ON d.date_key = f.date_key
-GROUP BY d.cal_year, f.res_status
-ORDER BY d.cal_year, f.res_status;
-
--- Service revenue by year
-SELECT d.cal_year,
-       ROUND(SUM(f.serv_price - f.serv_discount_amt), 2) AS net_revenue
-FROM reservation_fact f
-JOIN date_dim d ON d.date_key = f.date_key
-WHERE f.res_status = 'Completed'
-GROUP BY d.cal_year
-ORDER BY d.cal_year;
-
--- Re-run the EXEC above: expect 0 inserted, 0 updated.

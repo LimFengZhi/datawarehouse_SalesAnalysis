@@ -20,18 +20,12 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- supplier_staging_v is defined in
---   initialLoading\init_dimension\03_init_supplier_dim.sql
--- It already does the TRIM / name / phone / email cleansing, so this
--- must NOT duplicate that logic - if a rule changes it changes once
--- and both loads follow.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_supplier_key already issued keys 500..505. It continues at 506.
--- Recreating it would restart at 500 and violate the primary key.
+-- SECTION 1: STAGING VIEW - reuses supplier_staging_v from
+--   initial_loading\init_dimension\03_init_supplier_dim.sql
+-- so a cleansing rule changes once and both loads follow.
+--
+-- SECTION 2: SEQUENCE - reuses seq_supplier_key. Recreating it would
+-- restart at 500 and violate the primary key.
 -- ===================================================================
 
 -- ===================================================================
@@ -78,28 +72,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_dimensions.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_supplier_dim_incremental;
-
--- One row per natural key. Must return no rows.
-SELECT sup_ID, COUNT(*) AS rows_per_key
-FROM   supplier_dim
-GROUP BY sup_ID HAVING COUNT(*) > 1;
-
-SELECT supplier_key, sup_ID, sup_name, sup_phone, sup_email,
-       effective_start_date, is_current_flag
-FROM   supplier_dim
-ORDER BY supplier_key;
-
--- Every OLTP supplier is represented
-SELECT COUNT(*) AS missing_from_dim
-FROM   supplier s
-WHERE  NOT EXISTS (SELECT 1 FROM supplier_dim d
-                   WHERE d.sup_ID = s.sup_ID);
--- expect 0
-
--- Re-run the EXEC above: must report 0 new suppliers inserted.

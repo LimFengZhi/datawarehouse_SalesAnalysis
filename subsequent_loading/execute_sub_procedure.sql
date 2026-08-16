@@ -2,7 +2,7 @@
 -- execute_sub_procedure.sql
 -- RUNS the whole subsequent load. Creates nothing.
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequentLoading\execute_sub_procedure.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\subsequent_loading\execute_sub_procedure.sql
 --
 -- ===================================================================
 -- BEFORE YOU RUN THIS
@@ -134,6 +134,12 @@ PROMPT ##############################################
 -- CHANGE THE YEAR HERE if you extend past 2024. This must run before
 -- the facts, or their date lookups fail silently.
 EXEC load_date_dim_incremental(2024);
+
+-- The new 2023-2024 days arrive with holiday_ind = 'N'. AFTER this
+-- file finishes, regenerate and apply the holiday file:
+--     cd initial_loading\init_data_dim
+--     python gen_holidays.py 2019 2024 > holiday_update.sql
+--     @holiday_update.sql
 
 EXEC load_supplier_dim_incremental;
 EXEC load_product_dim_incremental;
@@ -313,4 +319,6 @@ ORDER  BY first_sold;
 -- ===================================================================
 -- Run this file a SECOND time. Every procedure must report 0 inserted,
 -- 0 expired and 0 updated, and the counts above must not move.
+--
+-- Deeper integrity checks live in validate_subsequent_loading.sql.
 -- ===================================================================

@@ -137,22 +137,15 @@ against the orders that actually paid each one.
 ```
 1.  load_all.bat dwh <pw> XE "...\data2"              append the new source rows
 2.  @data2\99_price_increase_2023.sql                 raise the 7 prices in the OLTP
-3.  @subsequentLoading\sub_dimension\00_run_all_sub_dimensions.sql
-                                                      new branch, staff, products,
-                                                      services, customers + extend
-                                                      date_dim to 2024
-4.  EXEC load_date_dim_incremental(2024);             if step 3 did not already
+3.  run the 19 numbered subsequent_loading scripts    create the procedures (once)
+4.  @subsequent_loading\execute_sub_procedure.sql     calendar to 2024, new dimension
+                                                      records, SCD2 versions, facts
 5.  python gen_holidays.py 2019 2024 > holiday_update.sql
     @holiday_update.sql                               holidays for the new years
-6.  EXEC maintain_product_dim_scd2(DATE '2023-01-01');
-                                                      version the 7 price changes
-7.  reload the facts                                  so 2023-24 transactions land
+6.  @subsequent_loading\validate_subsequent_loading.sql
 ```
 
-Step 7 matters: the fact tables were loaded from `data/` only. The initial fact procedures refuse to
-run on a non-empty table, so either clear them first with [00_clear_all.sql](../00_clear_all.sql)
-and re-run [RUN_ALL.sql](../RUN_ALL.sql), or build the incremental fact loads in
-`subsequentLoading/sub_fact/`.
+See LOADING_GUIDE.md Part B for the full walk-through.
 
 ## Verified before shipping
 

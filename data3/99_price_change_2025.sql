@@ -28,9 +28,8 @@
 --
 --       1. load_all.bat dwh <pw> XE "...\data3"
 --       2. @data3\99_price_change_2025.sql          <- you are here
---       3. run the sub_dimension scripts, then
---          @subsequentLoading\execute_sub_procedure.sql
---          with the dates set to 2025 (see the bottom of this file)
+--       3. @subsequent_loading\execute_sub2.sql
+--          (already set to 2025 - see the bottom of this file)
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -85,14 +84,14 @@ ORDER  BY serv_ID;
 -- ===================================================================
 -- NEXT: turn the change into dimension history
 -- ===================================================================
--- In subsequentLoading\execute_sub_procedure.sql, set the year and the
--- effective dates to 2025 before running it:
+-- Run subsequent_loading\execute_sub2.sql - it already carries the
+-- 2025 dates:
 --
 --   EXEC load_date_dim_incremental(2025);
 --   EXEC maintain_product_dim_scd2(DATE '2025-01-01');
 --   EXEC maintain_service_dim_scd2(DATE '2025-01-01');
---   EXEC load_order_fact_incremental(DATE '2025-01-01');   -- and the
---   ...                                                     other facts
+--   EXEC load_order_fact_incremental(DATE '2025-01-01');
+--   ... and the other facts
 --
 -- Then confirm the versions landed on the right dates:
 --

@@ -6,10 +6,7 @@
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - the PK is the degenerate br_exp_ID
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
---   SECTION 4: run + verification
---
--- THE VIEW DOES NOT TOUCH THE DIMENSIONS - natural keys out (br_ID,
--- br_utils_ID) and the raw payment_date.
+--   SECTION 4: run
 --
 -- The last piece of branch profitability: overheads. Combined with
 -- branch_utils_dim.util_category ('Fixed' / 'Variable') this splits
@@ -130,44 +127,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_br_expense_fact_initial;
-
--- Expect 1440 in both  (5 branches x 6 utilities x 48 months)
-SELECT (SELECT COUNT(*) FROM branch_expense_fact) AS fact_rows,
-       (SELECT COUNT(*) FROM branch_expense)      AS source_rows
-FROM dual;
-
-SELECT (SELECT COUNT(*) FROM branch_expense)
-     - (SELECT COUNT(*) FROM branch_expense_fact_staging_v) AS rejected_by_view
-FROM dual;
--- expect 0
-
--- Which DIMENSION lookup failed, if any. Both must return 0.
-SELECT COUNT(*) AS no_date FROM branch_expense_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.payment_date);
-
-SELECT COUNT(*) AS no_utils FROM branch_expense_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM branch_utils_dim u
-                  WHERE u.br_utils_ID = ls.br_utils_ID);
-
--- Fixed vs variable overhead per branch
-SELECT b.br_city, u.util_category,
-       ROUND(SUM(f.payment_amount), 2) AS total_expense
-FROM branch_expense_fact f
-JOIN branch_dim       b ON b.branch_key       = f.branch_key
-JOIN branch_utils_dim u ON u.branch_utils_key = f.branch_utils_key
-GROUP BY b.br_city, u.util_category
-ORDER BY b.br_city, u.util_category;
-
--- THE RENT-REBATE CHECK. The README says landlords gave rebates during
--- lockdown, so 2020 rent should dip below 2019 and 2021.
-SELECT SUBSTR(f.billing_period, 1, 4) AS yr,
-       ROUND(SUM(f.payment_amount), 2) AS total_rent
-FROM branch_expense_fact f
-JOIN branch_utils_dim u ON u.branch_utils_key = f.branch_utils_key
-WHERE u.util_name = 'Rent'
-GROUP BY SUBSTR(f.billing_period, 1, 4)
-ORDER BY yr;

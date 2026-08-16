@@ -6,17 +6,11 @@
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - the PK is the degenerate sal_pay_ID
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
---   SECTION 4: run + verification
+--   SECTION 4: run
 --
--- THE VIEW DOES NOT TOUCH THE DIMENSIONS - natural keys out (st_ID,
--- br_ID) and the raw payment_date.
---
--- THE INTERESTING BIT: salary_payment has NO br_ID - that was a
--- deliberate decision in the OLTP model (see the comment in
--- 01_create_operational_db.sql). The view therefore joins the OLTP
+-- salary_payment has NO br_ID by design, so the view joins the OLTP
 -- STAFF table to expose br_ID as a natural key. That is an
--- OLTP-to-OLTP join, exactly like LOAN joining LOAN_DETAILS - it does
--- NOT couple the view to a dimension.
+-- OLTP-to-OLTP join - it does NOT couple the view to a dimension.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -148,46 +142,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_salary_fact_initial;
-
-SELECT (SELECT COUNT(*) FROM salary_payment_fact) AS fact_rows,
-       (SELECT COUNT(*) FROM salary_payment)      AS source_rows
-FROM dual;
-
-SELECT (SELECT COUNT(*) FROM salary_payment)
-     - (SELECT COUNT(*) FROM salary_payment_fact_staging_v) AS rejected_by_view
-FROM dual;
--- expect 0
-
--- Which DIMENSION lookup failed, if any. Both must return 0.
-SELECT COUNT(*) AS no_date FROM salary_payment_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM date_dim d
-                  WHERE d.cal_date = ls.payment_date);
-
-SELECT COUNT(*) AS no_branch FROM salary_payment_fact_staging_v ls
-WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                  WHERE b.br_ID = ls.br_ID AND b.is_current_flag = 'Y');
-
--- Arithmetic check: gross - deduction = net
-SELECT COUNT(*) AS bad_arithmetic FROM salary_payment_fact
-WHERE ABS(gross_amount - deduction_amount - net_amount) > 0.01;
-
--- Payroll by branch and year
-SELECT b.br_city, SUBSTR(f.pay_period, 1, 4) AS yr,
-       ROUND(SUM(f.net_amount), 2) AS payroll
-FROM salary_payment_fact f
-JOIN branch_dim b ON b.branch_key = f.branch_key
-GROUP BY b.br_city, SUBSTR(f.pay_period, 1, 4)
-ORDER BY b.br_city, yr;
-
--- THE MCO PAY-CUT CHECK. The README says salaries were cut 20% then
--- 15% during lockdown, and 13th-month / Raya bonuses were paid.
--- Average base should dip in 2020 and bonuses should spike in Dec.
-SELECT SUBSTR(pay_period, 1, 4) AS yr,
-       ROUND(AVG(base_amount), 2)  AS avg_base,
-       ROUND(SUM(bonus_amount), 2) AS total_bonus
-FROM salary_payment_fact
-GROUP BY SUBSTR(pay_period, 1, 4)
-ORDER BY yr;

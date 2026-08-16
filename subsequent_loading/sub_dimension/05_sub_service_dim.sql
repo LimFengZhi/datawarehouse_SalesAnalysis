@@ -19,14 +19,11 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- service_staging_v is defined in
---   initialLoading\init_dimension\04_init_service_dim.sql
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_service_key already issued keys 1000..1015. It continues at 1016.
+-- SECTION 1: STAGING VIEW - reuses service_staging_v from
+--   initial_loading\init_dimension\04_init_service_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_service_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -73,28 +70,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_dimensions.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_service_dim_incremental;
-
--- One row per natural key. Must return no rows.
-SELECT serv_ID, COUNT(*) AS rows_per_key
-FROM   service_dim
-GROUP BY serv_ID HAVING COUNT(*) > 1;
-
-SELECT service_key, serv_ID, serv_name, serv_category, serv_price,
-       serv_duration
-FROM   service_dim
-ORDER BY service_key;
-
--- Every OLTP service is represented
-SELECT COUNT(*) AS missing_from_dim
-FROM   service s
-WHERE  NOT EXISTS (SELECT 1 FROM service_dim d
-                   WHERE d.serv_ID = s.serv_ID);
--- expect 0
-
--- Re-run the EXEC above: must report 0 new services inserted.

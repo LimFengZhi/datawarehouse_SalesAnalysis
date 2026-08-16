@@ -247,41 +247,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_staff_dim_initial;
-
--- Expect 96
-SELECT COUNT(*) AS total_rows FROM staff_dim;
-
--- Expect 6 roles: Beauty Therapist 36, Sales Assistant 18,
--- Senior Therapist 16, Receptionist 12, Cashier 9, Branch Manager 5
-SELECT st_role, COUNT(*) AS staff_count
-FROM staff_dim
-GROUP BY st_role
-ORDER BY staff_count DESC;
-
--- Expect Active 93, Resigned 3. No 'Unknown' genders.
-SELECT st_status, st_gender, COUNT(*) AS n
-FROM staff_dim
-GROUP BY st_status, st_gender
-ORDER BY st_status, st_gender;
-
--- Every branch should have exactly 1 Branch Manager
-SELECT br_ID, COUNT(*) AS managers
-FROM staff_dim
-WHERE st_role = 'Branch Manager'
-GROUP BY br_ID
-ORDER BY br_ID;
-
--- Derived age must be sensible, never NULL if DOB was good
-SELECT MIN(st_age) AS min_age, MAX(st_age) AS max_age,
-       COUNT(*) - COUNT(st_age) AS null_ages
-FROM staff_dim;
-
--- No orphans, no duplicate natural key
-SELECT COUNT(*) AS orphan_rows FROM staff_dim d
-WHERE NOT EXISTS (SELECT 1 FROM staff s WHERE s.st_ID = d.st_ID);
-
-SELECT st_ID, COUNT(*) AS versions FROM staff_dim
-GROUP BY st_ID HAVING COUNT(*) > 1;

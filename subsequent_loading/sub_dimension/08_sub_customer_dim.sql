@@ -24,16 +24,11 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- customer_staging_v is defined in
---   initialLoading\init_dimension\07_init_customer_dim.sql
--- It combines first + last name, validates email, cross-checks age
--- against DOB, derives the 7 age bands and normalises state and tier.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_customer_key already issued keys 20000..45999. Continues at 46000.
+-- SECTION 1: STAGING VIEW - reuses customer_staging_v from
+--   initial_loading\init_dimension\07_init_customer_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_customer_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -83,44 +78,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_dimensions.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_customer_dim_incremental;
-
--- One row per natural key. Must return 0.
-SELECT COUNT(*) AS duplicated_natural_keys FROM (
-    SELECT cus_ID FROM customer_dim
-    GROUP BY cus_ID HAVING COUNT(*) > 1
-);
-
--- Tier distribution.
--- Expect Bronze 14332, Silver 6936, Gold 3384, Platinum 1348.
-SELECT cus_loyalty_tier, COUNT(*) AS customers
-FROM   customer_dim
-GROUP BY cus_loyalty_tier
-ORDER BY customers DESC;
-
--- 5 states, none 'Unknown'
-SELECT cus_state, COUNT(*) AS customers
-FROM   customer_dim
-GROUP BY cus_state
-ORDER BY customers DESC;
-
--- Every OLTP customer is represented
-SELECT COUNT(*) AS missing_from_dim
-FROM   customer c
-WHERE  NOT EXISTS (SELECT 1 FROM customer_dim d
-                   WHERE d.cus_ID = c.cus_ID);
--- expect 0
-
--- Facts must still resolve
-SELECT COUNT(*) AS orphaned_facts
-FROM   order_fact f
-WHERE  NOT EXISTS (SELECT 1 FROM customer_dim d
-                   WHERE d.customer_key = f.customer_key);
--- expect 0
-
--- Re-run the EXEC above: must report 0 new customers inserted.

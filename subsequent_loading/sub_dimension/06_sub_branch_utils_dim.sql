@@ -22,15 +22,11 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- branch_utils_staging_v is defined in
---   initialLoading\init_dimension\02_init_branch_utils_dim.sql
--- It canonicalises the 6 utility names and derives Fixed vs Variable.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_branch_utils_key already issued keys 100..105. Continues at 106.
+-- SECTION 1: STAGING VIEW - reuses branch_utils_staging_v from
+--   initial_loading\init_dimension\02_init_branch_utils_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_branch_utils_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -71,34 +67,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_sub_dimensions.sql
--- so every call and its arguments sit in ONE place.
---   EXEC load_br_utils_dim_incremental;
-
--- One row per natural key, enforced by uq_branch_utils_nk.
--- Must return no rows.
-SELECT br_utils_ID, COUNT(*) AS rows_per_key
-FROM   branch_utils_dim
-GROUP BY br_utils_ID HAVING COUNT(*) > 1;
-
-SELECT branch_utils_key, br_utils_ID, util_name, util_category
-FROM   branch_utils_dim
-ORDER BY branch_utils_key;
-
--- Nothing should be left unmapped
-SELECT COUNT(*) AS unmapped
-FROM   branch_utils_dim
-WHERE  util_category = 'Unknown' OR util_name = 'Unknown';
--- expect 0
-
--- Every OLTP category is represented
-SELECT COUNT(*) AS missing_from_dim
-FROM   branch_utils_category u
-WHERE  NOT EXISTS (SELECT 1 FROM branch_utils_dim d
-                   WHERE d.br_utils_ID = u.br_utils_ID);
--- expect 0
-
--- Re-run the EXEC above: must report 0 new categories added.

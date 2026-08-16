@@ -11,23 +11,8 @@
 -- NOTE: "ORDER" is a reserved word in Oracle, so the table
 --       is named ORDERS.
 -- Run order = dependency order (parents before children).
+-- To wipe everything, use drop_all.sql.
 -- ============================================================
-
--- ---------- Drop tables if re-running (children first) ----------
--- DROP TABLE order_detail        CASCADE CONSTRAINTS;
--- DROP TABLE orders              CASCADE CONSTRAINTS;
--- DROP TABLE reservation_detail  CASCADE CONSTRAINTS;
--- DROP TABLE reservation         CASCADE CONSTRAINTS;
--- DROP TABLE purchase            CASCADE CONSTRAINTS;
--- DROP TABLE salary_payment      CASCADE CONSTRAINTS;
--- DROP TABLE branch_expense      CASCADE CONSTRAINTS;
--- DROP TABLE staff               CASCADE CONSTRAINTS;
--- DROP TABLE branch_utils_category CASCADE CONSTRAINTS;
--- DROP TABLE customer            CASCADE CONSTRAINTS;
--- DROP TABLE service             CASCADE CONSTRAINTS;
--- DROP TABLE product             CASCADE CONSTRAINTS;
--- DROP TABLE supplier            CASCADE CONSTRAINTS;
--- DROP TABLE branch              CASCADE CONSTRAINTS;
 
 -- ============================================================
 -- 1. BRANCH
@@ -77,7 +62,6 @@ CREATE TABLE staff (
 
 -- ============================================================
 -- 3. CUSTOMER
---    (cus_age kept to match ERD; consider deriving from DOB)
 -- ============================================================
 CREATE TABLE customer (
     cus_ID           NUMBER(10)      NOT NULL,
@@ -205,9 +189,7 @@ CREATE TABLE orders (
 );
 
 -- ============================================================
--- 11. ORDER_DETAIL
---     order_unit_price = price charged at time of sale
---     (remove if you decided against it)
+-- 11. ORDER_DETAIL  (order_unit_price = price at time of sale)
 -- ============================================================
 CREATE TABLE order_detail (
     order_det_ID     NUMBER(10)      NOT NULL,
@@ -286,7 +268,3 @@ CREATE TABLE purchase (
     CONSTRAINT chk_pur_qty CHECK (purchase_qty > 0),
     CONSTRAINT chk_pur_cost CHECK (purchase_unit_cost >= 0)
 );
-
--- ============================================================
--- End of script
--- ============================================================

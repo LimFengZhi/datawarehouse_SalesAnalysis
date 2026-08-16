@@ -93,20 +93,8 @@ credentials*.txt
 
 
 # ===================================================================
-# UNTRACKING WHAT IS ALREADY COMMITTED
-# ===================================================================
-# 18 files in this repo are already tracked and now match the patterns
-# above. .gitignore does not remove them - git keeps tracking a file
-# once it is committed. Run this once to stop tracking them while
-# leaving them on disk:
-#
-#   git rm -r --cached sqlloader_control_files/*.log
-#   git rm -r --cached __pycache__
-#   git rm -r --cached initialLoading/init_data_dim/__pycache__
-#   git rm --cached initialLoading/init_data_dim/holiday_update.sql
-#   git rm --cached initialLoading/init_data_dim/holiday_update2026.sql
-#   git commit -m "Stop tracking generated files"
-#
-# --cached is the important flag: it removes them from the INDEX only,
-# never from your working folder.
+# NOTE: .gitignore does not untrack a file that is already committed.
+# If a generated file ever shows up as tracked again, stop tracking it
+# (without deleting it from disk) with:
+#   git rm --cached <path>
 # ===================================================================

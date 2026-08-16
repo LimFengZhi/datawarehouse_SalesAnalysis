@@ -8,20 +8,17 @@
 --
 -- SCOPE: CHANGED RECORDS ONLY - a branch renamed, relocated, or given
 -- a new email. Newly opened branches belong to
---   subsequentLoading\sub_dimension\04_sub_branch_dim.sql
+--   sub_dimension\04_sub_branch_dim.sql
 -- ===================================================================
 
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - REUSED, NOT RECREATED
--- branch_staging_v is defined in
---   initialLoading\init_dimension\01_init_branch_dim.sql
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - REUSED, NOT RECREATED
--- seq_branch_key continues from wherever the last load left it.
+-- SECTION 1: STAGING VIEW - reuses branch_staging_v from
+--   initial_loading\init_dimension\01_init_branch_dim.sql
+--
+-- SECTION 2: SEQUENCE - reuses seq_branch_key, continuing from
+-- wherever the last load left it.
 -- ===================================================================
 
 -- ===================================================================
@@ -100,32 +97,9 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN + VERIFICATION - moved out
+-- EXECs live in execute_sub_procedure.sql / execute_sub2.sql.
+-- Pass p_effective_date as the date the change ACTUALLY happened,
+-- e.g. EXEC maintain_branch_dim_scd2(DATE '2025-01-01');
+-- Verification queries live in ..\validate_subsequent_loading.sql
 -- ===================================================================
--- No argument -> the change is dated TODAY (SYSDATE).
--- Procedure created above. The EXEC now lives in the folder runner
---   00_run_all_maintain_scd2.sql
--- so every call and its arguments sit in ONE place.
---   EXEC maintain_branch_dim_scd2;
-
--- Or date it to when the change ACTUALLY happened. The old version is
--- closed the day before, the new one opens on that date:
---     EXEC maintain_branch_dim_scd2(DATE '2024-07-01');
-
--- Exactly ONE current row per natural key. Must return no rows.
-SELECT br_ID, COUNT(*) AS current_versions
-FROM   branch_dim
-WHERE  is_current_flag = 'Y'
-GROUP BY br_ID HAVING COUNT(*) <> 1;
-
-SELECT branch_key, br_ID, br_name, br_city, br_state,
-       effective_start_date, effective_end_date, is_current_flag
-FROM   branch_dim
-ORDER BY br_ID, branch_key;
-
--- No expired row may still claim 9999-12-31
-SELECT COUNT(*) AS bad_end_dates FROM branch_dim
-WHERE  is_current_flag = 'N' AND effective_end_date = DATE '9999-12-31';
--- expect 0
-
--- Re-run the EXEC above: must report 0 expired, 0 versions.

@@ -112,19 +112,7 @@ END;
 /
 
 -- ===================================================================
--- SECTION 4: RUN + VERIFICATION
+-- SECTION 4: RUN
+-- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_branch_utils_dim_initial;
-
--- Expect 6
-SELECT COUNT(*) AS total_rows FROM branch_utils_dim;
-
--- Check the derived Fixed/Variable split looks right
-SELECT branch_utils_key, br_utils_ID, util_name, util_category
-FROM branch_utils_dim
-ORDER BY branch_utils_key;
-
--- Nothing should be 'Unknown'
-SELECT COUNT(*) AS unmapped
-FROM branch_utils_dim
-WHERE util_category = 'Unknown' OR util_name = 'Unknown';

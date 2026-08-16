@@ -1,5 +1,5 @@
 -- ===================================================================
--- 00_clear_all.sql          RESET THE WAREHOUSE BACK TO EMPTY
+-- clear_dwh.sql             RESET THE WAREHOUSE BACK TO EMPTY
 --
 -- *******************************************************************
 -- *  THIS DELETES ALL WAREHOUSE DATA. There is no undo after the    *
@@ -7,7 +7,7 @@
 -- *******************************************************************
 --
 -- Usage:
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\00_clear_all.sql
+--   @c:\Users\laoli\Downloads\datawarehouseAnalysis\clear_dwh.sql
 --
 -- WHAT IT CLEARS
 --   - all 5 fact tables
