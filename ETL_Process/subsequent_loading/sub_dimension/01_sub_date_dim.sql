@@ -19,7 +19,7 @@ SET SERVEROUTPUT ON
 -- SECTION 1: STAGING VIEW - reuses date_staging_v from
 --   ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
 -- Its row generator runs to 2035-12-31; the initial load bounds itself
--- to 2022-12-31. This procedure moves that bound outward.
+-- to 2021-12-31. This procedure moves that bound outward.
 --
 -- SECTION 2: SEQUENCE - reuses date_dim_seq. It carries on from where
 -- the initial load stopped; recreating it would restart at 1 and
@@ -81,15 +81,15 @@ BEGIN
               ORDER BY s.v_date)
     LOOP
         INSERT INTO date_dim (
-            date_key, cal_date, full_desc, day_week, day_num_week,
-            day_num_month, day_num_year, last_day_ind, cal_week_end_date,
+            date_key, cal_date, full_desc, day_week,
+            day_num_month, last_day_ind, cal_week_end_date,
             cal_week_year, cal_month_name, cal_month_year, cal_year_month,
             cal_quarter, cal_year_quarter, cal_year,
             holiday_ind, holiday_name, weekday_ind
         ) VALUES (
             date_dim_seq.NEXTVAL,
-            r.v_date, r.full_desc, r.day_week, r.day_num_week,
-            r.day_num_month, r.day_num_year, r.last_day_ind,
+            r.v_date, r.full_desc, r.day_week,
+            r.day_num_month, r.last_day_ind,
             r.cal_week_end_date, r.cal_week_year, r.cal_month_name,
             r.cal_month_year, r.cal_year_month, r.cal_quarter,
             r.cal_year_quarter, r.cal_year,
@@ -106,7 +106,7 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE(' - Calendar now ends   : '
         || TO_CHAR(v_target_end, 'YYYY-MM-DD'));
     DBMS_OUTPUT.PUT_LINE(' - New years arrive with NO holidays. Run:');
-    DBMS_OUTPUT.PUT_LINE('     python gen_holidays.py 2019 '
+    DBMS_OUTPUT.PUT_LINE('     python gen_holidays.py 2018 '
         || p_until_year || ' > holiday_update.sql');
     DBMS_OUTPUT.PUT_LINE('     @holiday_update.sql');
 

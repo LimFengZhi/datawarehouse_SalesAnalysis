@@ -12,7 +12,6 @@ TRAILING NULLCOLS
     br_ID,
     st_first_name,
     st_last_name,
-    st_role,
     st_position,
     st_address_line,
     st_city,
@@ -23,6 +22,5 @@ TRAILING NULLCOLS
     st_email,
     st_phone,
     st_hire_date DATE 'YYYY-MM-DD',
-    st_salary,
     st_status
 )

@@ -12,7 +12,6 @@ TRAILING NULLCOLS
     order_ID,
     product_ID,
     order_quantity,
-    order_unit_price,
     order_discount,
     order_tax
 )

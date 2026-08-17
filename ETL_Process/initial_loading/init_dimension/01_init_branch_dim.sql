@@ -70,15 +70,6 @@ SELECT
         ELSE LOWER(TRIM(b.br_email))
     END                                            AS clean_br_email,
 
-    -- Open date: no future dates, nothing before the company existed
-    CASE
-        WHEN b.br_open_date IS NULL OR b.br_open_date > SYSDATE
-            THEN DATE '2015-01-01'
-        WHEN b.br_open_date < DATE '1990-01-01'
-            THEN DATE '1990-01-01'
-        ELSE b.br_open_date
-    END                                            AS clean_br_open_date,
-
     -- ---------- data quality flags ----------
     CASE WHEN b.br_name IS NULL OR LENGTH(TRIM(b.br_name)) < 2
          THEN 'Y' ELSE 'N' END                     AS name_cleaned,
@@ -87,10 +78,7 @@ SELECT
                   '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
          THEN 'Y' ELSE 'N' END                     AS email_generated,
     CASE WHEN b.br_city IS NULL OR b.br_state IS NULL
-         THEN 'Y' ELSE 'N' END                     AS location_defaulted,
-    CASE WHEN b.br_open_date IS NULL OR b.br_open_date > SYSDATE
-           OR b.br_open_date < DATE '1990-01-01'
-         THEN 'Y' ELSE 'N' END                     AS date_corrected
+         THEN 'Y' ELSE 'N' END                     AS location_defaulted
 FROM branch b
 WHERE b.br_ID IS NOT NULL;
 
@@ -121,14 +109,13 @@ BEGIN
 
     INSERT INTO branch_dim (
         branch_key, br_ID, br_name, br_city, br_state, br_email,
-        br_open_date, effective_start_date, effective_end_date,
-        is_current_flag
+        effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_branch_key.NEXTVAL,
         br_ID, clean_br_name, clean_br_city, clean_br_state,
-        clean_br_email, clean_br_open_date,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        clean_br_email,
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'                       -- CHECK constraint allows 'Y' or 'N'
     FROM branch_staging_v;
@@ -138,7 +125,7 @@ BEGIN
     SELECT COUNT(*) INTO v_errors
     FROM branch_staging_v
     WHERE name_cleaned = 'Y' OR email_generated = 'Y'
-       OR location_defaulted = 'Y' OR date_corrected = 'Y';
+       OR location_defaulted = 'Y';
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('BRANCH_DIM initial load completed: '

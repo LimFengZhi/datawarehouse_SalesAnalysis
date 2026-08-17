@@ -26,8 +26,8 @@ CREATE TABLE staff (
     br_ID            NUMBER(10)      NOT NULL,
     st_first_name    VARCHAR2(50)    NOT NULL,
     st_last_name     VARCHAR2(50)    NOT NULL,
-    st_role          VARCHAR2(50),
-    st_position      VARCHAR2(50),
+    st_position      VARCHAR2(50),   -- Branch Manager / Senior Therapist / Beauty Therapist /
+                                     -- Sales Assistant / Receptionist / Cashier
     st_address_line  VARCHAR2(150),
     st_city          VARCHAR2(50),
     st_state         VARCHAR2(50),
@@ -37,7 +37,6 @@ CREATE TABLE staff (
     st_email         VARCHAR2(100),
     st_phone         VARCHAR2(20),
     st_hire_date     DATE            NOT NULL,
-    st_salary        NUMBER(10,2),
     st_status        VARCHAR2(20)    DEFAULT 'Active',
     CONSTRAINT pk_staff PRIMARY KEY (st_ID),
     CONSTRAINT fk_staff_branch FOREIGN KEY (br_ID)
@@ -177,14 +176,14 @@ CREATE TABLE orders (
 );
 
 -- ============================================================
--- 11. ORDER_DETAIL  (order_unit_price = price at time of sale)
+-- 11. ORDER_DETAIL  (unit price is NOT stored here - it comes from the
+--     PRODUCT table / the product_dim version in force on the order date)
 -- ============================================================
 CREATE TABLE order_detail (
     order_det_ID     NUMBER(10)      NOT NULL,
     order_ID         NUMBER(10)      NOT NULL,
     product_ID       NUMBER(10)      NOT NULL,
     order_quantity   NUMBER(5)       NOT NULL,
-    order_unit_price NUMBER(10,2)    NOT NULL,
     order_discount   NUMBER(10,2)    DEFAULT 0,
     order_tax        NUMBER(10,2)    DEFAULT 0,
     CONSTRAINT pk_order_detail PRIMARY KEY (order_det_ID),
@@ -196,13 +195,15 @@ CREATE TABLE order_detail (
 );
 
 -- ============================================================
--- 12. RESERVATION
+-- 12. RESERVATION  (booking_date = when the booking was made,
+--     reservation_date = the appointment day itself)
 -- ============================================================
 CREATE TABLE reservation (
     res_ID           NUMBER(10)      NOT NULL,
     cus_ID           NUMBER(10)      NOT NULL,
     br_ID            NUMBER(10)      NOT NULL,
     booking_date     DATE            DEFAULT SYSDATE NOT NULL,
+    reservation_date DATE            NOT NULL,
     res_status       VARCHAR2(20)    DEFAULT 'Booked',
     CONSTRAINT pk_reservation PRIMARY KEY (res_ID),
     CONSTRAINT fk_res_customer FOREIGN KEY (cus_ID)

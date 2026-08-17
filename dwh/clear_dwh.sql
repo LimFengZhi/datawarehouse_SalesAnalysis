@@ -7,7 +7,7 @@
 -- *******************************************************************
 --
 -- Usage:
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\dwh\clear_dwh.sql
+--   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\dwh\clear_dwh.sql
 --
 -- WHAT IT CLEARS
 --   - all 5 fact tables
@@ -122,7 +122,7 @@ SELECT 'customer'     AS oltp_table, COUNT(*) AS rows_kept FROM customer
 UNION ALL SELECT 'orders',       COUNT(*) FROM orders
 UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail
 ORDER BY 1;
--- expect 26000 / 161470 / 349396
+-- expect 14632 / 116067 / 256137  (sales_data2\data18_21 loaded)
 
 
 -- ===================================================================

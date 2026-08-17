@@ -12,5 +12,6 @@ TRAILING NULLCOLS
     cus_ID,
     br_ID,
     booking_date DATE 'YYYY-MM-DD',
+    reservation_date DATE 'YYYY-MM-DD',
     res_status
 )

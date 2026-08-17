@@ -33,7 +33,7 @@ CREATE OR REPLACE PROCEDURE maintain_branch_dim_scd2(
 BEGIN
     -- ---------------------------------------------------------------
     -- STEP 1: expire changed branches.
-    -- br_open_date is a DATE, so its NVL default is a date sentinel.
+    -- Tracked attributes: br_name, br_city, br_state, br_email.
     -- ---------------------------------------------------------------
     UPDATE branch_dim d
     SET    d.effective_end_date = GREATEST(v_eff - 1,
@@ -50,9 +50,7 @@ BEGIN
           AND (   NVL(s.clean_br_name, '~')  <> NVL(d.br_name, '~')
                OR NVL(s.clean_br_city, '~')  <> NVL(d.br_city, '~')
                OR NVL(s.clean_br_state, '~') <> NVL(d.br_state, '~')
-               OR NVL(s.clean_br_email, '~') <> NVL(d.br_email, '~')
-               OR NVL(s.clean_br_open_date, DATE '1900-01-01')
-                    <> NVL(d.br_open_date, DATE '1900-01-01') ));
+               OR NVL(s.clean_br_email, '~') <> NVL(d.br_email, '~') ));
 
     v_expired := SQL%ROWCOUNT;
 
@@ -61,13 +59,12 @@ BEGIN
     -- ---------------------------------------------------------------
     INSERT INTO branch_dim (
         branch_key, br_ID, br_name, br_city, br_state, br_email,
-        br_open_date, effective_start_date, effective_end_date,
-        is_current_flag
+        effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_branch_key.NEXTVAL,
         s.br_ID, s.clean_br_name, s.clean_br_city, s.clean_br_state,
-        s.clean_br_email, s.clean_br_open_date,
+        s.clean_br_email,
         v_eff,
         DATE '9999-12-31',
         'Y'

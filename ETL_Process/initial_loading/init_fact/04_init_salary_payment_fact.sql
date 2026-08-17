@@ -1,16 +1,23 @@
 -- ===================================================================
 -- 04_init_salary_payment_fact.sql   SALARY_PAYMENT_FACT
--- Grain: one row per staff member per pay period (3,135 in data\)
+-- Grain: one row per staff member per pay period
 -- Source: SALARY_PAYMENT joined to STAFF
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
---   SECTION 2: no sequence   - the PK is the degenerate sal_pay_ID
+--   SECTION 2: no sequence   - PK is composite (date, staff, branch
+--                              keys + sal_pay_ID); sal_pay_ID is UNIQUE
+--                              and drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
--- salary_payment has NO br_ID by design, so the view joins the OLTP
--- STAFF table to expose br_ID as a natural key. That is an
--- OLTP-to-OLTP join - it does NOT couple the view to a dimension.
+-- salary_payment has NO br_ID by design, and staff_dim does NOT carry
+-- br_ID either, so the view joins the OLTP STAFF table to expose
+-- staff.br_ID as a natural key. That is an OLTP-to-OLTP join - it does
+-- NOT couple the view to a dimension. The procedure then resolves
+--   staff_key  from staff_dim  by st_ID + payment_date range
+--   branch_key from branch_dim by that br_ID + payment_date range
+-- Measures: base, bonus, deduction and
+--   total_amount = base + bonus - deduction  (net pay)
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -20,11 +27,11 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW salary_payment_fact_staging_v AS
 SELECT
-    sp.sal_pay_ID,                                -- degenerate dim / PK
+    sp.sal_pay_ID,                                -- degenerate dim / UNIQUE
 
     -- ---------- NATURAL keys ----------
     sp.st_ID,
-    s.br_ID,                                      -- via STAFF, by design
+    st.br_ID,                                     -- via OLTP STAFF, by design
     TRUNC(sp.payment_date)                         AS payment_date,
 
     -- ---------- cleansed attributes ----------
@@ -40,14 +47,12 @@ SELECT
     ROUND(NVL(sp.bonus_amount, 0), 2)              AS clean_bonus_amount,
     ROUND(NVL(sp.deduction_amount, 0), 2)          AS clean_deduction_amount,
 
-    -- ---------- derived measures ----------
-    ROUND(  CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
-                 THEN 0 ELSE sp.base_amount END
-          + NVL(sp.bonus_amount, 0), 2)            AS gross_amount,
+    -- ---------- derived measure ----------
+    -- total_amount = base + bonus - deduction (the net pay)
     ROUND(  CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
                  THEN 0 ELSE sp.base_amount END
           + NVL(sp.bonus_amount, 0)
-          - NVL(sp.deduction_amount, 0), 2)        AS net_amount,
+          - NVL(sp.deduction_amount, 0), 2)        AS total_amount,
 
     -- ---------- data quality flags ----------
     CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
@@ -59,15 +64,17 @@ SELECT
          THEN 'Y' ELSE 'N' END                     AS period_defaulted
 
 FROM salary_payment sp
-JOIN staff s ON s.st_ID = sp.st_ID                -- OLTP, not staff_dim
+JOIN staff st ON st.st_ID = sp.st_ID              -- OLTP staff, NOT staff_dim
 WHERE sp.sal_pay_ID   IS NOT NULL
   AND sp.st_ID        IS NOT NULL
-  AND s.br_ID         IS NOT NULL
+  AND st.br_ID        IS NOT NULL
   AND sp.payment_date IS NOT NULL;
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
--- sal_pay_ID from the source is the PK and a degenerate dimension.
+-- The PK is the composite (date_key, staff_key, branch_key, sal_pay_ID);
+-- sal_pay_ID from the source is UNIQUE and is the degenerate dimension
+-- the incremental load's NOT EXISTS anti-join uses.
 -- ===================================================================
 
 -- ===================================================================
@@ -91,8 +98,7 @@ BEGIN
 
     INSERT INTO salary_payment_fact (
         date_key, staff_key, branch_key, sal_pay_ID, pay_period,
-        base_amount, bonus_amount, deduction_amount,
-        gross_amount, net_amount
+        base_amount, bonus_amount, deduction_amount, total_amount
     )
     SELECT
         d.date_key,
@@ -103,9 +109,10 @@ BEGIN
         ls.clean_base_amount,
         ls.clean_bonus_amount,
         ls.clean_deduction_amount,
-        ls.gross_amount,
-        ls.net_amount
+        ls.total_amount
     -- SCD2 joins pick the version in force on the payment date.
+    -- branch_key comes from the OLTP staff.br_ID exposed by the view
+    -- (staff_dim has no br_ID), matched to branch_dim by date range.
     FROM salary_payment_fact_staging_v ls
     JOIN date_dim   d ON d.cal_date = ls.payment_date
     JOIN staff_dim  s ON s.st_ID    = ls.st_ID

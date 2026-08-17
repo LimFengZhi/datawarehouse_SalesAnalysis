@@ -1,10 +1,10 @@
 -- ===================================================================
 -- validate_subsequent_loading.sql
 -- ALL verification queries for the SUBSEQUENT loads. Run after
--- execute_sub_procedure.sql (data2, 2023-2024) or execute_sub2.sql
--- (data3, 2025):
+-- execute_sub_procedure.sql (data22_23, 2022-2023) or execute_sub2.sql
+-- (data24_25, 2024-2025):
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
+--   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 --
 -- The checks compare the warehouse against the OLTP, so the same file
 -- works after ANY load - no hard-coded row counts except where a
@@ -197,8 +197,8 @@ PROMPT ##############################################
 PROMPT #  4. VERSION HISTORY
 PROMPT ##############################################
 
--- After data2: product 55 total / 48 current.
--- After data3 (incl. 99_price_change_2025.sql): product 63 / 48,
+-- After data22_23: product 55 total / 48 current.
+-- After data24_25 (incl. 99_price_change_2025.sql): product 63 / 48,
 -- service 24 / 18.
 SELECT 'product_dim' AS dimension, COUNT(*) AS total_rows,
        SUM(CASE WHEN is_current_flag = 'Y' THEN 1 ELSE 0 END) AS current_rows
@@ -226,7 +226,7 @@ ORDER BY serv_ID, service_key;
 
 -- Each price version carries exactly the order lines that paid it.
 -- Product 16 (Peptide Firming Serum) rose in 2023 AND 2025:
--- after data3 expect three rows - 120 / 135 / 149.
+-- after data24_25 expect three rows - 120 / 135 / 149.
 SELECT p.product_unit_price, p.is_current_flag,
        p.effective_start_date, p.effective_end_date,
        MIN(d.cal_date) AS first_sold, MAX(d.cal_date) AS last_sold,
@@ -249,8 +249,8 @@ PROMPT #  5. FACT COMPLETENESS
 PROMPT ##############################################
 
 -- fact_rows must equal source_rows on every line.
--- After data2: 635,340 / 156,888 / 16,937 / 5,781 / 2,292
--- After data3: 800,092 / 196,515 / 20,163 / 7,113 / 2,724
+-- After data22_23: 445,884 / 104,593 / 28,775 / 13,953 / 5,202
+-- After data24_25: 670,282 / 159,977 / 41,411 / 19,517 / 7,074
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM order_detail) AS source_rows FROM dual
@@ -329,15 +329,45 @@ UNION ALL SELECT 'expense no_utils', COUNT(*)
   WHERE NOT EXISTS (SELECT 1 FROM branch_utils_dim u
                     WHERE u.br_utils_ID = ls.br_utils_ID);
 
--- Measures still reconcile. Both must be 0.
-SELECT 'order gross-disc+tax=total' AS chk, COUNT(*) AS bad
-  FROM order_fact
-  WHERE ABS(order_gross_amt - order_discount_amt + order_tax_amt
-            - order_total_amt) > 0.01
+-- Measures still reconcile. All must be 0. The facts store no unit
+-- price: an order line's price is product_dim.product_unit_price of the
+-- version the fact points at (a service line's is service_dim.serv_price),
+-- so this doubles as a check that every line resolved the RIGHT version.
+SELECT 'order qty*price-disc+tax=total' AS chk, COUNT(*) AS bad
+  FROM order_fact f
+  JOIN product_dim p ON p.product_key = f.product_key
+  WHERE ABS(ROUND(f.order_qty * p.product_unit_price
+                  - f.order_discount_amt + f.order_tax_amt, 2)
+            - f.order_total_amt) > 0.01
 UNION ALL
-SELECT 'salary gross-deduct=net', COUNT(*)
+SELECT 'reservation price-disc+tax=total', COUNT(*)
+  FROM reservation_fact f
+  JOIN service_dim s ON s.service_key = f.service_key
+  WHERE ABS(ROUND(s.serv_price - f.serv_discount_amt + f.serv_tax_amt, 2)
+            - f.serv_total_amt) > 0.01
+UNION ALL
+SELECT 'salary base+bonus-deduct=total', COUNT(*)
   FROM salary_payment_fact
-  WHERE ABS(gross_amount - deduction_amount - net_amount) > 0.01;
+  WHERE ABS(base_amount + bonus_amount - deduction_amount
+            - total_amount) > 0.01;
+
+-- Degenerate IDs unique (the PKs are composite; the OLTP IDs must still
+-- be one row each or a re-run inserted duplicates). All must be 0.
+SELECT 'order_fact dup order_det_ID' AS chk, COUNT(*) AS bad FROM (
+    SELECT order_det_ID FROM order_fact
+    GROUP BY order_det_ID HAVING COUNT(*) > 1)
+UNION ALL SELECT 'reservation_fact dup res_det_ID', COUNT(*) FROM (
+    SELECT res_det_ID FROM reservation_fact
+    GROUP BY res_det_ID HAVING COUNT(*) > 1)
+UNION ALL SELECT 'purchase_fact dup purchase_ID', COUNT(*) FROM (
+    SELECT purchase_ID FROM purchase_fact
+    GROUP BY purchase_ID HAVING COUNT(*) > 1)
+UNION ALL SELECT 'salary_payment_fact dup sal_pay_ID', COUNT(*) FROM (
+    SELECT sal_pay_ID FROM salary_payment_fact
+    GROUP BY sal_pay_ID HAVING COUNT(*) > 1)
+UNION ALL SELECT 'branch_expense_fact dup br_exp_ID', COUNT(*) FROM (
+    SELECT br_exp_ID FROM branch_expense_fact
+    GROUP BY br_exp_ID HAVING COUNT(*) > 1);
 
 
 -- ###################################################################
@@ -349,22 +379,23 @@ PROMPT #  6. BUSINESS PATTERNS
 PROMPT ##############################################
 
 -- Revenue by year: one row per loaded year. Fewer rows than years
--- means date_dim did not reach far enough. 2020-2021 dip (lockdowns),
--- 2022 recovers, 2023 onward grows.
+-- means date_dim did not reach far enough. 2018-19 baseline, 2020-2021
+-- dip (lockdowns), 2022 recovers, 2023 onward grows.
+-- revenue = total - tax (qty * price - discount, tax excluded).
 SELECT yr,
        ROUND(SUM(product_rev), 2) AS product_rev,
        ROUND(SUM(service_rev), 2) AS service_rev,
        ROUND(SUM(product_rev) + SUM(service_rev), 2) AS total_rev
 FROM (
     SELECT d.cal_year AS yr,
-           SUM(f.order_gross_amt - f.order_discount_amt) AS product_rev,
+           SUM(f.order_total_amt - f.order_tax_amt) AS product_rev,
            0 AS service_rev
     FROM order_fact f JOIN date_dim d ON d.date_key = f.date_key
     WHERE f.order_status = 'Completed'
     GROUP BY d.cal_year
     UNION ALL
     SELECT d.cal_year, 0,
-           SUM(f.serv_price - f.serv_discount_amt)
+           SUM(f.serv_total_amt - f.serv_tax_amt)
     FROM reservation_fact f JOIN date_dim d ON d.date_key = f.date_key
     WHERE f.res_status = 'Completed'
     GROUP BY d.cal_year
@@ -372,7 +403,8 @@ FROM (
 GROUP BY yr
 ORDER BY yr;
 
--- Branch first sale: Ipoh appears from 2023-03-01 (data2's new branch)
+-- Branch first sale: 12 branches from 2018 (George Town 2018-01-10,
+-- Melaka 2018-08-05), Ipoh from 2023-03-01 (data22_23's new branch)
 SELECT b.br_city, MIN(d.cal_date) AS first_sale, COUNT(*) AS lines
 FROM   order_fact f
 JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -390,7 +422,7 @@ ORDER BY d.cal_year, f.res_status;
 
 -- Payroll by year and branch: Ipoh team joins from 2023-02
 SELECT SUBSTR(f.pay_period, 1, 4) AS yr, b.br_city,
-       ROUND(SUM(f.net_amount), 2) AS payroll,
+       ROUND(SUM(f.total_amount), 2) AS payroll,
        COUNT(DISTINCT f.staff_key) AS headcount
 FROM   salary_payment_fact f
 JOIN   branch_dim b ON b.branch_key = f.branch_key

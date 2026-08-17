@@ -3,6 +3,7 @@ gen_holidays.py
 Generates Oracle UPDATE statements for date_dim's Malaysian public
 holidays using the `holidays` library, instead of hardcoding dates.
 
+
 Usage:
     pip install holidays
 

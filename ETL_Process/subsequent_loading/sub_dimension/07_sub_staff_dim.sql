@@ -7,17 +7,15 @@
 --   SECTION 4: run + verification
 --
 -- SCOPE: NEW RECORDS ONLY - a new hire is added, with st_name built
--- from first + last and st_age derived from st_DOB by the view.
+-- from first + last by the view.
 --
--- Promotions, transfers, salary reviews and resignations on EXISTING
--- staff are NOT handled here - those are the SCD Type 2 changes that
--- belong to the maintain step. Age also drifts every birthday, which
--- is why it must be treated there as a Type 1 attribute (overwrite in
--- place) and kept OUT of Type 2 change detection - otherwise every
--- staff member gains a version once a year for no business reason.
+-- Promotions (st_position), resignations (st_status), name and email
+-- changes on EXISTING staff are NOT handled here - those are the SCD
+-- Type 2 changes that belong to the maintain step.
 --
--- br_ID is passed through UNCHANGED: staff_dim has a foreign key to
--- branch(br_ID), so it must stay a valid source value.
+-- staff_dim no longer carries br_ID, city, state, gender, age, hire
+-- date or salary; the branch of a transaction comes from the fact's
+-- own OLTP row (orders / reservation / staff.br_ID for salary).
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -38,18 +36,14 @@ CREATE OR REPLACE PROCEDURE load_staff_dim_incremental AS
     v_total NUMBER := 0;
 BEGIN
     INSERT INTO staff_dim (
-        staff_key, st_ID, br_ID, st_name, st_role, st_position,
-        st_city, st_state, st_gender, st_age, st_email,
-        st_hire_date, st_salary, st_status,
+        staff_key, st_ID, st_name, st_email, st_position, st_status,
         effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_staff_key.NEXTVAL,
-        s.st_ID, s.br_ID, s.clean_st_name, s.clean_st_role,
-        s.clean_st_position, s.clean_st_city, s.clean_st_state,
-        s.clean_st_gender, s.derived_st_age, s.clean_st_email,
-        s.clean_st_hire_date, s.clean_st_salary, s.clean_st_status,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        s.st_ID, s.clean_st_name, s.clean_st_email,
+        s.clean_st_position, s.clean_st_status,
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   staff_staging_v s

@@ -1,16 +1,18 @@
 -- ===================================================================
 -- 05_init_branch_expense_fact.sql   BRANCH_EXPENSE_FACT
--- Grain: one row per branch per utility category per period (1,440)
+-- Grain: one row per branch per utility category per period
 -- Source: BRANCH_EXPENSE
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
---   SECTION 2: no sequence   - the PK is the degenerate br_exp_ID
+--   SECTION 2: no sequence   - PK is composite (date, utils, branch
+--                              keys + br_exp_ID); br_exp_ID is UNIQUE
+--                              and drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
--- The last piece of branch profitability: overheads. Combined with
--- branch_utils_dim.util_category ('Fixed' / 'Variable') this splits
--- rent and internet from electricity and maintenance.
+-- The last piece of branch profitability: overheads. Grouped by
+-- branch_utils_dim.util_name (Rent, Electricity, Water, Internet, ...)
+-- this splits rent from electricity and maintenance.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -20,7 +22,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW branch_expense_fact_staging_v AS
 SELECT
-    be.br_exp_ID,                                 -- degenerate dim / PK
+    be.br_exp_ID,                                 -- degenerate dim / UNIQUE
 
     -- ---------- NATURAL keys ----------
     be.br_ID,
@@ -58,7 +60,9 @@ WHERE be.br_exp_ID    IS NOT NULL
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
--- br_exp_ID from the source is the PK and a degenerate dimension.
+-- The PK is the composite (date_key, branch_utils_key, branch_key,
+-- br_exp_ID); br_exp_ID from the source is UNIQUE and is the degenerate
+-- dimension the incremental load's NOT EXISTS anti-join uses.
 -- ===================================================================
 
 -- ===================================================================

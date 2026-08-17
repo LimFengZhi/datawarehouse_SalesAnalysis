@@ -19,9 +19,7 @@ CREATE TABLE date_dim (
     cal_date          DATE          NOT NULL,
     full_desc         VARCHAR2(40),
     day_week          VARCHAR2(10),
-    day_num_week      NUMBER(1),
     day_num_month     NUMBER(2),
-    day_num_year      NUMBER(3),
     last_day_ind      CHAR(1),
     cal_week_end_date DATE,
     cal_week_year     VARCHAR2(8),
@@ -48,7 +46,6 @@ CREATE TABLE branch_dim (
     br_city              VARCHAR2(50),
     br_state             VARCHAR2(50),
     br_email             VARCHAR2(100),
-    br_open_date         DATE,
     effective_start_date DATE        NOT NULL,
     effective_end_date   DATE        DEFAULT DATE '9999-12-31',
     is_current_flag      CHAR(1)     DEFAULT 'Y',
@@ -60,23 +57,16 @@ CREATE TABLE branch_dim (
 
 -- ============================================================
 -- STAFF DIMENSION  (SCD Type 2)
--- br_ID kept so ETL resolves the staff member's branch at
--- transaction time.
+-- The staff member's branch is NOT stored here: facts resolve
+-- branch_key from the OLTP row (orders.br_ID, reservation.br_ID,
+-- staff.br_ID for salary_payment) at load time.
 -- ============================================================
 CREATE TABLE staff_dim (
     staff_key            NUMBER(10)  NOT NULL,
-    st_ID                NUMBER(10), 
-    br_ID                NUMBER(10),
+    st_ID                NUMBER(10),             -- natural key
     st_name              VARCHAR2(120),          -- first + last combined
-    st_role              VARCHAR2(50),
-    st_position          VARCHAR2(50),
-    st_city              VARCHAR2(50),
-    st_state             VARCHAR2(50),
-    st_gender            VARCHAR2(10),
-    st_age               NUMBER(3),
     st_email             VARCHAR2(100),
-    st_hire_date         DATE,
-    st_salary            NUMBER(10,2),
+    st_position          VARCHAR2(50),           -- the single job-title column
     st_status            VARCHAR2(20),
     effective_start_date DATE        NOT NULL,
     effective_end_date   DATE        DEFAULT DATE '9999-12-31',
@@ -84,8 +74,6 @@ CREATE TABLE staff_dim (
     CONSTRAINT pk_staff_dim PRIMARY KEY (staff_key),
     CONSTRAINT fk_staffdim_oltp FOREIGN KEY (st_ID)
         REFERENCES staff (st_ID),
-    CONSTRAINT fk_staffdim_br_oltp FOREIGN KEY (br_ID)
-        REFERENCES branch (br_ID),
     CONSTRAINT chk_staff_dim_flag CHECK (is_current_flag IN ('Y','N'))
 );
 
@@ -98,12 +86,10 @@ CREATE TABLE customer_dim (
     cus_name             VARCHAR2(120),          -- first + last combined
     cus_email            VARCHAR2(100),
     cus_gender           VARCHAR2(10),
-    cus_age              NUMBER(3),
-    cus_age_band         VARCHAR2(15),           -- derived: '18-24','25-34',...
     cus_city             VARCHAR2(50),
     cus_state            VARCHAR2(50),
+    cus_age_band         VARCHAR2(15),           -- derived from cus_DOB: '18-24','25-34',... (Type 1)
     cus_loyalty_tier     VARCHAR2(20),
-    cus_reg_date         DATE,
     effective_start_date DATE        NOT NULL,
     effective_end_date   DATE        DEFAULT DATE '9999-12-31',
     is_current_flag      CHAR(1)     DEFAULT 'Y',
@@ -120,7 +106,6 @@ CREATE TABLE product_dim (
     product_key          NUMBER(10)  NOT NULL,
     product_ID           NUMBER(10),
     product_name         VARCHAR2(100),
-    product_brand        VARCHAR2(50),
     product_category     VARCHAR2(50),
     product_unit_price   NUMBER(10,2),
     effective_start_date DATE        NOT NULL,
@@ -159,7 +144,6 @@ CREATE TABLE service_dim (
     serv_name            VARCHAR2(100),
     serv_category        VARCHAR2(50),
     serv_price           NUMBER(10,2),
-    serv_duration        NUMBER(4),              -- standard minutes
     effective_start_date DATE        NOT NULL,
     effective_end_date   DATE        DEFAULT DATE '9999-12-31',
     is_current_flag      CHAR(1)     DEFAULT 'Y',
@@ -176,7 +160,6 @@ CREATE TABLE branch_utils_dim (
     branch_utils_key     NUMBER(10)  NOT NULL,
     br_utils_ID          NUMBER(10),             -- natural key
     util_name            VARCHAR2(50),
-    util_category        VARCHAR2(20),           -- derived: 'Fixed'/'Variable'
     CONSTRAINT pk_branch_utils_dim PRIMARY KEY (branch_utils_key),
     CONSTRAINT fk_utilsdim_oltp FOREIGN KEY (br_utils_ID)
         REFERENCES branch_utils_category (br_utils_ID),
@@ -187,8 +170,10 @@ CREATE TABLE branch_utils_dim (
 -- ############################################################
 --                          FACTS
 -- ############################################################
--- No sequences, no indexes. PKs are the degenerate dimension
--- IDs carried from the source system (OLTP names kept).
+-- No sequences, no indexes. As drawn in the star-schema ERD, each
+-- fact's PRIMARY KEY is the composite of its dimension keys plus the
+-- degenerate OLTP IDs it carries (the OLTP IDs alone are unique too,
+-- which is what the incremental loads use for their NOT EXISTS guard).
 
 -- ============================================================
 -- ORDER FACT     Grain: one row per product line on an order
@@ -200,15 +185,17 @@ CREATE TABLE order_fact (
     staff_key          NUMBER(10)   NOT NULL,
     branch_key         NUMBER(10)   NOT NULL,
     order_ID           NUMBER(10)   NOT NULL,   -- degenerate dim
-    order_det_ID       NUMBER(10)   NOT NULL,   -- degenerate dim / PK
+    order_det_ID       NUMBER(10)   NOT NULL,   -- degenerate dim
     order_status       VARCHAR2(20),
     order_qty          NUMBER(5),
-    order_unit_price   NUMBER(10,2),
-    order_gross_amt    NUMBER(12,2),            -- qty * unit_price
     order_discount_amt NUMBER(12,2),
     order_tax_amt      NUMBER(12,2),
-    order_total_amt    NUMBER(12,2),           -- gross - disc + tax
-    CONSTRAINT pk_order_fact PRIMARY KEY (order_det_ID),
+    order_total_amt    NUMBER(12,2),           -- qty * product_dim price (version in force
+                                              -- on the order date) - discount + tax; no unit
+                                              -- price is stored on the line, the dimension holds it
+    CONSTRAINT pk_order_fact PRIMARY KEY
+        (date_key, product_key, customer_key, staff_key, branch_key, order_ID, order_det_ID),
+    CONSTRAINT uq_order_fact_det UNIQUE (order_det_ID),
     CONSTRAINT fk_of_date      FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_of_product   FOREIGN KEY (product_key)  REFERENCES product_dim (product_key),
     CONSTRAINT fk_of_customer  FOREIGN KEY (customer_key) REFERENCES customer_dim (customer_key),
@@ -220,25 +207,27 @@ CREATE TABLE order_fact (
 
 -- ============================================================
 -- RESERVATION FACT   Grain: one row per service line booked
+-- date_key = the RESERVATION (appointment) date, not the day the
+-- booking was made.
 -- ============================================================
 CREATE TABLE reservation_fact (
-    date_key             NUMBER(8)  NOT NULL,
+    date_key             NUMBER(8)  NOT NULL,   -- reservation.reservation_date
     customer_key         NUMBER(10) NOT NULL,
     staff_key            NUMBER(10) NOT NULL,
     branch_key           NUMBER(10) NOT NULL,
     service_key          NUMBER(10) NOT NULL,
     res_ID               NUMBER(10) NOT NULL,
     res_det_ID           NUMBER(10) NOT NULL,
+    res_duration         NUMBER(5),             -- derived, actual minutes (end - start)
     res_status           VARCHAR2(20),
     start_time           DATE,
     end_time             DATE,
-    start_hour           NUMBER(2),             -- derived, for peak-hour analysis
-    res_duration         NUMBER(5),             -- derived, actual minutes
-    serv_price           NUMBER(10,2),
     serv_discount_amt    NUMBER(12,2),
     serv_tax_amt         NUMBER(12,2),
-    serv_total_amt       NUMBER(12,2),
-    CONSTRAINT pk_reservation_fact PRIMARY KEY (res_det_ID),
+    serv_total_amt       NUMBER(12,2),          -- service_dim price (of the date) - disc + tax
+    CONSTRAINT pk_reservation_fact PRIMARY KEY
+        (date_key, customer_key, staff_key, branch_key, service_key, res_ID, res_det_ID),
+    CONSTRAINT uq_reservation_fact_det UNIQUE (res_det_ID),
     CONSTRAINT fk_rf_date      FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_rf_customer  FOREIGN KEY (customer_key) REFERENCES customer_dim (customer_key),
     CONSTRAINT fk_rf_staff     FOREIGN KEY (staff_key)    REFERENCES staff_dim (staff_key),
@@ -256,11 +245,13 @@ CREATE TABLE purchase_fact (
     supplier_key        NUMBER(10)  NOT NULL,
     branch_key          NUMBER(10)  NOT NULL,
     product_key         NUMBER(10)  NOT NULL,
-    purchase_ID         NUMBER(10)  NOT NULL,
+    purchase_ID         NUMBER(10)  NOT NULL,   -- degenerate dim (kept for traceability)
     purchase_qty        NUMBER(6),
     purchase_unit_cost  NUMBER(10,2),
     purchase_total_cost NUMBER(12,2),           -- qty * unit_cost
-    CONSTRAINT pk_purchase_fact PRIMARY KEY (purchase_ID),
+    CONSTRAINT pk_purchase_fact PRIMARY KEY
+        (date_key, supplier_key, branch_key, product_key),
+    CONSTRAINT uq_purchase_fact_id UNIQUE (purchase_ID),
     CONSTRAINT fk_pf_date     FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_pf_supplier FOREIGN KEY (supplier_key) REFERENCES supplier_dim (supplier_key),
     CONSTRAINT fk_pf_branch   FOREIGN KEY (branch_key)   REFERENCES branch_dim (branch_key),
@@ -282,9 +273,10 @@ CREATE TABLE salary_payment_fact (
     base_amount       NUMBER(12,2),
     bonus_amount      NUMBER(12,2),
     deduction_amount  NUMBER(12,2),
-    gross_amount      NUMBER(12,2),             -- base + bonus
-    net_amount        NUMBER(12,2),             -- base + bonus - deduction
-    CONSTRAINT pk_salary_payment_fact PRIMARY KEY (sal_pay_ID),
+    total_amount      NUMBER(12,2),             -- base + bonus - deduction (net pay)
+    CONSTRAINT pk_salary_payment_fact PRIMARY KEY
+        (date_key, staff_key, branch_key, sal_pay_ID),
+    CONSTRAINT uq_salary_payment_fact_id UNIQUE (sal_pay_ID),
     CONSTRAINT fk_spf_date   FOREIGN KEY (date_key)   REFERENCES date_dim (date_key),
     CONSTRAINT fk_spf_staff  FOREIGN KEY (staff_key)  REFERENCES staff_dim (staff_key),
     CONSTRAINT fk_spf_branch FOREIGN KEY (branch_key) REFERENCES branch_dim (branch_key),
@@ -299,10 +291,12 @@ CREATE TABLE branch_expense_fact (
     date_key          NUMBER(8)     NOT NULL,
     branch_key        NUMBER(10)    NOT NULL,
     branch_utils_key  NUMBER(10)    NOT NULL,
-    br_exp_ID         NUMBER(10)    NOT NULL,   -- degenerate dim / PK
-    billing_period    VARCHAR2(7),
+    br_exp_ID         NUMBER(10)    NOT NULL,   -- degenerate dim
     payment_amount    NUMBER(12,2),
-    CONSTRAINT pk_branch_expense_fact PRIMARY KEY (br_exp_ID),
+    billing_period    VARCHAR2(7),
+    CONSTRAINT pk_branch_expense_fact PRIMARY KEY
+        (date_key, branch_utils_key, branch_key, br_exp_ID),
+    CONSTRAINT uq_branch_expense_fact_id UNIQUE (br_exp_ID),
     CONSTRAINT fk_bef_date   FOREIGN KEY (date_key)         REFERENCES date_dim (date_key),
     CONSTRAINT fk_bef_branch FOREIGN KEY (branch_key)       REFERENCES branch_dim (branch_key),
     CONSTRAINT fk_bef_utils  FOREIGN KEY (branch_utils_key) REFERENCES branch_utils_dim (branch_utils_key),
