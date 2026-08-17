@@ -32,22 +32,29 @@
 --
 -- MEASURES
 --   Customers            = COUNT(DISTINCT cus_ID), current snapshot only
+--   New customers (yr)   = COUNT(DISTINCT cus_ID) whose earliest Completed
+--                          order falls in that year - see Section 1 note
 --   Home-state match %   = share of a branch's Completed reservations
 --                          where the customer's cus_state equals the
 --                          branch's br_state
---   Avg spend/reservation = (serv_price - serv_discount_amt) averaged
+--   Avg spend/reservation = (serv_total_amt - serv_tax_amt) averaged
 --                          per Completed reservation, by age band
 --
 -- DIMENSIONS USED  (three)
---   customer_dim  cus_age_band, cus_gender, cus_state, cus_reg_date
+--   customer_dim  cus_age_band, cus_gender, cus_state    -> current-flag
+--                 snapshot only; the dimension carries no registration
+--                 date (see Section 1 note)
 --   branch_dim    br_city / br_state                    -> section 4
---   date_dim      cal_year                                -> section 4, 5
---   plus reservation_fact for sections 4 and 5, where a transaction
+--   date_dim      cal_year                                -> sections 1, 4, 5
+--   plus order_fact for section 1 (first-order cohort year) and
+--   reservation_fact for sections 4 and 5, where a transaction
 --   count/amount is actually needed.
 --
 -- REPORT SECTIONS (the drill-down path)
---   1  CUSTOMER BASE GROWTH BY REGISTRATION YEAR   2019-2025, running
---                                                   total
+--   1  CUSTOMER BASE GROWTH BY FIRST-ORDER YEAR    2018-2025, running
+--                                                   total - an acquisition-
+--                                                   cohort proxy, not raw
+--                                                   registration (see note)
 --   2  DEMOGRAPHIC MIX: AGE BAND x GENDER           company-wide
 --   3  REGIONAL DISTRIBUTION: HOME STATE            ranked
 --   4  FOCUS YEAR - BRANCH CATCHMENT                home-state vs
@@ -60,8 +67,11 @@
 --   against); sections 4, 5 and 6 honour the state filter.
 --
 -- WHAT TO LOOK FOR
---   - Section 1: the running total should track the "customer base
---     grows from 26,000 to ..." figure documented in README.md
+--   - Section 1: the running total tracks first-time BUYERS, not raw
+--     signups, so it will read a little below the full registered-base
+--     figure in README.md (customers who registered but never ordered
+--     are outside this count by construction) - the shape of the growth
+--     curve year over year is still the useful signal
 --   - Section 4: a branch with a LOW home-state match % is pulling
 --     customers from further away than its own catchment - worth
 --     knowing whether that is by design (a destination branch) or a
@@ -117,13 +127,24 @@ SPOOL customer_demographics_regional_output.txt
 
 
 -- ###################################################################
--- SECTION 1 - CUSTOMER BASE GROWTH BY REGISTRATION YEAR
+-- SECTION 1 - CUSTOMER BASE GROWTH BY FIRST-ORDER YEAR
 -- Always the whole base - a running total only means something
 -- uninterrupted, so this section ignores the state filter.
+--
+-- customer_dim carries no registration date (cus_reg_date was dropped
+-- from the dimension - see ETL_Process\initial_loading\init_dimension\
+-- 07_init_customer_dim.sql), so "new customer" here is cohorted by each
+-- customer's earliest Completed order year instead of a signup date.
+-- That is a deliberately different, warehouse-native metric: it is the
+-- year a customer first became a paying buyer, not the year they filled
+-- in a registration form - arguably the more decision-relevant of the
+-- two anyway. Grouping is by cus_ID (the natural key) rather than
+-- customer_key, because a customer whose profile changed later carries
+-- more than one customer_key and would otherwise be split across years.
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 1. CUSTOMER BASE GROWTH BY REGISTRATION YEAR' SKIP 1 -
-       CENTER 'ALL CUSTOMERS, 2019 - 2025' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 1. CUSTOMER BASE GROWTH BY FIRST-ORDER YEAR' SKIP 1 -
+       CENTER 'ALL CUSTOMERS, 2018 - 2025' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -135,12 +156,18 @@ COLUMN yoy_pct     HEADING 'GROWTH|YOY %'      FORMAT S990.0
 BREAK ON REPORT
 COMPUTE SUM LABEL 'TOTAL NEW' OF new_cus ON REPORT
 
-WITH by_year AS (
-    SELECT EXTRACT(YEAR FROM c.cus_reg_date) AS reg_year,
-           COUNT(DISTINCT c.cus_ID)          AS new_cus
-    FROM   customer_dim c
-    WHERE  c.is_current_flag = 'Y'
-    GROUP  BY EXTRACT(YEAR FROM c.cus_reg_date)
+WITH cust_first_order AS (
+    SELECT c.cus_ID, MIN(d.cal_year) AS reg_year
+    FROM   order_fact   f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.order_status = 'Completed'
+    GROUP  BY c.cus_ID
+),
+by_year AS (
+    SELECT reg_year, COUNT(cus_ID) AS new_cus
+    FROM   cust_first_order
+    GROUP  BY reg_year
 )
 SELECT reg_year, new_cus,
        SUM(new_cus) OVER (ORDER BY reg_year)                                       AS running_tot,
@@ -287,8 +314,8 @@ COMPUTE SUM LABEL 'ALL AGES' OF num_res total_rev ON REPORT
 
 WITH spend AS (
     SELECT c.cus_age_band,
-           COUNT(f.res_det_ID)                      AS num_res,
-           SUM(f.serv_price - f.serv_discount_amt)   AS total_rev
+           COUNT(f.res_det_ID)                        AS num_res,
+           SUM(f.serv_total_amt - f.serv_tax_amt)      AS total_rev
     FROM   reservation_fact f
     JOIN   date_dim     d ON d.date_key     = f.date_key
     JOIN   customer_dim c ON c.customer_key = f.customer_key
@@ -351,7 +378,7 @@ gen AS (
 ),
 focus_lines AS (
     SELECT c.cus_age_band, b.br_city, b.br_state, c.cus_state,
-           f.res_det_ID, f.serv_price - f.serv_discount_amt AS revenue
+           f.res_det_ID, f.serv_total_amt - f.serv_tax_amt AS revenue
     FROM   reservation_fact f
     JOIN   date_dim     d ON d.date_key     = f.date_key
     JOIN   branch_dim   b ON b.branch_key   = f.branch_key

@@ -15,7 +15,7 @@
 -- WHAT IT ANSWERS
 --   1. How much of Glow Beauty's overhead is FIXED (can't be cut
 --      quickly) versus VARIABLE (scales with usage), and how is that
---      mix trending 2019-2025?
+--      mix trending 2018-2025?
 --   2. Which branches carry the least flexible cost base - i.e. the
 --      highest Fixed-cost exposure - and is that getting worse?
 --   3. Which individual cost line (Rent, Electricity, Water, Internet,
@@ -24,17 +24,17 @@
 --      Fixed costs that the business is known to have had in 2020?
 --
 -- SCOPE NOTE
---   Fz\01_branch_profitability.sql already breaks branch_expense_fact
---   down by util_name (Rent/Electricity/Water/Internet/Maintenance/
---   Waste) per branch, and reports "Expenses as % of Revenue". This
---   report deliberately does NOT repeat that grid. Instead it uses
---   branch_utils_dim.util_category ('Fixed'/'Variable' - see
---   ETL_Process\initial_loading\init_dimension\02_init_branch_utils_
---   dim.sql for the derivation) to ask a cost-STRUCTURE question Fz's
---   report never touches: how locked-in is each branch's overhead,
---   and how fast is each cost line growing - not "expense vs revenue".
---   FIXED   = Rent, Internet/Broadband/Wifi, Waste Management
---   VARIABLE = Electricity/Power, Water, Maintenance/Upkeep/Repair
+--   branch_utils_dim (see ETL_Process\initial_loading\init_dimension\
+--   02_init_branch_utils_dim.sql) is a Type 1 lookup carrying only
+--   util_name (Rent/Electricity/Water/Internet/Maintenance/Waste
+--   Management) - it does not store a Fixed/Variable classification, so
+--   every section here derives one from util_name instead of reading a
+--   util_category column:
+--   FIXED    = Rent, Internet, Waste Management
+--   VARIABLE = Electricity, Water, Maintenance
+--   This asks a cost-STRUCTURE question distinct from a plain expense
+--   breakdown: how locked-in is each branch's overhead, and how fast is
+--   each cost line growing - not "expense vs revenue".
 --
 -- MEASURES  (branch_expense_fact, no status filter - every payment is
 --            real cash out, unlike order/reservation lines)
@@ -45,14 +45,14 @@
 -- DIMENSIONS USED  (three)
 --   branch_dim       br_ID, br_city / br_name    -> sections 2, 3, 5,
 --                                                    filter
---   branch_utils_dim util_name, util_category     -> sections 1, 4
---                                                    (the Fixed/Variable
---                                                    split Fz's report
---                                                    never uses)
+--   branch_utils_dim util_name                    -> sections 1, 4;
+--                                                    Fixed/Variable is
+--                                                    derived from it, not
+--                                                    a stored column
 --   date_dim          cal_year                    -> the drill path
 --
 -- REPORT SECTIONS (the drill-down path)
---   1  COMPANY-WIDE FIXED VS VARIABLE COST PER YEAR   2019-2025 overview
+--   1  COMPANY-WIDE FIXED VS VARIABLE COST PER YEAR   2018-2025 overview
 --   2  FIXED COST EXPOSURE BY BRANCH                  years ACROSS, %
 --   3  FOCUS YEAR - COST STRUCTURE BY BRANCH          ranked by Fixed %
 --   4  FOCUS YEAR - COST GROWTH BY UTILITY CATEGORY   3rd dimension
@@ -129,7 +129,7 @@ SPOOL branch_expense_cost_structure_output.txt
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. FIXED VS VARIABLE COST PER YEAR' SKIP 1 -
-       CENTER '&br_label, 2019 - 2025' SKIP 1 -
+       CENTER '&br_label, 2018 - 2025' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -144,11 +144,15 @@ COLUMN var_yoy_pct   HEADING 'VARIABLE|YOY %'     FORMAT S990.0
 BREAK ON REPORT
 COMPUTE SUM LABEL 'TOTAL' OF fixed_cost variable_cost total_cost ON REPORT
 
+-- branch_utils_dim has no util_category column - Fixed/Variable is
+-- derived from util_name (Rent/Internet/Waste Management = Fixed).
 WITH yearly AS (
     SELECT d.cal_year,
-           SUM(CASE WHEN u.util_category = 'Fixed'    THEN f.payment_amount ELSE 0 END) AS fixed_cost,
-           SUM(CASE WHEN u.util_category = 'Variable' THEN f.payment_amount ELSE 0 END) AS variable_cost,
-           SUM(f.payment_amount)                                                        AS total_cost
+           SUM(CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                    THEN f.payment_amount ELSE 0 END) AS fixed_cost,
+           SUM(CASE WHEN u.util_name NOT IN ('Rent','Internet','Waste Management')
+                    THEN f.payment_amount ELSE 0 END) AS variable_cost,
+           SUM(f.payment_amount)                                             AS total_cost
     FROM   branch_expense_fact f
     JOIN   date_dim         d ON d.date_key         = f.date_key
     JOIN   branch_dim       b ON b.branch_key       = f.branch_key
@@ -176,11 +180,12 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 2. FIXED COST EXPOSURE BY BRANCH' SKIP 1 -
-       CENTER 'FIXED COST AS % OF TOTAL EXPENSE, 2019 - 2025' SKIP 1 -
+       CENTER 'FIXED COST AS % OF TOTAL EXPENSE, 2018 - 2025' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN br_city HEADING 'BRANCH' FORMAT A15
+COLUMN y2018   HEADING '2018'   FORMAT 990.0
 COLUMN y2019   HEADING '2019'   FORMAT 990.0
 COLUMN y2020   HEADING '2020'   FORMAT 990.0
 COLUMN y2021   HEADING '2021'   FORMAT 990.0
@@ -191,12 +196,13 @@ COLUMN y2025   HEADING '2025'   FORMAT 990.0
 COLUMN br_ID   NOPRINT
 
 BREAK ON REPORT
-COMPUTE AVG LABEL 'COMPANY AVG' OF y2019 y2020 y2021 y2022 y2023 y2024 y2025 ON REPORT
+COMPUTE AVG LABEL 'COMPANY AVG' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 ON REPORT
 
 WITH branch_year AS (
     SELECT b.br_ID, b.br_city, d.cal_year,
-           SUM(CASE WHEN u.util_category = 'Fixed' THEN f.payment_amount ELSE 0 END) AS fixed_cost,
-           SUM(f.payment_amount)                                                     AS total_cost
+           SUM(CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                    THEN f.payment_amount ELSE 0 END) AS fixed_cost,
+           SUM(f.payment_amount)                                             AS total_cost
     FROM   branch_expense_fact f
     JOIN   date_dim         d ON d.date_key         = f.date_key
     JOIN   branch_dim       b ON b.branch_key       = f.branch_key
@@ -204,6 +210,8 @@ WITH branch_year AS (
     GROUP  BY b.br_ID, b.br_city, d.cal_year
 )
 SELECT br_city,
+       ROUND(SUM(CASE WHEN cal_year = 2018 THEN fixed_cost END)
+             / NULLIF(SUM(CASE WHEN cal_year = 2018 THEN total_cost END), 0) * 100, 1) AS y2018,
        ROUND(SUM(CASE WHEN cal_year = 2019 THEN fixed_cost END)
              / NULLIF(SUM(CASE WHEN cal_year = 2019 THEN total_cost END), 0) * 100, 1) AS y2019,
        ROUND(SUM(CASE WHEN cal_year = 2020 THEN fixed_cost END)
@@ -249,9 +257,11 @@ COMPUTE SUM LABEL 'TOTAL' OF fixed_cost variable_cost total_cost ON REPORT
 
 WITH branch_cost AS (
     SELECT b.br_ID, b.br_city,
-           SUM(CASE WHEN u.util_category = 'Fixed'    THEN f.payment_amount ELSE 0 END) AS fixed_cost,
-           SUM(CASE WHEN u.util_category = 'Variable' THEN f.payment_amount ELSE 0 END) AS variable_cost,
-           SUM(f.payment_amount)                                                        AS total_cost
+           SUM(CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                    THEN f.payment_amount ELSE 0 END) AS fixed_cost,
+           SUM(CASE WHEN u.util_name NOT IN ('Rent','Internet','Waste Management')
+                    THEN f.payment_amount ELSE 0 END) AS variable_cost,
+           SUM(f.payment_amount)                                             AS total_cost
     FROM   branch_expense_fact f
     JOIN   date_dim         d ON d.date_key         = f.date_key
     JOIN   branch_dim       b ON b.branch_key       = f.branch_key
@@ -289,7 +299,10 @@ BREAK ON REPORT
 COMPUTE SUM LABEL 'TOTAL' OF prior_yr focus_yr ON REPORT
 
 WITH cat_yr AS (
-    SELECT u.util_name, u.util_category, d.cal_year,
+    SELECT u.util_name,
+           CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                THEN 'Fixed' ELSE 'Variable' END AS util_category,
+           d.cal_year,
            SUM(f.payment_amount) AS amt
     FROM   branch_expense_fact f
     JOIN   date_dim         d ON d.date_key         = f.date_key
@@ -298,7 +311,10 @@ WITH cat_yr AS (
     WHERE  d.cal_year IN (&focus_year - 1, &focus_year)
     AND   (UPPER(TRIM('&branch')) IN ('', 'ALL')
            OR UPPER(b.br_name) LIKE '%' || UPPER(TRIM('&branch')) || '%')
-    GROUP  BY u.util_name, u.util_category, d.cal_year
+    GROUP  BY u.util_name,
+              CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                   THEN 'Fixed' ELSE 'Variable' END,
+              d.cal_year
 )
 SELECT util_name, util_category,
        SUM(CASE WHEN cal_year = &focus_year - 1 THEN amt ELSE 0 END) AS prior_yr,
@@ -344,7 +360,8 @@ COMPUTE SUM LABEL 'ALL BRANCHES' OF y2019 y2020 y2021 ON REPORT
 
 WITH yr3 AS (
     SELECT b.br_city, d.cal_year,
-           SUM(CASE WHEN u.util_category = 'Fixed' THEN f.payment_amount ELSE 0 END) AS fixed_cost
+           SUM(CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                    THEN f.payment_amount ELSE 0 END) AS fixed_cost
     FROM   branch_expense_fact f
     JOIN   date_dim         d ON d.date_key         = f.date_key
     JOIN   branch_dim       b ON b.branch_key       = f.branch_key
@@ -376,7 +393,7 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 6. COST STRUCTURE SUMMARY STATISTICS' SKIP 1 -
-       CENTER '&br_label, 2019 - 2025, FOCUS YEAR &focus_y' SKIP 1 -
+       CENTER '&br_label, 2018 - 2025, FOCUS YEAR &focus_y' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -384,7 +401,9 @@ COLUMN metric_name  HEADING 'METRIC'  FORMAT A38
 COLUMN metric_value HEADING 'VALUE'   FORMAT A38
 
 WITH lines AS (
-    SELECT d.cal_year, b.br_city, u.util_name, u.util_category,
+    SELECT d.cal_year, b.br_city, u.util_name,
+           CASE WHEN u.util_name IN ('Rent','Internet','Waste Management')
+                THEN 'Fixed' ELSE 'Variable' END AS util_category,
            f.payment_amount AS amt
     FROM   branch_expense_fact f
     JOIN   date_dim         d ON d.date_key         = f.date_key

@@ -13,7 +13,7 @@
 --
 -- WHAT IT ANSWERS
 --   1. Of everything booked, how much actually happens? Cancellation
---      and No-Show rates trended 2019-2025 - is reliability improving
+--      and No-Show rates trended 2018-2025 - is reliability improving
 --      or getting worse as the business grows?
 --   2. How much revenue does that represent - what's the RM value of
 --      slots that were booked but never paid for?
@@ -33,9 +33,11 @@
 --   Completion rate %  = Completed / Total * 100
 --   Cancellation rate % = Cancelled / Total * 100
 --   No-Show rate %      = 'No-Show' / Total * 100
---   Lost revenue (RM)   = serv_price - serv_discount_amt, SUMMED over
+--   Lost revenue (RM)   = serv_total_amt - serv_tax_amt, SUMMED over
 --                         Cancelled + No-Show rows only - the value
---                         that was booked but never collected
+--                         that was booked but never collected (the fact
+--                         no longer stores serv_price directly; total -
+--                         tax recovers price - discount)
 --
 -- DIMENSIONS USED  (three)
 --   date_dim     cal_year, day_week, day_num_week  -> the drill path
@@ -43,8 +45,8 @@
 --   service_dim  serv_category                       -> section 3
 --
 -- REPORT SECTIONS (the drill-down path)
---   1  RESERVATION STATUS FUNNEL PER YEAR     2019-2025, year rows
---   2  REVENUE LEAKAGE: CAPTURED VS LOST      2019-2025
+--   1  RESERVATION STATUS FUNNEL PER YEAR     2018-2025, year rows
+--   2  REVENUE LEAKAGE: CAPTURED VS LOST      2018-2025
 --   3  FOCUS YEAR - RELIABILITY BY SERVICE CATEGORY
 --   4  FOCUS YEAR - RELIABILITY BY DAY OF WEEK
 --   5  FOCUS YEAR - RELIABILITY BY BRANCH     always all branches,
@@ -117,7 +119,7 @@ SPOOL reservation_reliability_output.txt
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. RESERVATION STATUS FUNNEL PER YEAR' SKIP 1 -
-       CENTER '&br_label, 2019 - 2025' SKIP 1 -
+       CENTER '&br_label, 2018 - 2025' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -165,7 +167,7 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 2. REVENUE LEAKAGE: CAPTURED VS LOST' SKIP 1 -
-       CENTER '&br_label, 2019 - 2025' SKIP 1 -
+       CENTER '&br_label, 2018 - 2025' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -181,9 +183,9 @@ COMPUTE SUM LABEL 'TOTAL' OF captured_rev lost_rev at_stake_rev ON REPORT
 WITH yearly AS (
     SELECT d.cal_year,
            SUM(CASE WHEN f.res_status = 'Completed'
-                    THEN f.serv_price - f.serv_discount_amt ELSE 0 END) AS captured_rev,
+                    THEN f.serv_total_amt - f.serv_tax_amt ELSE 0 END) AS captured_rev,
            SUM(CASE WHEN f.res_status IN ('Cancelled','No-Show')
-                    THEN f.serv_price - f.serv_discount_amt ELSE 0 END) AS lost_rev
+                    THEN f.serv_total_amt - f.serv_tax_amt ELSE 0 END) AS lost_rev
     FROM   reservation_fact f
     JOIN   date_dim   d ON d.date_key   = f.date_key
     JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -227,7 +229,7 @@ WITH cat AS (
            SUM(CASE WHEN f.res_status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled,
            SUM(CASE WHEN f.res_status = 'No-Show'   THEN 1 ELSE 0 END) AS no_show,
            SUM(CASE WHEN f.res_status IN ('Cancelled','No-Show')
-                    THEN f.serv_price - f.serv_discount_amt ELSE 0 END) AS lost_rev
+                    THEN f.serv_total_amt - f.serv_tax_amt ELSE 0 END) AS lost_rev
     FROM   reservation_fact f
     JOIN   date_dim    d ON d.date_key    = f.date_key
     JOIN   branch_dim  b ON b.branch_key  = f.branch_key
@@ -264,13 +266,19 @@ COLUMN cancelled   HEADING 'CANCELLED'     FORMAT 99,999
 COLUMN no_show     HEADING 'NO-SHOW'       FORMAT 99,999
 COLUMN cancel_pct  HEADING 'CANCEL|%'      FORMAT 990.0
 COLUMN noshow_pct  HEADING 'NO-SHOW|%'     FORMAT 990.0
-COLUMN day_num_week NOPRINT
+COLUMN day_sort    NOPRINT
 
 BREAK ON REPORT
 COMPUTE SUM LABEL 'ALL DAYS' OF total_bk cancelled no_show ON REPORT
 
+-- date_dim carries no day-of-week sort order (day_num_week was dropped
+-- from the schema), so it is derived here: Monday = 1 ... Sunday = 7.
 WITH dow AS (
-    SELECT d.day_week, d.day_num_week,
+    SELECT d.day_week,
+           CASE UPPER(SUBSTR(d.day_week, 1, 3))
+                WHEN 'MON' THEN 1 WHEN 'TUE' THEN 2 WHEN 'WED' THEN 3
+                WHEN 'THU' THEN 4 WHEN 'FRI' THEN 5 WHEN 'SAT' THEN 6
+                WHEN 'SUN' THEN 7 END           AS day_sort,
            COUNT(f.res_det_ID)                                         AS total_bk,
            SUM(CASE WHEN f.res_status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled,
            SUM(CASE WHEN f.res_status = 'No-Show'   THEN 1 ELSE 0 END) AS no_show
@@ -280,14 +288,14 @@ WITH dow AS (
     WHERE  d.cal_year = &focus_year
     AND   (UPPER(TRIM('&branch')) IN ('', 'ALL')
            OR UPPER(b.br_name) LIKE '%' || UPPER(TRIM('&branch')) || '%')
-    GROUP  BY d.day_week, d.day_num_week
+    GROUP  BY d.day_week
 )
 SELECT day_week, total_bk, cancelled, no_show,
        ROUND(cancelled / NULLIF(total_bk, 0) * 100, 1) AS cancel_pct,
        ROUND(no_show   / NULLIF(total_bk, 0) * 100, 1) AS noshow_pct,
-       day_num_week
+       day_sort
 FROM   dow
-ORDER  BY day_num_week;
+ORDER  BY day_sort;
 
 
 -- ###################################################################
@@ -320,7 +328,7 @@ WITH br AS (
            SUM(CASE WHEN f.res_status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled,
            SUM(CASE WHEN f.res_status = 'No-Show'   THEN 1 ELSE 0 END) AS no_show,
            SUM(CASE WHEN f.res_status IN ('Cancelled','No-Show')
-                    THEN f.serv_price - f.serv_discount_amt ELSE 0 END) AS lost_rev
+                    THEN f.serv_total_amt - f.serv_tax_amt ELSE 0 END) AS lost_rev
     FROM   reservation_fact f
     JOIN   date_dim   d ON d.date_key   = f.date_key
     JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -344,7 +352,7 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 6. RESERVATION RELIABILITY SUMMARY STATISTICS' SKIP 1 -
-       CENTER '&br_label, 2019 - 2025, FOCUS YEAR &focus_y' SKIP 1 -
+       CENTER '&br_label, 2018 - 2025, FOCUS YEAR &focus_y' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -353,7 +361,7 @@ COLUMN metric_value HEADING 'VALUE'   FORMAT A38
 
 WITH lines AS (
     SELECT d.cal_year, s.serv_category, b.br_city, f.res_status,
-           f.serv_price - f.serv_discount_amt AS revenue
+           f.serv_total_amt - f.serv_tax_amt AS revenue
     FROM   reservation_fact f
     JOIN   date_dim    d ON d.date_key    = f.date_key
     JOIN   branch_dim  b ON b.branch_key  = f.branch_key
