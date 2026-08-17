@@ -3,15 +3,16 @@ gen_holidays.py
 Generates Oracle UPDATE statements for date_dim's Malaysian public
 holidays using the `holidays` library, instead of hardcoding dates.
 
+
 Usage:
     pip install holidays
 
     python gen_holidays.py                 -> 2019..2022 (default)
     python gen_holidays.py 2026            -> 2026 only
-    python gen_holidays.py 2019 2026       -> 2019..2026 inclusive range
+    python gen_holidays.py 2018 2026       -> 2018..2026 inclusive range
     python gen_holidays.py 2019 2023 2026  -> those 3 years exactly
 
-    python gen_holidays.py 2019 2026 > holiday_update.sql
+    python gen_holidays.py 2018 2026 > holiday_update.sql
 
 Then run the generated file against your schema:  @holiday_update.sql
 

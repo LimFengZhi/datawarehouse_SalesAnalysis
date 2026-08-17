@@ -16,7 +16,7 @@
 --
 -- Usage:
 --   sqlplus dwh/<password>@XE
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\drop_all.sql
+--   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\drop_all.sql
 --
 -- CONNECT AS dwh. Never run this as SYSTEM or SYS - it would try to
 -- drop whatever schema you happen to be in.

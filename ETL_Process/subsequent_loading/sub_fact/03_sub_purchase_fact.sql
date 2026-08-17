@@ -2,7 +2,9 @@
 -- 03_sub_purchase_fact.sql    PURCHASE_FACT - SUBSEQUENT LOAD
 --
 --   SECTION 1: no new view - reuses purchase_fact_staging_v
---   SECTION 2: no sequence - the PK is the degenerate purchase_ID
+--   SECTION 2: no sequence - PK is composite (date, supplier, branch,
+--              product keys); purchase_ID is UNIQUE and is what the
+--              NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new lines, then update changed ones
 --   SECTION 4: run + verification
 --
@@ -11,8 +13,8 @@
 -- unit cost amended after the supplier invoice arrives. Those do
 -- happen, and they move branch profitability, so they are refreshed.
 --
--- Backfill the whole of data2 (2023-2024):
---     EXEC load_purchase_fact_incremental(DATE '2023-01-01');
+-- Backfill the whole of data22_23 (2022-2023):
+--     EXEC load_purchase_fact_incremental(DATE '2022-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON

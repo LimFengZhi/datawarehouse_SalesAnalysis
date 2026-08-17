@@ -2,7 +2,9 @@
 -- 02_sub_reservation_fact.sql  RESERVATION_FACT - SUBSEQUENT LOAD
 --
 --   SECTION 1: no new view - reuses reservation_fact_staging_v
---   SECTION 2: no sequence - the PK is the degenerate res_det_ID
+--   SECTION 2: no sequence - PK is composite (dimension keys + res_ID
+--              + res_det_ID); res_det_ID is UNIQUE and is what the
+--              NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new lines, then update changed ones
 --   SECTION 4: run + verification
 --
@@ -12,8 +14,17 @@
 -- the no-show rate - one of the analyses this warehouse exists for -
 -- would read as zero forever.
 --
--- Backfill the whole of data2 (2023-2024):
---     EXEC load_res_fact_incremental(DATE '2023-01-01');
+-- DATE: date_key and the window are driven by reservation.reservation_date
+-- (the appointment day, exposed by the view as res_date) - NOT by
+-- booking_date, which is when the booking was made.
+--
+-- MONEY: reservation_detail stores no price. serv_total_amt =
+--   service_dim.serv_price - discount + tax, where the service_dim row
+-- is the SCD2 version in force on the reservation date. Both steps
+-- join service_dim by serv_ID + date range for it.
+--
+-- Backfill the whole of data22_23 (2022-2023):
+--     EXEC load_res_fact_incremental(DATE '2022-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -21,7 +32,8 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 -- SECTION 1: STAGING VIEW - reuses reservation_fact_staging_v from
 --   ETL_Process\initial_loading\init_fact\02_init_reservation_fact.sql
--- OLTP cleansing only; surrogate-key joins are written out below.
+-- OLTP cleansing only (no price); surrogate-key joins and the price
+-- lookup are written out below.
 -- ===================================================================
 
 -- ===================================================================
@@ -44,17 +56,20 @@ BEGIN
     -- ---------------------------------------------------------------
     INSERT INTO reservation_fact (
         date_key, customer_key, staff_key, branch_key, service_key,
-        res_ID, res_det_ID, res_status, start_time, end_time,
-        start_hour, res_duration, serv_price,
+        res_ID, res_det_ID, res_duration, res_status,
+        start_time, end_time,
         serv_discount_amt, serv_tax_amt, serv_total_amt
     )
     SELECT
         d.date_key, c.customer_key, s.staff_key, b.branch_key,
-        v.service_key, ls.res_ID, ls.res_det_ID, ls.clean_res_status,
-        ls.start_time, ls.end_time, ls.start_hour, ls.res_duration,
-        ls.clean_serv_price, ls.clean_discount_amt, ls.clean_tax_amt,
-        ls.serv_total_amt
-    -- SCD2 joins pick the version in force on the appointment date.
+        v.service_key, ls.res_ID, ls.res_det_ID, ls.res_duration,
+        ls.clean_res_status, ls.start_time, ls.end_time,
+        ls.clean_discount_amt, ls.clean_tax_amt,
+        -- price from the service_dim version in force on the reservation date
+        ROUND(  v.serv_price
+              - ls.clean_discount_amt
+              + ls.clean_tax_amt, 2)
+    -- SCD2 joins pick the version in force on the reservation date.
     FROM reservation_fact_staging_v ls
     JOIN date_dim     d ON d.cal_date = ls.res_date
     JOIN customer_dim c ON c.cus_ID   = ls.cus_ID
@@ -78,30 +93,49 @@ BEGIN
     -- ---------------------------------------------------------------
     -- STEP 2: refresh lines whose status or money moved.
     -- Rescheduling changes start_time/end_time too, which is why the
-    -- derived start_hour and res_duration are refreshed with them.
+    -- derived res_duration is refreshed with them.
+    --
+    -- The price is not in the staging view, so this is a MERGE whose
+    -- source joins the staging view to the service_dim version in
+    -- force on the reservation date (same lookup as STEP 1). A row
+    -- whose price lookup finds nothing is simply not matched, never
+    -- NULLed out. Dimension KEYS are not touched.
     -- ---------------------------------------------------------------
-    UPDATE reservation_fact f
-    SET   (res_status, start_time, end_time, start_hour, res_duration,
-           serv_price, serv_discount_amt, serv_tax_amt, serv_total_amt) =
-          (SELECT ls.clean_res_status, ls.start_time, ls.end_time,
-                  ls.start_hour, ls.res_duration, ls.clean_serv_price,
-                  ls.clean_discount_amt, ls.clean_tax_amt,
-                  ls.serv_total_amt
-           FROM   reservation_fact_staging_v ls
-           WHERE  ls.res_det_ID = f.res_det_ID)
-    WHERE EXISTS (
-        SELECT 1
+    MERGE INTO reservation_fact f
+    USING (
+        SELECT ls.res_det_ID,
+               ls.clean_res_status,
+               ls.start_time,
+               ls.end_time,
+               ls.res_duration,
+               ls.clean_discount_amt,
+               ls.clean_tax_amt,
+               ROUND(  v.serv_price
+                     - ls.clean_discount_amt
+                     + ls.clean_tax_amt, 2)          AS serv_total_amt
         FROM   reservation_fact_staging_v ls
-        WHERE  ls.res_det_ID = f.res_det_ID
-          AND  ls.res_date >= v_from
-          AND (   NVL(f.res_status, '~') <> NVL(ls.clean_res_status, '~')
-               OR NVL(f.start_time, DATE '1900-01-01')
-                    <> NVL(ls.start_time, DATE '1900-01-01')
-               OR NVL(f.end_time, DATE '1900-01-01')
-                    <> NVL(ls.end_time, DATE '1900-01-01')
-               OR NVL(f.serv_price, -1)        <> NVL(ls.clean_serv_price, -1)
-               OR NVL(f.serv_discount_amt, -1) <> NVL(ls.clean_discount_amt, -1)
-               OR NVL(f.serv_tax_amt, -1)      <> NVL(ls.clean_tax_amt, -1) ));
+        JOIN   service_dim v ON v.serv_ID = ls.serv_ID
+                            AND ls.res_date BETWEEN v.effective_start_date
+                                                AND v.effective_end_date
+        WHERE  ls.res_date >= v_from
+    ) src
+    ON (f.res_det_ID = src.res_det_ID)
+    WHEN MATCHED THEN UPDATE SET
+        f.res_status        = src.clean_res_status,
+        f.start_time        = src.start_time,
+        f.end_time          = src.end_time,
+        f.res_duration      = src.res_duration,
+        f.serv_discount_amt = src.clean_discount_amt,
+        f.serv_tax_amt      = src.clean_tax_amt,
+        f.serv_total_amt    = src.serv_total_amt
+    WHERE (   NVL(f.res_status, '~') <> NVL(src.clean_res_status, '~')
+           OR NVL(f.start_time, DATE '1900-01-01')
+                <> NVL(src.start_time, DATE '1900-01-01')
+           OR NVL(f.end_time, DATE '1900-01-01')
+                <> NVL(src.end_time, DATE '1900-01-01')
+           OR NVL(f.serv_discount_amt, -1) <> NVL(src.clean_discount_amt, -1)
+           OR NVL(f.serv_tax_amt, -1)      <> NVL(src.clean_tax_amt, -1)
+           OR NVL(f.serv_total_amt, -1)    <> NVL(src.serv_total_amt, -1) );
 
     v_updated := SQL%ROWCOUNT;
 
@@ -109,7 +143,7 @@ BEGIN
     FROM   reservation_fact_staging_v
     WHERE  res_date >= v_from
     AND   (status_defaulted = 'Y' OR time_unusable = 'Y'
-        OR price_defaulted = 'Y'  OR money_defaulted = 'Y');
+        OR money_defaulted = 'Y');
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('RESERVATION_FACT incremental load completed:');

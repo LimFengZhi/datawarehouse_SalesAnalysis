@@ -8,7 +8,7 @@
 --
 -- SCOPE: NEW RECORDS ONLY - customers who registered since the last
 -- load are added, with cus_name built from first + last and
--- cus_age_band derived by the view.
+-- cus_age_band derived from cus_DOB by the view.
 --
 -- A LOYALTY-TIER UPGRADE ON AN EXISTING CUSTOMER IS NOT HANDLED HERE.
 -- That is the single most important SCD Type 2 case in this warehouse:
@@ -16,8 +16,8 @@
 -- must still report as Silver, or the tier analysis is meaningless.
 -- It belongs to the maintain-SCD2 step.
 --
--- cus_age and cus_age_band drift every birthday, so in that step they
--- must be Type 1 (overwrite in place) and kept OUT of Type 2 change
+-- cus_age_band drifts every birthday, so in that step it must be
+-- Type 1 (overwrite in place) and kept OUT of Type 2 change
 -- detection - otherwise 26,000 customers gain a version every year.
 -- ===================================================================
 
@@ -39,18 +39,16 @@ CREATE OR REPLACE PROCEDURE load_customer_dim_incremental AS
     v_total NUMBER := 0;
 BEGIN
     INSERT INTO customer_dim (
-        customer_key, cus_ID, cus_name, cus_email, cus_gender,
-        cus_age, cus_age_band, cus_city, cus_state,
-        cus_loyalty_tier, cus_reg_date,
+        customer_key, cus_ID, cus_name, cus_email, cus_gender, cus_city,
+        cus_state, cus_age_band, cus_loyalty_tier,
         effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_customer_key.NEXTVAL,
-        s.cus_ID, s.clean_cus_name, s.clean_cus_email,
-        s.clean_cus_gender, s.clean_cus_age, s.derived_cus_age_band,
-        s.clean_cus_city, s.clean_cus_state, s.clean_cus_loyalty_tier,
-        s.clean_cus_reg_date,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        s.cus_ID, s.clean_cus_name, s.clean_cus_email, s.clean_cus_gender,
+        s.clean_cus_city, s.clean_cus_state,
+        s.derived_cus_age_band, s.clean_cus_loyalty_tier,
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   customer_staging_v s

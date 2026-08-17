@@ -5,7 +5,7 @@ SET SERVEROUTPUT ON
 
 -- ===================================================================
 -- SECTION 1: CORE ETL TRANSFORMATION LOGIC (VIEW)
--- Generates every calendar day 2019-01-01 .. 2022-12-31 (1,461 days)
+-- Generates every calendar day 2018-01-01 .. 2021-12-31 (1,461 days)
 -- holiday_ind starts as 'N' for every row; Section 5 flips the
 -- holidays to 'Y'.
 -- ===================================================================
@@ -14,9 +14,7 @@ SELECT
     v_date,
     TO_CHAR(v_date, 'DD-MON-YYYY')                          AS full_desc,
     TRIM(TO_CHAR(v_date, 'Day', 'NLS_DATE_LANGUAGE=ENGLISH')) AS day_week,
-    TO_NUMBER(TO_CHAR(v_date, 'D'))                         AS day_num_week,
     TO_NUMBER(TO_CHAR(v_date, 'DD'))                        AS day_num_month,
-    TO_NUMBER(TO_CHAR(v_date, 'DDD'))                       AS day_num_year,
     CASE WHEN v_date = LAST_DAY(v_date) THEN 'Y' ELSE 'N' END AS last_day_ind,
     NEXT_DAY(v_date - 1, 'SUNDAY')                          AS cal_week_end_date,
     -- IYYY (ISO year), not YYYY: IW is the ISO week number, and the days
@@ -37,11 +35,11 @@ SELECT
 FROM (
     -- Horizon runs to 2035 so the SUBSEQUENT load can extend the calendar
     -- from this same view. The INITIAL load below bounds itself to
-    -- 2022-12-31, so it still inserts exactly 1,461 days.
-    SELECT TO_DATE('2019-01-01','YYYY-MM-DD') + LEVEL - 1 AS v_date
+    -- 2021-12-31, so it still inserts exactly 1,461 days.
+    SELECT TO_DATE('2018-01-01','YYYY-MM-DD') + LEVEL - 1 AS v_date
     FROM dual
     CONNECT BY LEVEL <= TO_DATE('2035-12-31','YYYY-MM-DD')
-                      - TO_DATE('2019-01-01','YYYY-MM-DD') + 1   -- 6,209 days
+                      - TO_DATE('2018-01-01','YYYY-MM-DD') + 1   -- 6,574 days
 )
 WHERE v_date IS NOT NULL;
 
@@ -71,25 +69,27 @@ BEGIN
     END IF;
 
     INSERT INTO date_dim (
-        date_key, cal_date, full_desc, day_week, day_num_week,
-        day_num_month, day_num_year, last_day_ind, cal_week_end_date,
+        date_key, cal_date, full_desc, day_week,
+        day_num_month, last_day_ind, cal_week_end_date,
         cal_week_year, cal_month_name, cal_month_year, cal_year_month,
         cal_quarter, cal_year_quarter, cal_year,
         holiday_ind, holiday_name, weekday_ind
     )
     SELECT
         date_dim_seq.NEXTVAL,                     -- surrogate key: 1, 2, 3, ...
-        v_date, full_desc, day_week, day_num_week,
-        day_num_month, day_num_year, last_day_ind, cal_week_end_date,
+        v_date, full_desc, day_week,
+        day_num_month, last_day_ind, cal_week_end_date,
         cal_week_year, cal_month_name, cal_month_year, cal_year_month,
         cal_quarter, cal_year_quarter, cal_year,
         holiday_ind, holiday_name, weekday_ind
     FROM date_staging_v
     -- The view now reaches 2035. Bound the INITIAL load to the source
-    -- data window so it still inserts exactly 1,461 days. Extending
-    -- past this is the subsequent load's job:
-    --   EXEC load_date_dim_incremental(2026);
-    WHERE v_date <= DATE '2022-12-31';
+    -- data window (sales_data2\data18_21 = 2018-2021) so it still
+    -- inserts exactly 1,461 days. Extending past this is the subsequent
+    -- load's job:
+    --   EXEC load_date_dim_incremental(2023);   -- data22_23
+    --   EXEC load_date_dim_incremental(2025);   -- data24_25
+    WHERE v_date <= DATE '2021-12-31';
 
     v_inserted_count := SQL%ROWCOUNT;
 

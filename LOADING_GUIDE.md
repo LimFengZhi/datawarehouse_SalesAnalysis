@@ -1,14 +1,17 @@
 # Loading Guide
 
-End to end, from an empty schema to a six-year warehouse.
+End to end, from an empty schema to an eight-year, thirteen-branch warehouse.
 
-Two parts:
+Three parts:
 
-- **Part A — first build.** The OLTP tables, the 2019–2022 CSVs in
-  [sales_data/data/](sales_data/data/), and the whole warehouse. ~700,000 source rows.
-- **Part B — adding data2.** The 2023–2024 expansion in [sales_data/data2/](sales_data/data2/)
-  *without* wiping what Part A built. ~550,000 more rows, a new branch, new products, and a price
-  rise that becomes SCD Type 2 history.
+- **Part A — first build.** The OLTP tables, the 2018–2021 CSVs in
+  [sales_data2/data18_21/](sales_data2/data18_21/) (12 branches), and the whole warehouse.
+  ~520,000 source rows.
+- **Part B — adding data22_23.** The 2022–2023 rows in [sales_data2/data22_23/](sales_data2/data22_23/)
+  *without* wiping what Part A built. ~380,000 more rows, the Ipoh branch, new products and services,
+  and the 2023 price rise that becomes SCD Type 2 history.
+- **Part C — adding data24_25.** The 2024–2025 rows in [sales_data2/data24_25/](sales_data2/data24_25/):
+  ~450,000 more rows, two new suppliers, and the 2025 product **and service** price changes.
 
 Connect as your schema user for everything:
 
@@ -16,20 +19,29 @@ Connect as your schema user for everything:
 sqlplus dwh/yourpassword@XE
 ```
 
+
+> **Legacy data.** `sales_data\` (data / data2 / data3, 2019–2025, 5–6 branches) is the previous
+> generation of the dataset and is kept for reference only. Its IDs start at 1 too, so it can **not**
+> be loaded into the same OLTP as `sales_data2\`. Pick one tree; the ETL, validation counts and this
+> guide are written for `sales_data2\`.
+
 ---
 
 ## What you have
 
 ```
-datawarehouseAnalysis\
+datawarehouse_SalesAnalysis\
 ├── operational_DB\                     THE SOURCE SYSTEM (OLTP)
 │   ├── create_operational_db.sql           14 CREATE TABLEs
-│   └── sqlloader_control_files\            14 .ctl + load_all.bat
+│   └── sqlloader_control_files\            14 .ctl + load_all.bat / .sh
 │
-├── sales_data\                         THE RAW CSVs
-│   ├── data\      14 CSVs, 2019-2022
-│   ├── data2\     14 CSVs, 2023-2024  + 99_price_increase_2023.sql
-│   └── data3\     14 CSVs, 2025       + 99_price_change_2025.sql
+├── sales_data2\                        THE RAW CSVs (one generator, three load folders)
+│   ├── gen_sales_data2.py                  regenerates all three folders (seeded)
+│   ├── data18_21\   14 CSVs, 2018-2021    12 branches
+│   ├── data22_23\   14 CSVs, 2022-2023  + 99_price_increase_2023.sql   (+ Ipoh)
+│   └── data24_25\   14 CSVs, 2024-2025  + 99_price_change_2025.sql
+│
+├── sales_data\                         LEGACY CSVs (2019-2025, 5-6 branches) - reference only
 │
 ├── dwh\                                THE WAREHOUSE SCHEMA
 │   ├── create_dwh.sql                      13 tables: 8 dims + 5 facts
@@ -45,9 +57,9 @@ datawarehouseAnalysis\
 │       ├── sub_dimension\   NEW dimension records only     (create-only)
 │       ├── maintain_SCD2\   CHANGED records -> versions    (create-only)
 │       ├── sub_fact\        new + changed fact rows        (create-only)
-│       ├── execute_sub_procedure.sql        RUNS the data2 load (2023-24)
-│       ├── execute_sub2.sql                 RUNS the data3 load (2025)
-│       └── validate_subsequent_loading.sql  all Part B checks
+│       ├── execute_sub_procedure.sql        RUNS the data22_23 load (2022-23)
+│       ├── execute_sub2.sql                 RUNS the data24_25 load (2024-25)
+│       └── validate_subsequent_loading.sql  all Part B / C checks
 │
 ├── analysis\                           reporting queries
 └── drop_all.sql                        destroy every object in the schema
@@ -56,45 +68,45 @@ datawarehouseAnalysis\
 The numbered `subsequent_loading` scripts only CREATE views and procedures — the `execute_*` files
 run them. The `initial_loading` scripts create **and run** their own procedure.
 
-Paths below are written in full from `c:\Users\laoli\Downloads\datawarehouseAnalysis\`. If you
-keep the repo elsewhere, swap that prefix.
+Paths below are written in full from `c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\`.
+If you keep the repo elsewhere, swap that prefix.
 
 ---
 
-# PART A — First build (2019–2022)
+# PART A — First build (2018–2021)
 
 ## A1. Create the OLTP tables
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\create_operational_db.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\create_operational_db.sql
 SELECT COUNT(*) FROM user_tables;    -- expect 14
 ```
 
 If you get `ORA-01950: no privileges on tablespace 'USERS'`, connect as SYSDBA and run
 `GRANT UNLIMITED TABLESPACE TO dwh;`.
 
-## A2. Load the 2019–2022 CSVs
+## A2. Load the 2018–2021 CSVs
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\sqlloader_control_files
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_control_files
 load_all.bat dwh yourpassword XE
 ```
 
-With no 4th argument the script defaults to `..\..\sales_data\data`. It switches into that folder
-so each control file finds its CSV, then loads all 14 tables in dependency order. Logs land next to
-the script, **suffixed with the data folder** so a later run against `data2\` doesn't overwrite
-them — check `branch_data.log` first:
+With no 4th argument the script defaults to `..\..\sales_data2\data18_21`. It switches into that
+folder so each control file finds its CSV, then loads all 14 tables in dependency order. Logs land
+next to the script, **suffixed with the data folder** so a later run against `data22_23\` doesn't
+overwrite them — check `branch_data18_21.log` first:
 
 ```
 Table BRANCH:
-  5 Rows successfully loaded.
+  12 Rows successfully loaded.
   0 Rows not loaded due to data errors.
 ```
 
-Expect 1–3 minutes, nearly all of it in `order_detail` (349,396 rows).
+Expect 2–4 minutes, nearly all of it in `order_detail` (256,137 rows).
 
 **Why the order matters.** `orders.cus_ID` is a foreign key to `customer.cus_ID`, checked on every
-row. Load `orders` before `customer` and all 161,470 rows bounce with `ORA-02291`. Parents before
+row. Load `orders` before `customer` and all 116,067 rows bounce with `ORA-02291`. Parents before
 children — `load_all.bat` already does this.
 
 Verify:
@@ -103,31 +115,31 @@ Verify:
 SELECT 'customer' t, COUNT(*) n FROM customer
 UNION ALL SELECT 'orders',       COUNT(*) FROM orders
 UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail;
--- expect 26000 / 161470 / 349396
+-- expect 14632 / 116067 / 256137
 ```
 
 ## A3. Create the warehouse tables
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\dwh\create_dwh.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\dwh\create_dwh.sql
 -- expect 13 tables: 8 dimensions + 5 facts
 ```
 
 ## A4. Date dimension, then holidays
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
--- expect 1462 rows (1,461 days + the Unknown member)
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
+-- expect 1462 rows (1,461 days 2018-01-01..2021-12-31 + the Unknown member)
 ```
 
 Holidays are **not** automatic — every day loads with `holiday_ind = 'N'`:
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim
-python gen_holidays.py 2019 2022 > holiday_update.sql
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim
+python gen_holidays.py 2018 2021 > holiday_update.sql
 ```
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
 SELECT COUNT(*) FROM date_dim WHERE holiday_ind = 'Y';   -- must be > 0
 ```
 
@@ -136,7 +148,7 @@ SELECT COUNT(*) FROM date_dim WHERE holiday_ind = 'Y';   -- must be > 0
 Run all seven, in order — each one creates its staging view, sequence and procedure, then runs it:
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_dimension
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_dimension
 ```
 ```sql
 @01_init_branch_dim.sql
@@ -148,12 +160,16 @@ cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\in
 @07_init_customer_dim.sql
 ```
 
-Expect 5 / 6 / 6 / 16 / 43 / 96 / 26,000.
+Expect 12 / 6 / 6 / 16 / 43 / 202 / 14,632.
+
+Every SCD2 dimension row starts its first version on `DATE '2018-01-01'` — the start of recorded
+history. Facts resolve their keys by date, so a 2018 order line finds a version that already
+exists.
 
 ## A6. Facts
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_fact
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_fact
 ```
 ```sql
 @01_init_order_fact.sql
@@ -163,9 +179,9 @@ cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\in
 @05_init_branch_expense_fact.sql
 ```
 
-Expect 349,396 / 88,790 / 10,615 / 3,135 / 1,440.
+Expect 256,137 / 57,062 / 17,659 / 8,945 / 3,414.
 
-`order_fact` is the slow one — 349k rows joined to five dimensions. Give it a few minutes.
+`order_fact` is the slow one — 256k rows joined to five dimensions. Give it several minutes.
 
 ## A7. Validate everything
 
@@ -173,66 +189,71 @@ One script runs every Part A check — row counts, orphans, duplicate keys, fail
 lookups, measure arithmetic and the COVID/revenue patterns:
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\validate_initial_loading.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\validate_initial_loading.sql
 ```
 
 Every check labelled "must be 0" that comes back non-zero tells you exactly which table and which
-lookup to investigate.
+lookup to investigate. The business-pattern section should show Petaling Jaya as the top branch,
+zero completed reservations between 18 Mar–3 May 2020 and Jun–Aug 2021, and revenue that dips in
+2020–2021.
 
 ---
 
-# PART B — Adding data2 (2023–2024)
+# PART B — Adding data22_23 (2022–2023)
 
 This appends. Nothing from Part A is deleted.
 
 **Do the steps in this order.** Each one depends on the one before, and getting them out of order
 fails *silently* rather than loudly — see the note at the end of this part.
 
-## B1. Load the 2023–2024 CSVs
+## B1. Load the 2022–2023 CSVs
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\operational_DB\sqlloader_control_files
-load_all.bat dwh yourpassword XE "c:\Users\laoli\Downloads\datawarehouseAnalysis\sales_data\data2"
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_control_files
+load_all.bat dwh yourpassword XE "c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data22_23"
 ```
 
-The 4th argument points the same control files at the other folder. Every file in `data2\` is named
-exactly like its counterpart in `data\` with identical headers, and every `.ctl` uses `APPEND`, so
-the rows are added to the existing tables. IDs continue from where `data\` stopped — no collisions.
+The 4th argument points the same control files at the other folder. Every file in `data22_23\` is
+named exactly like its counterpart in `data18_21\` with identical headers, and every `.ctl` uses
+`APPEND`, so the rows are added to the existing tables. IDs continue from where `data18_21\`
+stopped — no collisions.
 
-`supplier_data2.log` and `branch_utils_category_data2.log` will show **0 rows**. That is correct:
-those two files are header-only because data2 adds no new suppliers or utility categories.
+`supplier_data22_23.log` and `branch_utils_category_data22_23.log` will show **0 rows**. That is
+correct: those two files are header-only because data22_23 adds no new suppliers or utility
+categories.
 
 **Nothing to clean before a re-run.** SQL\*Loader overwrites its log each time — it never appends.
-And `load_all.bat` now deletes any old `.bad` before each table loads, so a `.bad` file present
+And `load_all.bat` deletes any old `.bad` before each table loads, so a `.bad` file present
 afterwards always means *this* run rejected rows. No `.bad` file means nothing was rejected.
 
-Verify the totals are now `data` + `data2`:
+Verify the totals are now `data18_21` + `data22_23`:
 
 ```sql
-SELECT 'branch'   t, COUNT(*) n, 6      expected FROM branch
-UNION ALL SELECT 'staff',        COUNT(*), 114    FROM staff
+SELECT 'branch'   t, COUNT(*) n, 13     expected FROM branch
+UNION ALL SELECT 'staff',        COUNT(*), 252    FROM staff
 UNION ALL SELECT 'product',      COUNT(*), 48     FROM product
 UNION ALL SELECT 'service',      COUNT(*), 18     FROM service
-UNION ALL SELECT 'customer',     COUNT(*), 32000  FROM customer
-UNION ALL SELECT 'orders',       COUNT(*), 290709 FROM orders
-UNION ALL SELECT 'order_detail', COUNT(*), 635340 FROM order_detail
-UNION ALL SELECT 'reservation',  COUNT(*), 119663 FROM reservation
-UNION ALL SELECT 'reservation_detail', COUNT(*), 156888 FROM reservation_detail
-UNION ALL SELECT 'purchase',       COUNT(*), 16937 FROM purchase
-UNION ALL SELECT 'salary_payment', COUNT(*), 5781  FROM salary_payment
-UNION ALL SELECT 'branch_expense', COUNT(*), 2292  FROM branch_expense;
+UNION ALL SELECT 'customer',     COUNT(*), 21795  FROM customer
+UNION ALL SELECT 'orders',       COUNT(*), 202215 FROM orders
+UNION ALL SELECT 'order_detail', COUNT(*), 445884 FROM order_detail
+UNION ALL SELECT 'reservation',  COUNT(*), 79055 FROM reservation
+UNION ALL SELECT 'reservation_detail', COUNT(*), 104593 FROM reservation_detail
+UNION ALL SELECT 'purchase',       COUNT(*), 28775 FROM purchase
+UNION ALL SELECT 'salary_payment', COUNT(*), 13953 FROM salary_payment
+UNION ALL SELECT 'branch_expense', COUNT(*), 5202  FROM branch_expense;
 ```
 
 ## B2. Apply the 2023 price rise
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\sales_data\data2\99_price_increase_2023.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data22_23\99_price_increase_2023.sql
 ```
 
-Seven top sellers go up, effective 2023-01-01. The data2 order lines already carry the new prices,
-so this brings the OLTP `product` table into step with them.
+Seven top sellers go up, effective 2023-01-01. The 2023 order lines in data22_23 already carry the
+new prices (the 2022 lines still carry the old ones), so this brings the OLTP `product` table into
+step with them.
 
-Must run **before** B5, which turns the change into dimension history.
+Must run **before** B4, which turns the change into dimension history.
 
 ## B3. Create the 19 procedures (first time only)
 
@@ -240,7 +261,7 @@ The `subsequent_loading` numbered scripts are **create-only** — each defines o
 executes nothing. Run all 19 once, in any order:
 
 ```sql
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading
 ```
 ```sql
 @sub_dimension\01_sub_date_dim.sql
@@ -269,78 +290,126 @@ Already ran them for an earlier load? Skip this step — the procedures are stil
 ## B4. Run the whole load
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\execute_sub_procedure.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\execute_sub_procedure.sql
 ```
 
 One file does everything, in the only safe order:
 
 - **STEP 0** — checks all 19 procedures exist and are VALID before calling any of them
-- **STEP 1** — extends the calendar to 2024, then inserts the NEW records: the Ipoh branch, its
-  18 staff, 5 products, 2 services and 6,000 customers
+- **STEP 1** — extends the calendar to 2023, then inserts the NEW records: the Ipoh branch, 50
+  staff (Ipoh's 18 plus the 2022 rehiring wave), 5 products, 2 services and 7,163 customers
 - **STEP 2** — turns the price rise into SCD2 history:
   `maintain_product_dim_scd2(DATE '2023-01-01')` expires the 7 old price versions on 2022-12-31
   and opens the new ones on 2023-01-01. `product_dim` now holds 55 rows — 48 current + 7 expired
-- **STEP 3** — the facts, each backfilled with `(DATE '2023-01-01')`. The window opens one day
+- **STEP 3** — the facts, each backfilled with `(DATE '2022-01-01')`. The window opens one day
   early by design (`src_date >= p_load_date - 1`) and has no upper bound, so one call loads all of
-  data2. The `NOT EXISTS` anti-join skips anything already loaded
+  data22_23. The `NOT EXISTS` anti-join skips anything already loaded. 2022 order lines resolve to
+  the expired (old-price) product versions by date, 2023 lines to the new ones
 
 **Why the calendar comes first.** Every fact staging view uses `INNER JOIN` to resolve its
 dimension keys. An unresolved key does not raise an error — the row is silently **dropped**. If
-`date_dim` stopped at 2022-12-31, all 285,944 new order lines would vanish with no warning.
+`date_dim` stopped at 2021-12-31, all 189,747 new order lines would vanish with no warning.
 
 **Idempotent:** run the file twice and the second pass reports 0 inserted, 0 expired, 0 updated.
 
 ## B5. Holidays for the new years
 
-The 2023–24 days arrive with `holiday_ind = 'N'`, so regenerate over the wider range:
+The 2022–23 days arrive with `holiday_ind = 'N'`, so regenerate over the wider range:
 
 ```
-cd c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim
-python gen_holidays.py 2019 2024 > holiday_update.sql
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim
+python gen_holidays.py 2018 2023 > holiday_update.sql
 ```
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
 
 SELECT cal_year, COUNT(*) AS holidays FROM date_dim
 WHERE holiday_ind = 'Y' GROUP BY cal_year ORDER BY cal_year;
--- every year 2019..2024 present, none zero
+-- every year 2018..2023 present, none zero
 ```
 
 The generated file resets **only the years it covers**, so a partial regeneration
-(`gen_holidays.py 2023 2024`) leaves 2019–2022 untouched.
+(`gen_holidays.py 2022 2023`) leaves 2018–2021 untouched.
 
 ## B6. Validate everything
 
 ```sql
-@c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 ```
 
 Covers calendar continuity, dimension coverage, SCD2 integrity (one current row per key, no
 dangling 9999-12-31 end dates, no orphaned facts), version history, fact-vs-source counts and the
 business patterns. Every "must be 0" that is not 0 names the table to investigate.
 
-## Loading data3 (2025) later
+---
 
-Same pattern, different file: load the CSVs with
-`load_all.bat ... "...\sales_data\data3"`, apply
-[sales_data/data3/99_price_change_2025.sql](sales_data/data3/99_price_change_2025.sql), then run
-[ETL_Process/subsequent_loading/execute_sub2.sql](ETL_Process/subsequent_loading/execute_sub2.sql)
-and regenerate holidays to 2025. The procedures from B3 are reused as-is.
+# PART C — Adding data24_25 (2024–2025)
+
+Same pattern as Part B, different files. The procedures from B3 are reused as-is.
+
+```
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_control_files
+load_all.bat dwh yourpassword XE "c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data24_25"
+```
+```sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data24_25\99_price_change_2025.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\execute_sub2.sql
+```
+```
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim
+python gen_holidays.py 2018 2025 > holiday_update.sql
+```
+```sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\init_data_dim\holiday_update.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
+```
+
+`branch`, `product`, `service` and `branch_utils_category` are header-only in `data24_25\` (0 rows,
+correct). `execute_sub2.sql` extends the calendar to 2025, adds 2 suppliers, 12 staff and 7,143
+customers, dates **both** `maintain_product_dim_scd2` and `maintain_service_dim_scd2` at
+`2025-01-01`, and backfills the facts from `DATE '2024-01-01'`.
+
+End state, all three loads:
+
+| | rows |
+|---|---:|
+| `branch` / `staff` / `customer` | 13 / 264 / 28,938 |
+| `product_dim` | **63 = 48 current + 15 expired** (products 4 and 16 carry three versions) |
+| `service_dim` | 24 = 18 current + 6 expired |
+| `date_dim` | 2,923 = 2,922 days 2018–2025 + Unknown |
+| `order_fact` / `reservation_fact` | 670,282 / 159,977 |
+| `purchase_fact` / `salary_payment_fact` / `branch_expense_fact` | 41,411 / 19,517 / 7,074 |
 
 ---
 
 ## Order of everything, at a glance
 
 ```
-PART A                                     PART B
-A1  create_operational_db.sql              B1  load_all.bat ... "...\sales_data\data2"
-A2  load_all.bat  (sales_data\data)        B2  99_price_increase_2023.sql
-A3  dwh\create_dwh.sql                     B3  create the 19 procedures (once)
-A4  date_dim + holidays                    B4  execute_sub_procedure.sql
-A5  dimensions                             B5  regenerate holidays to 2024
-A6  facts                                  B6  validate_subsequent_loading.sql
+PART A                                  PART B                                    PART C
+A1  create_operational_db.sql           B1  load_all.bat ... "...\data22_23"      C1  load_all.bat ... "...\data24_25"
+A2  load_all.bat  (data18_21)           B2  99_price_increase_2023.sql            C2  99_price_change_2025.sql
+A3  dwh\create_dwh.sql                  B3  create the 19 procedures (once)       C3  execute_sub2.sql
+A4  date_dim + holidays 2018-2021       B4  execute_sub_procedure.sql             C4  regenerate holidays to 2025
+A5  dimensions                          B5  regenerate holidays to 2023           C5  validate_subsequent_loading.sql
+A6  facts                               B6  validate_subsequent_loading.sql
 A7  validate_initial_loading.sql
 ```
+
+---
+
+## Regenerating the CSVs
+
+```
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2
+python gen_sales_data2.py            # ~1 minute, rewrites all three folders, then self-verifies
+python gen_sales_data2.py --verify   # only re-check the CSVs already on disk
+```
+
+The generator is seeded, so the output is identical every run. It ends with an integrity pass over
+the files it wrote (FKs, ID continuity across folders, no order before registration, no therapist
+double-booked, no booking while salons were closed, price eras, tax rules) and prints the counts
+quoted above. If you change anything in it, re-run it and then update the expected counts in the
+two `validate_*.sql` files, the two `execute_*` files and the READMEs.
 
 ---
 
@@ -350,10 +419,10 @@ A7  validate_initial_loading.sql
 |---|---|---|
 | `TRUNCATE TABLE order_fact;` | one fact table | a single load went wrong |
 | [dwh/clear_dwh.sql](dwh/clear_dwh.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
-| [drop_all.sql](drop_all.sql) | destroys every object in the schema, OLTP included | the DDL changed, or the schema is unreasonable |
+| [drop_all.sql](drop_all.sql) | destroys every object in the schema, OLTP included | the DDL changed, or you are switching between `sales_data\` and `sales_data2\` |
 
 `clear_dwh.sql` is the one you want almost every time. `drop_all.sql` costs you another full
-SQL\*Loader run over 1.2 million rows.
+SQL\*Loader run over ~1.3 million rows.
 
 **Dimensions need `DELETE`, not `TRUNCATE`** — Oracle blocks `TRUNCATE` on a parent table whenever
 an enabled foreign key references it, even when the child is empty (`ORA-02266`). Facts have no
@@ -368,15 +437,16 @@ children, so `TRUNCATE` works there and is much faster.
 | `SQL*Loader-500` / `553: file not found` | ran `sqlldr` from the wrong folder — `INFILE` is relative to your **current directory** | use `load_all.bat`, which handles it |
 | `ORA-01017: invalid username/password` | typo, or cmd mangled a password containing `& ^ % @` | quote the password |
 | `ORA-01950: no privileges on tablespace` | user has no quota | `GRANT UNLIMITED TABLESPACE TO dwh;` as SYSDBA |
+| `ORA-01653 / ORA-01654: unable to extend table/index ... in tablespace SYSTEM` | the tablespace holding the warehouse is full | the dataset must be smaller for that tablespace, or the schema needs to live in a larger/autoextending tablespace |
 | `ORA-02291: parent key not found` | loaded a child before its parent | follow the load order |
-| `ORA-00001: unique constraint violated` | loaded the same CSV twice, or a sequence was not reset | `TRUNCATE` and reload; `clear_dwh.sql` drops the sequences |
+| `ORA-00001: unique constraint violated` | loaded the same CSV twice, loaded `sales_data\` on top of `sales_data2\`, or a sequence was not reset | `TRUNCATE` and reload; `clear_dwh.sql` drops the sequences; `drop_all.sql` to switch trees |
 | `ORA-01861: literal does not match format string` | date format mismatch | the `.ctl` files already set `DATE 'YYYY-MM-DD'` per column |
 | `ORA-02290: check constraint violated` | a status or gender value outside the allowed list | values are case-sensitive: `Completed`, not `complete` |
 | `ORA-12899: value too large for column` | a value longer than the column | widen the column, or check the mapping |
 | `ORA-00942: table or view does not exist` | a step was skipped, or you are the wrong user | check the order above |
 | `ORA-02266: unique/primary keys referenced by enabled foreign keys` | `TRUNCATE` on a dimension | use `DELETE`, or `clear_dwh.sql` |
 | `PLS-00905: object ... is invalid` | the procedure compiled with errors | `SELECT line, text FROM user_errors WHERE name = '<PROC>' ORDER BY sequence;` — that shows the real message |
-| **loads 0 rows, no error** | a dimension is empty, or `date_dim` does not reach the transaction dates | run the dry-run query below |
+| **loads 0 rows, no error** | a dimension is empty, or `date_dim` does not reach the transaction dates, or the dimension's `effective_start_date` is later than the transactions (must be 2018-01-01) | run the dry-run query below |
 | `ORA-00903: invalid table name` on `ORDER` | `ORDER` is reserved in Oracle | the table is named **ORDERS** |
 
 The last two are the ones that cost the most time — a silent 0-row load is not an error, and
@@ -406,10 +476,13 @@ suspects directly:
 
 ```sql
 -- does date_dim cover the transactions?
-SELECT (SELECT MAX(cal_date) FROM date_dim WHERE date_key <> 0) AS dim_last_day,
+SELECT (SELECT MIN(cal_date) FROM date_dim WHERE date_key <> 0) AS dim_first_day,
+       (SELECT MAX(cal_date) FROM date_dim WHERE date_key <> 0) AS dim_last_day,
+       (SELECT MIN(order_date) FROM orders)                     AS first_order,
        (SELECT MAX(order_date) FROM orders)                     AS last_order
 FROM dual;
--- last_order after dim_last_day -> EXEC load_date_dim_incremental(2024);
+-- last_order after dim_last_day -> EXEC load_date_dim_incremental(2025);
+-- first_order before dim_first_day -> the initial date_dim script must start 2018-01-01
 
 -- are the dimensions populated, and flagged 'Y'?
 SELECT 'customer_dim' d, COUNT(*) total,

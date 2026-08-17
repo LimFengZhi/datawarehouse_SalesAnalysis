@@ -2,7 +2,9 @@
 -- 05_sub_branch_expense_fact.sql  BRANCH_EXPENSE_FACT - SUBSEQUENT
 --
 --   SECTION 1: no new view - reuses branch_expense_fact_staging_v
---   SECTION 2: no sequence - the PK is the degenerate br_exp_ID
+--   SECTION 2: no sequence - PK is composite (date, utils, branch keys
+--              + br_exp_ID); br_exp_ID is UNIQUE and is what the
+--              NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new rows, then update changed ones
 --   SECTION 4: run + verification
 --
@@ -10,8 +12,8 @@
 -- replaced by an actual reading, or a rent rebate applied after the
 -- fact. Both move branch profitability, so they are refreshed.
 --
--- Backfill the whole of data2 (2023-2024):
---     EXEC load_br_exp_fact_incremental(DATE '2023-01-01');
+-- Backfill the whole of data22_23 (2022-2023):
+--     EXEC load_br_exp_fact_incremental(DATE '2022-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON

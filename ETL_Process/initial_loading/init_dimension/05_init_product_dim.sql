@@ -14,25 +14,12 @@ SELECT
 
     -- Name: trim, collapse repeated spaces. Keep source casing for
     -- product names (they contain brand styling), just tidy whitespace.
+    -- (The OLTP brand column is not carried into the dimension.)
     CASE
         WHEN p.product_name IS NULL OR LENGTH(TRIM(p.product_name)) < 2
             THEN 'Unknown Product'
         ELSE REGEXP_REPLACE(TRIM(p.product_name), '\s+', ' ')
     END                                            AS clean_product_name,
-
-    -- Brand: 7 real brands, mixed-case names kept exactly as branded
-    CASE
-        WHEN UPPER(TRIM(p.product_brand)) = 'PUREGLOW'  THEN 'PureGlow'
-        WHEN UPPER(TRIM(p.product_brand)) = 'HYDRALUXE' THEN 'HydraLuxe'
-        WHEN UPPER(TRIM(p.product_brand)) = 'DERMAVITA' THEN 'DermaVita'
-        WHEN UPPER(TRIM(p.product_brand)) = 'SUNGUARD'  THEN 'SunGuard'
-        WHEN UPPER(TRIM(p.product_brand)) = 'CLEARME'   THEN 'ClearMe'
-        WHEN UPPER(TRIM(p.product_brand)) = 'BOTANIQ'   THEN 'BotaniQ'
-        WHEN UPPER(TRIM(p.product_brand)) = 'RENEWLAB'  THEN 'RenewLab'
-        WHEN p.product_brand IS NULL
-          OR LENGTH(TRIM(p.product_brand)) = 0        THEN 'Unbranded'
-        ELSE INITCAP(TRIM(p.product_brand))
-    END                                            AS clean_product_brand,
 
     -- Category: canonical spelling for the 10 real categories
     CASE
@@ -82,9 +69,6 @@ SELECT
     CASE WHEN p.product_name IS NULL
            OR LENGTH(TRIM(p.product_name)) < 2
          THEN 'Y' ELSE 'N' END                     AS name_cleaned,
-    CASE WHEN p.product_brand IS NULL
-           OR LENGTH(TRIM(p.product_brand)) = 0
-         THEN 'Y' ELSE 'N' END                     AS brand_defaulted,
     CASE WHEN p.product_category IS NULL
            OR LENGTH(TRIM(p.product_category)) = 0
          THEN 'Y' ELSE 'N' END                     AS category_defaulted,
@@ -119,15 +103,15 @@ BEGIN
     END IF;
 
     INSERT INTO product_dim (
-        product_key, product_ID, product_name, product_brand,
+        product_key, product_ID, product_name,
         product_category, product_unit_price,
         effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_product_key.NEXTVAL,
-        product_ID, clean_product_name, clean_product_brand,
+        product_ID, clean_product_name,
         clean_product_category, clean_product_price,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM product_staging_v;
@@ -136,7 +120,7 @@ BEGIN
 
     SELECT COUNT(*) INTO v_errors
     FROM product_staging_v
-    WHERE name_cleaned = 'Y' OR brand_defaulted = 'Y'
+    WHERE name_cleaned = 'Y'
        OR category_defaulted = 'Y' OR price_corrected = 'Y';
 
     COMMIT;

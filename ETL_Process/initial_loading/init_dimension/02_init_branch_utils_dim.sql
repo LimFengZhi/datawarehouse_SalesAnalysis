@@ -3,7 +3,7 @@
 -- Source: BRANCH_UTILS_CATEGORY (OLTP, 6 rows)
 -- NOTE: this dimension has NO effective dates / is_current_flag -
 --       it is a Type 1 lookup, so the load is simpler than the others.
---       util_category is DERIVED (Fixed vs Variable cost).
+--       Attributes: br_utils_ID (natural key) + util_name only.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -37,20 +37,6 @@ SELECT
         ELSE INITCAP(REGEXP_REPLACE(TRIM(u.util_name), '\s+', ' '))
     END                                            AS clean_util_name,
 
-    -- DERIVED: does this cost change with activity, or is it a flat bill?
-    -- Used to split fixed vs variable overhead in branch profitability.
-    CASE
-        WHEN UPPER(TRIM(u.util_name)) IN ('RENT','RENTAL','INTERNET',
-                                          'BROADBAND','WIFI',
-                                          'WASTE MANAGEMENT','WASTE')
-            THEN 'Fixed'
-        WHEN UPPER(TRIM(u.util_name)) IN ('ELECTRICITY','ELECTRIC','POWER',
-                                          'WATER','MAINTENANCE','UPKEEP',
-                                          'REPAIR')
-            THEN 'Variable'
-        ELSE 'Unknown'
-    END                                            AS derived_util_category,
-
     -- ---------- data quality flags ----------
     CASE WHEN u.util_name IS NULL OR LENGTH(TRIM(u.util_name)) = 0
          THEN 'Y' ELSE 'N' END                     AS name_defaulted
@@ -83,11 +69,11 @@ BEGIN
     END IF;
 
     INSERT INTO branch_utils_dim (
-        branch_utils_key, br_utils_ID, util_name, util_category
+        branch_utils_key, br_utils_ID, util_name
     )
     SELECT
         seq_branch_utils_key.NEXTVAL,
-        br_utils_ID, clean_util_name, derived_util_category
+        br_utils_ID, clean_util_name
     FROM branch_utils_staging_v;
 
     v_count := SQL%ROWCOUNT;

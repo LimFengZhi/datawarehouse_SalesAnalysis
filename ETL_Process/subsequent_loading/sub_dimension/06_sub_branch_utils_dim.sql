@@ -37,11 +37,11 @@ CREATE OR REPLACE PROCEDURE load_br_utils_dim_incremental AS
     v_total NUMBER := 0;
 BEGIN
     INSERT INTO branch_utils_dim (
-        branch_utils_key, br_utils_ID, util_name, util_category
+        branch_utils_key, br_utils_ID, util_name
     )
     SELECT
         seq_branch_utils_key.NEXTVAL,
-        s.br_utils_ID, s.clean_util_name, s.derived_util_category
+        s.br_utils_ID, s.clean_util_name
     FROM   branch_utils_staging_v s
     WHERE  NOT EXISTS (SELECT 1 FROM branch_utils_dim d
                        WHERE d.br_utils_ID = s.br_utils_ID);
