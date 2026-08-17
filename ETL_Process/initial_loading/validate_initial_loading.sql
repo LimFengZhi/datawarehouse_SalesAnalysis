@@ -1,14 +1,14 @@
 -- ===================================================================
 -- validate_initial_loading.sql
--- ALL verification queries for the INITIAL load (data\, 2019-2022).
+-- ALL verification queries for the INITIAL load (sales_data2\data18_21, 2018-2021).
 -- Run AFTER initial_load_date_dim.sql + holiday_update.sql, the seven
 -- init_dimension scripts and the five init_fact scripts:
 --
---   @c:\Users\laoli\Downloads\datawarehouseAnalysis\ETL_Process\initial_loading\validate_initial_loading.sql
+--   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading\validate_initial_loading.sql
 --
 -- Every "expect 0" query is an integrity check - a non-zero result
 -- means something is wrong. The other queries are eyeball checks
--- against the known shape of the data\ dataset.
+-- against the known shape of the data18_21 dataset.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -23,15 +23,15 @@ PROMPT ##############################################
 PROMPT #  1. DATE_DIM
 PROMPT ##############################################
 
--- Expect 1462 (1,461 days 2019-2022 + the Unknown member)
+-- Expect 1462 (1,461 days 2018-2021 + the Unknown member)
 SELECT COUNT(*) AS total_rows FROM date_dim;
 
--- Expect 365 / 366 / 365 / 365 days; holidays > 0 on every year.
+-- Expect 365 / 365 / 366 / 365 days; holidays > 0 on every year.
 -- Zero holidays everywhere means holiday_update.sql never ran.
 SELECT cal_year, COUNT(*) AS days,
        SUM(CASE WHEN holiday_ind = 'Y' THEN 1 ELSE 0 END) AS holidays
 FROM   date_dim
-WHERE  cal_year BETWEEN 2019 AND 2022
+WHERE  cal_year BETWEEN 2018 AND 2021
 GROUP BY cal_year
 ORDER BY cal_year;
 
@@ -61,7 +61,7 @@ PROMPT ##############################################
 SELECT 'branch_dim' AS dimension,
        (SELECT COUNT(*) FROM branch_dim)   AS dim_rows,
        (SELECT COUNT(*) FROM branch)       AS source_rows,
-       5 AS expected FROM dual
+       12 AS expected FROM dual
 UNION ALL SELECT 'branch_utils_dim',
        (SELECT COUNT(*) FROM branch_utils_dim),
        (SELECT COUNT(*) FROM branch_utils_category), 6  FROM dual
@@ -76,10 +76,10 @@ UNION ALL SELECT 'product_dim',
        (SELECT COUNT(*) FROM product), 43               FROM dual
 UNION ALL SELECT 'staff_dim',
        (SELECT COUNT(*) FROM staff_dim),
-       (SELECT COUNT(*) FROM staff), 96                 FROM dual
+       (SELECT COUNT(*) FROM staff), 202                FROM dual
 UNION ALL SELECT 'customer_dim',
        (SELECT COUNT(*) FROM customer_dim),
-       (SELECT COUNT(*) FROM customer), 26000           FROM dual
+       (SELECT COUNT(*) FROM customer), 14632           FROM dual
 ORDER BY 1;
 
 
@@ -132,19 +132,22 @@ UNION ALL SELECT 'customer dup NK', COUNT(*) FROM (
 
 -- Nothing left 'Unknown' / 'Uncategorised' by the cleansing
 SELECT 'utils unmapped' AS chk, COUNT(*) AS bad FROM branch_utils_dim
-  WHERE util_category = 'Unknown' OR util_name = 'Unknown'
+  WHERE util_name = 'Unknown'
 UNION ALL
 SELECT 'service uncategorised', COUNT(*) FROM service_dim
   WHERE serv_category = 'Uncategorised'
 UNION ALL
 SELECT 'product uncategorised', COUNT(*) FROM product_dim
-  WHERE product_category = 'Uncategorised' OR product_brand = 'Unbranded'
+  WHERE product_category = 'Uncategorised'
 UNION ALL
 SELECT 'customer unknown state', COUNT(*) FROM customer_dim
   WHERE cus_state = 'Unknown'
 UNION ALL
-SELECT 'staff unknown gender', COUNT(*) FROM staff_dim
-  WHERE st_gender = 'Unknown';
+SELECT 'customer unknown age band', COUNT(*) FROM customer_dim
+  WHERE cus_age_band = 'Unknown'
+UNION ALL
+SELECT 'staff unknown position', COUNT(*) FROM staff_dim
+  WHERE st_position IS NULL OR st_position = 'Unknown';
 
 
 -- ###################################################################
@@ -155,37 +158,39 @@ PROMPT ##############################################
 PROMPT #  4. DIMENSION CONTENT
 PROMPT ##############################################
 
--- Fixed/Variable split of the 6 utility categories
-SELECT branch_utils_key, br_utils_ID, util_name, util_category
+-- The 6 utility categories (Rent, Electricity, Water, ...)
+SELECT branch_utils_key, br_utils_ID, util_name
 FROM   branch_utils_dim ORDER BY branch_utils_key;
 
--- 7 service categories; add-ons short, anti-aging long
+-- 7 service categories; add-ons cheap, anti-aging dear
 SELECT serv_category, COUNT(*) AS services,
-       ROUND(AVG(serv_duration)) AS avg_mins
+       ROUND(AVG(serv_price), 2) AS avg_price
 FROM   service_dim GROUP BY serv_category ORDER BY serv_category;
 
--- 10 product categories / 7 brands
+-- 10 product categories
 SELECT product_category, COUNT(*) AS products,
        ROUND(AVG(product_unit_price), 2) AS avg_price
 FROM   product_dim GROUP BY product_category ORDER BY products DESC;
 
--- Roles: Beauty Therapist 36, Sales Assistant 18, Senior Therapist 16,
+-- Positions: Beauty Therapist 36, Sales Assistant 18, Senior Therapist 16,
 -- Receptionist 12, Cashier 9, Branch Manager 5
-SELECT st_role, COUNT(*) AS staff_count
-FROM   staff_dim GROUP BY st_role ORDER BY staff_count DESC;
+SELECT st_position, COUNT(*) AS staff_count
+FROM   staff_dim GROUP BY st_position ORDER BY staff_count DESC;
 
--- Every branch has exactly 1 Branch Manager
-SELECT br_ID, COUNT(*) AS managers
-FROM   staff_dim WHERE st_role = 'Branch Manager'
-GROUP BY br_ID ORDER BY br_ID;
+-- Every branch has exactly 1 Branch Manager. staff_dim no longer
+-- carries br_ID, so the branch comes from the OLTP staff row.
+SELECT s.br_ID, COUNT(*) AS managers
+FROM   staff_dim d
+JOIN   staff s ON s.st_ID = d.st_ID
+WHERE  d.st_position = 'Branch Manager'
+GROUP BY s.br_ID ORDER BY s.br_ID;
 
--- Tiers: Bronze 14332, Silver 6936, Gold 3384, Platinum 1348
+-- Tiers: Bronze 18879, Silver 9170, Gold 4421, Platinum 1724
 SELECT cus_loyalty_tier, COUNT(*) AS customers
 FROM   customer_dim GROUP BY cus_loyalty_tier ORDER BY customers DESC;
 
--- Age bands populated, ages 18-61, none 'Unknown'
-SELECT cus_age_band, COUNT(*) AS customers,
-       MIN(cus_age) AS min_age, MAX(cus_age) AS max_age
+-- Age bands populated (18-24 .. 55-64), none 'Unknown'
+SELECT cus_age_band, COUNT(*) AS customers
 FROM   customer_dim GROUP BY cus_age_band ORDER BY cus_age_band;
 
 
@@ -200,19 +205,19 @@ PROMPT ##############################################
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM order_detail) AS source_rows,
-       349396 AS expected FROM dual
+       256137 AS expected FROM dual
 UNION ALL SELECT 'reservation_fact',
        (SELECT COUNT(*) FROM reservation_fact),
-       (SELECT COUNT(*) FROM reservation_detail), 88790 FROM dual
+       (SELECT COUNT(*) FROM reservation_detail), 57062 FROM dual
 UNION ALL SELECT 'purchase_fact',
        (SELECT COUNT(*) FROM purchase_fact),
-       (SELECT COUNT(*) FROM purchase), 10615           FROM dual
+       (SELECT COUNT(*) FROM purchase), 17659           FROM dual
 UNION ALL SELECT 'salary_payment_fact',
        (SELECT COUNT(*) FROM salary_payment_fact),
-       (SELECT COUNT(*) FROM salary_payment), 3135      FROM dual
+       (SELECT COUNT(*) FROM salary_payment), 8945     FROM dual
 UNION ALL SELECT 'branch_expense_fact',
        (SELECT COUNT(*) FROM branch_expense_fact),
-       (SELECT COUNT(*) FROM branch_expense), 1440      FROM dual
+       (SELECT COUNT(*) FROM branch_expense), 3414      FROM dual
 ORDER BY 1;
 
 
@@ -300,18 +305,32 @@ UNION ALL SELECT 'expense no_utils', COUNT(*)
   WHERE NOT EXISTS (SELECT 1 FROM branch_utils_dim u
                     WHERE u.br_utils_ID = ls.br_utils_ID);
 
--- Measures reconcile
-SELECT 'order gross-disc+tax=total' AS chk, COUNT(*) AS bad
-  FROM order_fact
-  WHERE ABS(order_gross_amt - order_discount_amt + order_tax_amt
-            - order_total_amt) > 0.01
+-- Measures reconcile. The fact stores no unit price: the line's price
+-- is product_dim.product_unit_price of the version the fact points at,
+-- so total = qty * price - discount + tax must hold through that join.
+-- Likewise a service line's price is service_dim.serv_price.
+SELECT 'order qty*price-disc+tax=total' AS chk, COUNT(*) AS bad
+  FROM order_fact f
+  JOIN product_dim p ON p.product_key = f.product_key
+  WHERE ABS(ROUND(f.order_qty * p.product_unit_price
+                  - f.order_discount_amt + f.order_tax_amt, 2)
+            - f.order_total_amt) > 0.01
 UNION ALL
-SELECT 'salary gross-deduct=net', COUNT(*)
+SELECT 'reservation price-disc+tax=total', COUNT(*)
+  FROM reservation_fact f
+  JOIN service_dim s ON s.service_key = f.service_key
+  WHERE ABS(ROUND(s.serv_price - f.serv_discount_amt + f.serv_tax_amt, 2)
+            - f.serv_total_amt) > 0.01
+UNION ALL
+SELECT 'salary base+bonus-deduct=total', COUNT(*)
   FROM salary_payment_fact
-  WHERE ABS(gross_amount - deduction_amount - net_amount) > 0.01;
+  WHERE ABS(base_amount + bonus_amount - deduction_amount
+            - total_amount) > 0.01;
 
--- Derived reservation columns: hours 10-19, no negative durations
-SELECT MIN(start_hour)   AS min_hr,   MAX(start_hour)   AS max_hr,
+-- Derived reservation columns: start hours 10-19 (from start_time),
+-- no negative durations
+SELECT MIN(TO_CHAR(start_time, 'HH24')) AS min_hr,
+       MAX(TO_CHAR(start_time, 'HH24')) AS max_hr,
        MIN(res_duration) AS min_mins, MAX(res_duration) AS max_mins,
        COUNT(*) - COUNT(res_duration) AS null_durations
 FROM   reservation_fact;
@@ -325,50 +344,55 @@ PROMPT ##############################################
 PROMPT #  7. BUSINESS PATTERNS
 PROMPT ##############################################
 
--- COVID: services were banned during MCO 1.0 (Apr 2020) and FMCO
--- (Jun-Aug 2021), so this must return NO ROWS.
+-- COVID: salons were closed during MCO 1.0 (18 Mar - 3 May 2020) and
+-- FMCO (Jun-Aug 2021), so this must return NO ROWS.
 SELECT d.cal_year, d.cal_quarter, COUNT(*) AS completed_services
 FROM   reservation_fact f
 JOIN   date_dim d ON d.date_key = f.date_key
 WHERE  f.res_status = 'Completed'
-  AND ( (d.cal_date BETWEEN DATE '2020-04-01' AND DATE '2020-04-30')
+  AND ( (d.cal_date BETWEEN DATE '2020-03-18' AND DATE '2020-05-03')
      OR (d.cal_date BETWEEN DATE '2021-06-01' AND DATE '2021-08-31') )
 GROUP BY d.cal_year, d.cal_quarter
 ORDER BY 1, 2;
 
--- Product revenue by year: ~5.48m / 4.57m / 4.14m / 7.47m
+-- Product revenue by year 2018-2021: ~4.30m / 4.77m / 3.76m / 3.22m
+-- (revenue = total - tax = qty * price - discount, tax excluded)
 SELECT d.cal_year,
-       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS net_revenue,
+       ROUND(SUM(f.order_total_amt - f.order_tax_amt), 2) AS net_revenue,
        COUNT(*) AS order_lines
 FROM   order_fact f
 JOIN   date_dim d ON d.date_key = f.date_key
 WHERE  f.order_status = 'Completed'
 GROUP BY d.cal_year ORDER BY d.cal_year;
 
--- Service revenue by year: ~2.48m / 1.66m / 1.18m / 3.52m
+-- Service revenue by year 2018-2021: ~1.85m / 2.03m / 1.35m / 0.93m
+-- (revenue = total - tax = price - discount, tax excluded)
 SELECT d.cal_year,
-       ROUND(SUM(f.serv_price - f.serv_discount_amt), 2) AS net_revenue
+       ROUND(SUM(f.serv_total_amt - f.serv_tax_amt), 2) AS net_revenue
 FROM   reservation_fact f
 JOIN   date_dim d ON d.date_key = f.date_key
 WHERE  f.res_status = 'Completed'
 GROUP BY d.cal_year ORDER BY d.cal_year;
 
--- Branch ranking: Kuala Lumpur top, Melaka last
+-- Branch ranking: Petaling Jaya top, Kuala Lumpur second, Melaka last
+-- (Selangor is the biggest state: PJ + Shah Alam + Puchong + Klang +
+-- Selayang)
 SELECT b.br_city,
-       ROUND(SUM(f.order_gross_amt - f.order_discount_amt), 2) AS net_revenue
+       ROUND(SUM(f.order_total_amt - f.order_tax_amt), 2) AS net_revenue
 FROM   order_fact f
 JOIN   branch_dim b ON b.branch_key = f.branch_key
 WHERE  f.order_status = 'Completed'
 GROUP BY b.br_city ORDER BY net_revenue DESC;
 
--- MCO pay cuts: avg base dips in 2020; bonuses spike (13th month, Raya)
+-- MCO pay cuts: avg base dips in 2020 (and no increment in 2021);
+-- bonuses spike (13th month, Raya) but are halved in 2020-2021
 SELECT SUBSTR(pay_period, 1, 4) AS yr,
        ROUND(AVG(base_amount), 2)  AS avg_base,
        ROUND(SUM(bonus_amount), 2) AS total_bonus
 FROM   salary_payment_fact
 GROUP BY SUBSTR(pay_period, 1, 4) ORDER BY yr;
 
--- Rent rebates: 2020 rent dips below 2019 and 2021
+-- Rent rebates: 2020 and 2021 rent dip below the +3 %/yr trend
 SELECT SUBSTR(f.billing_period, 1, 4) AS yr,
        ROUND(SUM(f.payment_amount), 2) AS total_rent
 FROM   branch_expense_fact f

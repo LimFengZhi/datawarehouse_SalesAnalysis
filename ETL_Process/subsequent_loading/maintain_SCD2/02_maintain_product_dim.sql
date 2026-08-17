@@ -56,8 +56,6 @@ BEGIN
         WHERE  s.product_ID = d.product_ID
           AND (   NVL(s.clean_product_name, '~')
                     <> NVL(d.product_name, '~')
-               OR NVL(s.clean_product_brand, '~')
-                    <> NVL(d.product_brand, '~')
                OR NVL(s.clean_product_category, '~')
                     <> NVL(d.product_category, '~')
                OR NVL(s.clean_product_price, -1)
@@ -71,13 +69,13 @@ BEGIN
     -- sub_dimension's responsibility.
     -- ---------------------------------------------------------------
     INSERT INTO product_dim (
-        product_key, product_ID, product_name, product_brand,
+        product_key, product_ID, product_name,
         product_category, product_unit_price,
         effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_product_key.NEXTVAL,
-        s.product_ID, s.clean_product_name, s.clean_product_brand,
+        s.product_ID, s.clean_product_name,
         s.clean_product_category, s.clean_product_price,
         v_eff,
         DATE '9999-12-31',

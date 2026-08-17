@@ -1,10 +1,9 @@
 -- ===================================================================
 -- 04_init_service_dim.sql       SERVICE_DIM  (SCD Type 2)
 -- Source: SERVICE (OLTP, 16 rows)
--- NOTE: serv_duration does NOT exist in the OLTP source. It is
---       DERIVED from RESERVATION_DETAIL by averaging the actual
---       booked slot length (end_time - start_time) per service.
---       -> RESERVATION_DETAIL must be loaded before running this.
+-- Attributes: serv_name, serv_category, serv_price (all SCD2-tracked).
+-- The actual slot length of each booking lives on RESERVATION_FACT
+-- (res_duration), not on this dimension.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -55,17 +54,6 @@ SELECT
         ELSE s.serv_price
     END                                            AS clean_serv_price,
 
-    -- DERIVED: typical slot length in minutes, from real bookings.
-    -- Scalar subquery, rounded to the nearest 5 minutes. Falls back to
-    -- 60 if this service has never been booked.
-    NVL(
-        (SELECT ROUND(AVG((rd.end_time - rd.start_time) * 24 * 60) / 5) * 5
-         FROM   reservation_detail rd
-         WHERE  rd.serv_ID = s.serv_ID
-           AND  rd.end_time > rd.start_time),
-        60
-    )                                              AS derived_serv_duration,
-
     -- ---------- data quality flags ----------
     CASE WHEN s.serv_name IS NULL OR LENGTH(TRIM(s.serv_name)) < 2
          THEN 'Y' ELSE 'N' END                     AS name_cleaned,
@@ -73,10 +61,7 @@ SELECT
            OR LENGTH(TRIM(s.serv_category)) = 0
          THEN 'Y' ELSE 'N' END                     AS category_defaulted,
     CASE WHEN s.serv_price IS NULL OR s.serv_price < 0
-         THEN 'Y' ELSE 'N' END                     AS price_corrected,
-    CASE WHEN NOT EXISTS (SELECT 1 FROM reservation_detail rd
-                          WHERE rd.serv_ID = s.serv_ID)
-         THEN 'Y' ELSE 'N' END                     AS duration_defaulted
+         THEN 'Y' ELSE 'N' END                     AS price_corrected
 FROM service s
 WHERE s.serv_ID IS NOT NULL;
 
@@ -107,14 +92,12 @@ BEGIN
 
     INSERT INTO service_dim (
         service_key, serv_ID, serv_name, serv_category, serv_price,
-        serv_duration, effective_start_date, effective_end_date,
-        is_current_flag
+        effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_service_key.NEXTVAL,
         serv_ID, clean_serv_name, clean_serv_category, clean_serv_price,
-        derived_serv_duration,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM service_staging_v;
@@ -124,7 +107,7 @@ BEGIN
     SELECT COUNT(*) INTO v_errors
     FROM service_staging_v
     WHERE name_cleaned = 'Y' OR category_defaulted = 'Y'
-       OR price_corrected = 'Y' OR duration_defaulted = 'Y';
+       OR price_corrected = 'Y';
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('SERVICE_DIM initial load completed: '

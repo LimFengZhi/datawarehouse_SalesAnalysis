@@ -1,18 +1,24 @@
 -- ===================================================================
 -- 02_init_reservation_fact.sql   RESERVATION_FACT
--- Grain: one row per service line booked  (88,790 rows in data\)
--- Source: RESERVATION_DETAIL joined to RESERVATION and SERVICE
+-- Grain: one row per service line booked
+-- Source: RESERVATION_DETAIL joined to RESERVATION
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
---   SECTION 2: no sequence   - the PK is the degenerate res_det_ID
+--   SECTION 2: no sequence   - PK is composite (dimension keys +
+--                              res_ID + res_det_ID); res_det_ID is
+--                              UNIQUE and drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
 -- The view exposes natural keys and the raw appointment date only.
--- Three things the source does not store, resolved in the view:
---   1. serv_price   - joined from the OLTP SERVICE table (not the dim)
---   2. start_hour   - derived, for peak-hour analysis
---   3. res_duration - derived, actual minutes
+--   * date_key comes from reservation.reservation_date - the day of
+--     the APPOINTMENT. booking_date (the day the booking was made,
+--     0-14 days earlier) is NOT used by the fact.
+--   * res_duration is derived in the view (actual minutes).
+--   * The service price is NOT stored on reservation_detail. It comes
+--     from service_dim.serv_price of the SCD2 version in force on the
+--     reservation date, so serv_total_amt is computed in the PROCEDURE:
+--         serv_total_amt = s.serv_price - discount + tax
 -- staff_key comes from RESERVATION_DETAIL (the therapist who performed
 -- the service), NOT from the reservation header.
 -- ===================================================================
@@ -24,7 +30,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW reservation_fact_staging_v AS
 SELECT
-    rd.res_det_ID,                                -- degenerate dim / PK
+    rd.res_det_ID,                                -- degenerate dim / UNIQUE
     r.res_ID,                                     -- degenerate dim
 
     -- ---------- NATURAL keys ----------
@@ -32,10 +38,9 @@ SELECT
     r.br_ID,
     rd.st_ID,
     rd.serv_ID,
-    -- Date of the appointment itself; falls back to the booking date
-    -- if a slot has no start_time.
-    NVL(TRUNC(rd.start_time), TRUNC(r.booking_date))
-                                                   AS res_date,
+    -- Date of the appointment itself (NOT booking_date, NOT the time
+    -- part of start_time). Drives date_key and every SCD2 lookup.
+    TRUNC(r.reservation_date)                      AS res_date,
 
     -- ---------- cleansed attributes ----------
     CASE
@@ -56,11 +61,6 @@ SELECT
     rd.start_time,
     rd.end_time,
 
-    -- DERIVED: appointment hour, 10..20
-    CASE WHEN rd.start_time IS NULL THEN NULL
-         ELSE TO_NUMBER(TO_CHAR(rd.start_time, 'HH24'))
-    END                                            AS start_hour,
-
     -- DERIVED: slot length in minutes. Guarded against a NULL or
     -- reversed pair, which would otherwise give a negative duration.
     CASE
@@ -70,14 +70,10 @@ SELECT
     END                                            AS res_duration,
 
     -- ---------- measures ----------
-    CASE WHEN sv.serv_price IS NULL OR sv.serv_price < 0
-         THEN 0 ELSE sv.serv_price END             AS clean_serv_price,
+    -- No price here: reservation_detail has none, and the view must
+    -- not read service_dim. The procedure adds the dimension price.
     ROUND(NVL(rd.serv_discount, 0), 2)             AS clean_discount_amt,
     ROUND(NVL(rd.serv_tax, 0), 2)                  AS clean_tax_amt,
-    ROUND(  CASE WHEN sv.serv_price IS NULL OR sv.serv_price < 0
-                 THEN 0 ELSE sv.serv_price END
-          - NVL(rd.serv_discount, 0)
-          + NVL(rd.serv_tax, 0), 2)                AS serv_total_amt,
 
     -- ---------- data quality flags ----------
     CASE WHEN r.res_status IS NULL
@@ -85,25 +81,24 @@ SELECT
     CASE WHEN rd.start_time IS NULL OR rd.end_time IS NULL
               OR rd.end_time <= rd.start_time
          THEN 'Y' ELSE 'N' END                     AS time_unusable,
-    CASE WHEN sv.serv_price IS NULL OR sv.serv_price < 0
-         THEN 'Y' ELSE 'N' END                     AS price_defaulted,
     CASE WHEN rd.serv_discount IS NULL OR rd.serv_tax IS NULL
          THEN 'Y' ELSE 'N' END                     AS money_defaulted
 
 FROM reservation_detail rd
 JOIN reservation r  ON r.res_ID   = rd.res_ID
-JOIN service     sv ON sv.serv_ID = rd.serv_ID    -- OLTP, not the dim
-WHERE rd.res_det_ID IS NOT NULL
-  AND r.res_ID      IS NOT NULL
-  AND r.cus_ID      IS NOT NULL
-  AND r.br_ID       IS NOT NULL
-  AND rd.st_ID      IS NOT NULL
-  AND rd.serv_ID    IS NOT NULL
-  AND NVL(rd.start_time, r.booking_date) IS NOT NULL;
+WHERE rd.res_det_ID       IS NOT NULL
+  AND r.res_ID            IS NOT NULL
+  AND r.cus_ID            IS NOT NULL
+  AND r.br_ID             IS NOT NULL
+  AND rd.st_ID            IS NOT NULL
+  AND rd.serv_ID          IS NOT NULL
+  AND r.reservation_date  IS NOT NULL;
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
--- res_det_ID from the source is the PK and a degenerate dimension.
+-- The PK is the composite of the five dimension keys plus res_ID and
+-- res_det_ID; res_det_ID alone is UNIQUE (straight from the source)
+-- and is the degenerate dimension the incremental NOT EXISTS uses.
 -- ===================================================================
 
 -- ===================================================================
@@ -127,8 +122,8 @@ BEGIN
 
     INSERT INTO reservation_fact (
         date_key, customer_key, staff_key, branch_key, service_key,
-        res_ID, res_det_ID, res_status, start_time, end_time,
-        start_hour, res_duration, serv_price,
+        res_ID, res_det_ID, res_duration, res_status,
+        start_time, end_time,
         serv_discount_amt, serv_tax_amt, serv_total_amt
     )
     SELECT
@@ -139,16 +134,19 @@ BEGIN
         v.service_key,
         ls.res_ID,
         ls.res_det_ID,
+        ls.res_duration,
         ls.clean_res_status,
         ls.start_time,
         ls.end_time,
-        ls.start_hour,
-        ls.res_duration,
-        ls.clean_serv_price,
         ls.clean_discount_amt,
         ls.clean_tax_amt,
-        ls.serv_total_amt
-    -- SCD2 joins pick the version in force on the appointment date.
+        -- Price = the service_dim version in force on the reservation
+        -- date (joined below), so a later price change never rewrites
+        -- history.
+        ROUND(  v.serv_price
+              - ls.clean_discount_amt
+              + ls.clean_tax_amt, 2)                AS serv_total_amt
+    -- SCD2 joins pick the version in force on the reservation date.
     FROM reservation_fact_staging_v ls
     JOIN date_dim     d ON d.cal_date = ls.res_date
     JOIN customer_dim c ON c.cus_ID   = ls.cus_ID
@@ -169,7 +167,7 @@ BEGIN
     SELECT COUNT(*) INTO v_errors
     FROM   reservation_fact_staging_v
     WHERE  status_defaulted = 'Y' OR time_unusable = 'Y'
-       OR  price_defaulted = 'Y'  OR money_defaulted = 'Y';
+       OR  money_defaulted = 'Y';
 
     v_orphaned := v_source - v_count;
 

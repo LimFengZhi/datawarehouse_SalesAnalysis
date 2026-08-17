@@ -1,10 +1,11 @@
 -- ===================================================================
 -- 07_init_customer_dim.sql      CUSTOMER_DIM  (SCD Type 2)
--- Source: CUSTOMER (OLTP, 26,000 rows) - the largest dimension
+-- Source: CUSTOMER (OLTP, 14,632 rows in data18_21) - the largest dimension
 -- NOTE: cus_name is DERIVED (first + last).
---       cus_age_band is DERIVED from cus_age.
---       cus_age is cross-checked against cus_DOB: if the stored age
---       disagrees with the birth date, the birth date wins.
+--       cus_age_band is DERIVED from cus_DOB against SYSDATE; a NULL,
+--       future or absurd birth date gives 'Unknown'.
+--       customer_dim no longer carries cus_age or cus_reg_date -
+--       those OLTP columns are not loaded. cus_gender is Type 2 tracked.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -42,20 +43,9 @@ SELECT
         ELSE 'Unknown'
     END                                            AS clean_cus_gender,
 
-    -- Age: trust the birth date over the stored age where possible.
-    -- Falls back to cus_age, then to NULL. Anything outside 1..120 is
-    -- treated as bad data.
-    CASE
-        WHEN c.cus_DOB IS NOT NULL
-             AND c.cus_DOB <= SYSDATE
-             AND c.cus_DOB >= DATE '1900-01-01'
-            THEN FLOOR(MONTHS_BETWEEN(SYSDATE, c.cus_DOB) / 12)
-        WHEN c.cus_age BETWEEN 1 AND 120
-            THEN c.cus_age
-        ELSE NULL
-    END                                            AS clean_cus_age,
-
-    -- DERIVED age band, from the same cleaned age
+    -- DERIVED age band from the birth date against SYSDATE.
+    -- Guarded so a NULL / future / absurd DOB gives 'Unknown' rather
+    -- than a negative or overflowing age.
     CASE
         WHEN c.cus_DOB IS NOT NULL AND c.cus_DOB <= SYSDATE
              AND c.cus_DOB >= DATE '1900-01-01'
@@ -75,13 +65,6 @@ SELECT
                     THEN '55-64'
                 ELSE '65+'
             END
-        WHEN c.cus_age BETWEEN 1 AND 17   THEN 'Under 18'
-        WHEN c.cus_age BETWEEN 18 AND 24  THEN '18-24'
-        WHEN c.cus_age BETWEEN 25 AND 34  THEN '25-34'
-        WHEN c.cus_age BETWEEN 35 AND 44  THEN '35-44'
-        WHEN c.cus_age BETWEEN 45 AND 54  THEN '45-54'
-        WHEN c.cus_age BETWEEN 55 AND 64  THEN '55-64'
-        WHEN c.cus_age BETWEEN 65 AND 120 THEN '65+'
         ELSE 'Unknown'
     END                                            AS derived_cus_age_band,
 
@@ -137,16 +120,6 @@ SELECT
         ELSE 'Bronze'
     END                                            AS clean_cus_loyalty_tier,
 
-    -- Registration date: no future dates, nothing before the business
-    -- existed. Source range is 2018-01-01 .. 2022-12-30.
-    CASE
-        WHEN c.cus_reg_date IS NULL OR c.cus_reg_date > SYSDATE
-            THEN DATE '2018-01-01'
-        WHEN c.cus_reg_date < DATE '2000-01-01'
-            THEN DATE '2018-01-01'
-        ELSE c.cus_reg_date
-    END                                            AS clean_cus_reg_date,
-
     -- ---------- data quality flags ----------
     CASE WHEN (c.cus_first_name IS NULL
                OR LENGTH(TRIM(c.cus_first_name)) = 0)
@@ -157,24 +130,18 @@ SELECT
            OR NOT REGEXP_LIKE(TRIM(c.cus_email),
                   '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
          THEN 'Y' ELSE 'N' END                     AS email_generated,
-    CASE WHEN UPPER(TRIM(NVL(c.cus_gender,'X'))) NOT IN ('MALE','FEMALE')
-         THEN 'Y' ELSE 'N' END                     AS gender_defaulted,
-    -- stored age disagrees with the birth date by more than 1 year
-    CASE WHEN c.cus_DOB IS NOT NULL AND c.cus_age IS NOT NULL
-           AND ABS(FLOOR(MONTHS_BETWEEN(SYSDATE, c.cus_DOB)/12)
-                   - c.cus_age) > 1
-         THEN 'Y' ELSE 'N' END                     AS age_recalculated,
+    -- birth date missing / future / absurd -> age band 'Unknown'
+    CASE WHEN c.cus_DOB IS NULL OR c.cus_DOB > SYSDATE
+           OR c.cus_DOB < DATE '1900-01-01'
+         THEN 'Y' ELSE 'N' END                     AS age_band_unavailable,
     CASE WHEN UPPER(TRIM(NVL(c.cus_loyalty_tier,'X')))
               NOT IN ('BRONZE','SILVER','GOLD','PLATINUM')
-         THEN 'Y' ELSE 'N' END                     AS tier_defaulted,
-    CASE WHEN c.cus_reg_date IS NULL OR c.cus_reg_date > SYSDATE
-           OR c.cus_reg_date < DATE '2000-01-01'
-         THEN 'Y' ELSE 'N' END                     AS date_corrected
+         THEN 'Y' ELSE 'N' END                     AS tier_defaulted
 FROM customer c
 WHERE c.cus_ID IS NOT NULL;
 
 -- ===================================================================
--- SECTION 2: CREATE SEQUENCE  (20000 range - 26,000 customers)
+-- SECTION 2: CREATE SEQUENCE  (20000 range - 14,632 customers, 28,938 by 2025)
 -- ===================================================================
 -- DROP SEQUENCE seq_customer_key;
 CREATE SEQUENCE seq_customer_key
@@ -199,17 +166,16 @@ BEGIN
     END IF;
 
     INSERT INTO customer_dim (
-        customer_key, cus_ID, cus_name, cus_email, cus_gender,
-        cus_age, cus_age_band, cus_city, cus_state,
-        cus_loyalty_tier, cus_reg_date,
+        customer_key, cus_ID, cus_name, cus_email, cus_gender, cus_city,
+        cus_state, cus_age_band, cus_loyalty_tier,
         effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_customer_key.NEXTVAL,
         cus_ID, clean_cus_name, clean_cus_email, clean_cus_gender,
-        clean_cus_age, derived_cus_age_band, clean_cus_city,
-        clean_cus_state, clean_cus_loyalty_tier, clean_cus_reg_date,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        clean_cus_city, clean_cus_state, derived_cus_age_band,
+        clean_cus_loyalty_tier,
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM customer_staging_v;
@@ -219,8 +185,7 @@ BEGIN
     SELECT COUNT(*) INTO v_errors
     FROM customer_staging_v
     WHERE name_cleaned = 'Y' OR email_generated = 'Y'
-       OR gender_defaulted = 'Y' OR age_recalculated = 'Y'
-       OR tier_defaulted = 'Y' OR date_corrected = 'Y';
+       OR age_band_unavailable = 'Y' OR tier_defaulted = 'Y';
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('CUSTOMER_DIM initial load completed: '

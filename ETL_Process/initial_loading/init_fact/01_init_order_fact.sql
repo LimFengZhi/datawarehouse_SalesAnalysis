@@ -1,10 +1,12 @@
 -- ===================================================================
 -- 01_init_order_fact.sql        ORDER_FACT
--- Grain: one row per product line on an order  (349,396 rows in data\)
+-- Grain: one row per product line on an order
 -- Source: ORDER_DETAIL joined to ORDERS
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
---   SECTION 2: no sequence   - the PK is the degenerate order_det_ID
+--   SECTION 2: no sequence   - PK is composite (dimension keys +
+--                              order_ID + order_det_ID); order_det_ID
+--                              is UNIQUE and drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
@@ -12,6 +14,14 @@
 -- (cus_ID, br_ID, st_ID, product_ID) and the raw order_date. The
 -- surrogate-key lookups live in the procedure, and the same view is
 -- reused by the incremental load in ETL_Process\subsequent_loading\sub_fact\.
+--
+-- MONEY: order_detail stores NO unit price (order_unit_price no longer
+-- exists). The unit price of a line is the PRODUCT's price in force on
+-- the order date, i.e. product_dim.product_unit_price of the SCD2
+-- version whose effective range contains orders.order_date. So the
+-- view emits qty / discount / tax only, and order_total_amt is computed
+-- in the PROCEDURE, where the product_dim version is already joined:
+--     order_total_amt = qty * p.product_unit_price - discount + tax
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -22,7 +32,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW order_fact_staging_v AS
 SELECT
-    od.order_det_ID,                              -- degenerate dim / PK
+    od.order_det_ID,                              -- degenerate dim / UNIQUE
     o.order_ID,                                   -- degenerate dim
 
     -- ---------- NATURAL keys, resolved to surrogates in SECTION 3 ----
@@ -56,36 +66,15 @@ SELECT
         ELSE od.order_quantity
     END                                            AS clean_order_qty,
 
-    CASE
-        WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
-            THEN 0
-        ELSE od.order_unit_price
-    END                                            AS clean_unit_price,
-
+    -- Money components. The unit price is NOT here (see header): the
+    -- procedure multiplies clean_order_qty by the product_dim price.
     ROUND(NVL(od.order_discount, 0), 2)            AS clean_discount_amt,
     ROUND(NVL(od.order_tax, 0), 2)                 AS clean_tax_amt,
-
-    -- ---------- derived measures ----------
-    ROUND(
-        CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
-             THEN 1 ELSE od.order_quantity END
-      * CASE WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
-             THEN 0 ELSE od.order_unit_price END, 2)
-                                                   AS order_gross_amt,
-    ROUND(
-        CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
-             THEN 1 ELSE od.order_quantity END
-      * CASE WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
-             THEN 0 ELSE od.order_unit_price END
-      - NVL(od.order_discount, 0)
-      + NVL(od.order_tax, 0), 2)                   AS order_total_amt,
 
     -- ---------- data quality flags ----------
     CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
               OR od.order_quantity > 999
          THEN 'Y' ELSE 'N' END                     AS qty_corrected,
-    CASE WHEN od.order_unit_price IS NULL OR od.order_unit_price < 0
-         THEN 'Y' ELSE 'N' END                     AS price_corrected,
     CASE WHEN o.order_status IS NULL
          THEN 'Y' ELSE 'N' END                     AS status_defaulted,
     CASE WHEN od.order_discount IS NULL OR od.order_tax IS NULL
@@ -106,13 +95,16 @@ WHERE od.order_det_ID IS NOT NULL
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
--- Facts carry no surrogate key. order_det_ID comes straight from the
--- source and is both the primary key and a degenerate dimension.
+-- Facts carry no surrogate key. The PK is the composite of the five
+-- dimension keys plus order_ID and order_det_ID; order_det_ID alone is
+-- UNIQUE (it comes straight from the source) and is the degenerate
+-- dimension the incremental load's NOT EXISTS anti-join uses.
 -- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (INITIAL LOADING)
--- This is where the natural keys become surrogate keys.
+-- This is where the natural keys become surrogate keys, and where the
+-- product_dim price turns qty / discount / tax into order_total_amt.
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_order_fact_initial AS
     v_count    NUMBER;
@@ -133,8 +125,7 @@ BEGIN
     INSERT INTO order_fact (
         date_key, product_key, customer_key, staff_key, branch_key,
         order_ID, order_det_ID, order_status,
-        order_qty, order_unit_price, order_gross_amt,
-        order_discount_amt, order_tax_amt, order_total_amt
+        order_qty, order_discount_amt, order_tax_amt, order_total_amt
     )
     SELECT
         d.date_key,
@@ -146,11 +137,14 @@ BEGIN
         ls.order_det_ID,
         ls.clean_order_status,
         ls.clean_order_qty,
-        ls.clean_unit_price,
-        ls.order_gross_amt,
         ls.clean_discount_amt,
         ls.clean_tax_amt,
-        ls.order_total_amt
+        -- Unit price = the product_dim version in force on the order
+        -- date (joined below), so a later price change (new SCD2
+        -- version) never rewrites history.
+        ROUND(  ls.clean_order_qty * p.product_unit_price
+              - ls.clean_discount_amt
+              + ls.clean_tax_amt, 2)                AS order_total_amt
     -- Each SCD2 join picks the version IN FORCE ON THE ORDER DATE, not
     -- whichever version happens to be current at load time - so a
     -- backfill after later maintenance still lands on the right version.
@@ -174,7 +168,7 @@ BEGIN
     -- How many rows the cleansing had to repair
     SELECT COUNT(*) INTO v_errors
     FROM   order_fact_staging_v
-    WHERE  qty_corrected = 'Y' OR price_corrected = 'Y'
+    WHERE  qty_corrected = 'Y'
        OR  status_defaulted = 'Y' OR money_defaulted = 'Y';
 
     -- How many source rows never made it, for any reason

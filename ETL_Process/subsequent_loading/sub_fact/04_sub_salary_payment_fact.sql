@@ -2,16 +2,18 @@
 -- 04_sub_salary_payment_fact.sql  SALARY_PAYMENT_FACT - SUBSEQUENT
 --
 --   SECTION 1: no new view - reuses salary_payment_fact_staging_v
---   SECTION 2: no sequence - the PK is the degenerate sal_pay_ID
+--   SECTION 2: no sequence - PK is composite (date, staff, branch keys
+--              + sal_pay_ID); sal_pay_ID is UNIQUE and is what the
+--              NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new rows, then update changed ones
 --   SECTION 4: run + verification
 --
 -- STEP 2 catches a payroll re-run: a bonus added after the fact, or a
--- deduction corrected. gross_amount and net_amount are recomputed with
--- the components so base + bonus - deduction = net keeps holding.
+-- deduction corrected. total_amount is recomputed with the components
+-- so base + bonus - deduction = total keeps holding.
 --
--- Backfill the whole of data2 (2023-2024):
---     EXEC load_salary_fact_incremental(DATE '2023-01-01');
+-- Backfill the whole of data22_23 (2022-2023):
+--     EXEC load_salary_fact_incremental(DATE '2022-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -19,8 +21,10 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 -- SECTION 1: STAGING VIEW - reuses salary_payment_fact_staging_v from
 --   ETL_Process\initial_loading\init_fact\04_init_salary_payment_fact.sql
--- It joins the OLTP STAFF table to expose br_ID (salary_payment has
--- none by design). Surrogate-key joins are written out below.
+-- It joins the OLTP STAFF table to expose staff.br_ID (salary_payment
+-- has none by design, and staff_dim carries no br_ID either), so
+-- branch_key is resolved from branch_dim by that br_ID + payment_date
+-- range. Surrogate-key joins are written out below.
 -- ===================================================================
 
 -- ===================================================================
@@ -43,15 +47,16 @@ BEGIN
     -- ---------------------------------------------------------------
     INSERT INTO salary_payment_fact (
         date_key, staff_key, branch_key, sal_pay_ID, pay_period,
-        base_amount, bonus_amount, deduction_amount,
-        gross_amount, net_amount
+        base_amount, bonus_amount, deduction_amount, total_amount
     )
     SELECT
         d.date_key, s.staff_key, b.branch_key, ls.sal_pay_ID,
         ls.clean_pay_period, ls.clean_base_amount,
         ls.clean_bonus_amount, ls.clean_deduction_amount,
-        ls.gross_amount, ls.net_amount
+        ls.total_amount
     -- SCD2 joins pick the version in force on the payment date.
+    -- branch_key comes from the OLTP staff.br_ID exposed by the view
+    -- (staff_dim has no br_ID), matched to branch_dim by date range.
     FROM salary_payment_fact_staging_v ls
     JOIN date_dim   d ON d.cal_date = ls.payment_date
     JOIN staff_dim  s ON s.st_ID    = ls.st_ID
@@ -67,14 +72,13 @@ BEGIN
     v_count := SQL%ROWCOUNT;
 
     -- ---------------------------------------------------------------
-    -- STEP 2: refresh amended payslips
+    -- STEP 2: refresh amended payslips. total_amount is refreshed
+    -- with the components so base + bonus - deduction = total holds.
     -- ---------------------------------------------------------------
     UPDATE salary_payment_fact f
-    SET   (base_amount, bonus_amount, deduction_amount,
-           gross_amount, net_amount) =
+    SET   (base_amount, bonus_amount, deduction_amount, total_amount) =
           (SELECT ls.clean_base_amount, ls.clean_bonus_amount,
-                  ls.clean_deduction_amount, ls.gross_amount,
-                  ls.net_amount
+                  ls.clean_deduction_amount, ls.total_amount
            FROM   salary_payment_fact_staging_v ls
            WHERE  ls.sal_pay_ID = f.sal_pay_ID)
     WHERE EXISTS (

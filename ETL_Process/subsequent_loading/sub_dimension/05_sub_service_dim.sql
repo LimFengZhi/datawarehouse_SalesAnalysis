@@ -6,14 +6,13 @@
 --   SECTION 3: PROCEDURE - insert new records only
 --   SECTION 4: run + verification
 --
--- SCOPE: NEW RECORDS ONLY - a new service on the menu is added, with
--- its serv_duration derived from real bookings by the staging view.
+-- SCOPE: NEW RECORDS ONLY - a new service on the menu is added.
 --
--- Price changes and duration drift on EXISTING services are not
--- handled here. Duration in particular is an average over
--- reservation_detail, so it moves slightly on every run - refreshing
--- it belongs to the maintain step, where it should be treated as a
--- Type 1 attribute (overwrite, no new version) rather than Type 2.
+-- Name / category / price changes on EXISTING services are not
+-- handled here - that is SCD Type 2 and belongs to the separate
+-- maintain-SCD2 step. effective_start_date / end_date /
+-- is_current_flag are populated on insert so that step has a clean
+-- starting point.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -35,14 +34,13 @@ CREATE OR REPLACE PROCEDURE load_service_dim_incremental AS
 BEGIN
     INSERT INTO service_dim (
         service_key, serv_ID, serv_name, serv_category, serv_price,
-        serv_duration, effective_start_date, effective_end_date,
-        is_current_flag
+        effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_service_key.NEXTVAL,
         s.serv_ID, s.clean_serv_name, s.clean_serv_category,
-        s.clean_serv_price, s.derived_serv_duration,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        s.clean_serv_price,
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   service_staging_v s

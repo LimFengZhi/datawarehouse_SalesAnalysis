@@ -1,23 +1,19 @@
 -- ===================================================================
--- 04_maintain_service_dim.sql    SERVICE_DIM - MAINTAIN SCD 2 + SCD 1
+-- 04_maintain_service_dim.sql    SERVICE_DIM - MAINTAIN SCD TYPE 2
 --
 --   SECTION 1: no new view - reuses service_staging_v
 --   SECTION 2: no new sequence - reuses seq_service_key
---   SECTION 3: PROCEDURE - expire + version (Type 2), then refresh
---              serv_duration in place (Type 1)
+--   SECTION 3: PROCEDURE - expire changed rows, insert new versions
 --   SECTION 4: run + verification
 --
 -- SCOPE: CHANGED RECORDS ONLY. New services belong to
 --   sub_dimension\05_sub_service_dim.sql
 --
--- MIXED TYPES ON PURPOSE:
---   serv_name / serv_category / serv_price  -> TYPE 2, versioned
---   serv_duration                           -> TYPE 1, overwritten
---
--- serv_duration is an AVERAGE over reservation_detail, so it drifts a
--- little every time new bookings arrive. Versioning on it would create
--- a new row almost every run for no business reason. Overwriting it is
--- correct: it is a statistic about the service, not a business change.
+-- Tracked attributes (all TYPE 2, versioned):
+--   serv_name / serv_category / serv_price
+-- The dimension carries no Type 1 attribute (the former derived
+-- duration column no longer exists; actual slot length is a measure
+-- on reservation_fact), so there is no in-place refresh step.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -31,7 +27,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 
 -- ===================================================================
--- SECTION 3: ETL (MAINTAIN SCD TYPE 2 + TYPE 1)
+-- SECTION 3: ETL (MAINTAIN SCD TYPE 2)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE maintain_service_dim_scd2(
     p_effective_date IN DATE DEFAULT SYSDATE
@@ -39,11 +35,11 @@ CREATE OR REPLACE PROCEDURE maintain_service_dim_scd2(
     v_eff       DATE   := TRUNC(p_effective_date);
     v_expired   NUMBER := 0;
     v_versions  NUMBER := 0;
-    v_durations NUMBER := 0;
 BEGIN
     -- ---------------------------------------------------------------
     -- STEP 1: expire changed services.
-    -- serv_duration is deliberately EXCLUDED - see the header note.
+    -- Price uses NVL(...,-1): it is a NUMBER, so a string sentinel
+    -- would raise ORA-01722.
     -- ---------------------------------------------------------------
     UPDATE service_dim d
     SET    d.effective_end_date = GREATEST(v_eff - 1,
@@ -71,13 +67,12 @@ BEGIN
     -- ---------------------------------------------------------------
     INSERT INTO service_dim (
         service_key, serv_ID, serv_name, serv_category, serv_price,
-        serv_duration, effective_start_date, effective_end_date,
-        is_current_flag
+        effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_service_key.NEXTVAL,
         s.serv_ID, s.clean_serv_name, s.clean_serv_category,
-        s.clean_serv_price, s.derived_serv_duration,
+        s.clean_serv_price,
         v_eff,
         DATE '9999-12-31',
         'Y'
@@ -90,29 +85,10 @@ BEGIN
 
     v_versions := SQL%ROWCOUNT;
 
-    -- ---------------------------------------------------------------
-    -- STEP 3: TYPE 1 refresh of the derived duration on CURRENT rows.
-    -- Overwrites in place, creating no history.
-    -- ---------------------------------------------------------------
-    UPDATE service_dim d
-    SET    d.serv_duration =
-             (SELECT s.derived_serv_duration
-              FROM   service_staging_v s
-              WHERE  s.serv_ID = d.serv_ID)
-    WHERE  d.is_current_flag = 'Y'
-    AND    EXISTS (SELECT 1 FROM service_staging_v s
-                   WHERE s.serv_ID = d.serv_ID
-                     AND NVL(s.derived_serv_duration, -1)
-                           <> NVL(d.serv_duration, -1));
-
-    v_durations := SQL%ROWCOUNT;
-
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('SERVICE_DIM SCD2 maintenance completed:');
     DBMS_OUTPUT.PUT_LINE(' - Rows expired        : ' || v_expired);
     DBMS_OUTPUT.PUT_LINE(' - New versions added  : ' || v_versions);
-    DBMS_OUTPUT.PUT_LINE(' - Durations refreshed : ' || v_durations
-        || '  (Type 1, in place)');
 
     IF v_expired <> v_versions THEN
         DBMS_OUTPUT.PUT_LINE('*** WARNING: expired and inserted counts '

@@ -34,15 +34,15 @@ CREATE OR REPLACE PROCEDURE load_product_dim_incremental AS
     v_total NUMBER := 0;
 BEGIN
     INSERT INTO product_dim (
-        product_key, product_ID, product_name, product_brand,
+        product_key, product_ID, product_name,
         product_category, product_unit_price,
         effective_start_date, effective_end_date, is_current_flag
     )
     SELECT
         seq_product_key.NEXTVAL,
-        s.product_ID, s.clean_product_name, s.clean_product_brand,
+        s.product_ID, s.clean_product_name,
         s.clean_product_category, s.clean_product_price,
-        DATE '2019-01-01',   -- first version: start of recorded history
+        DATE '2018-01-01',   -- first version: start of recorded history
         DATE '9999-12-31',
         'Y'
     FROM   product_staging_v s

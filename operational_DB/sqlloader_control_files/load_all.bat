@@ -6,9 +6,9 @@ REM
 REM Usage:  load_all.bat username password connect_string [data_folder]
 REM
 REM   load_all.bat dwh mypass XE
-REM       -> uses ..\..\sales_data\data automatically
+REM       -> uses ..\..\sales_data2\data18_21 automatically
 REM
-REM   load_all.bat dwh mypass XE "C:\...\sales_data\data2"
+REM   load_all.bat dwh mypass XE "C:\...\sales_data2\data22_23"
 REM       -> uses the folder you name
 REM
 REM Run this from ANY directory. It finds its own .ctl files via %~dp0
@@ -24,8 +24,8 @@ REM ---- control files live in this script's own folder (has trailing \) ----
 SET CTL=%~dp0
 
 REM ---- default data folder, relative to this script:
-REM ---- operational_DB\sqlloader_control_files\ -> sales_data\data ----
-IF "%DATA%"=="" SET DATA=%~dp0..\..\sales_data\data
+REM ---- operational_DB\sqlloader_control_files\ -> sales_data2\data18_21 ----
+IF "%DATA%"=="" SET DATA=%~dp0..\..\sales_data2\data18_21
 
 IF "%DB%"=="" (
     ECHO Usage: load_all.bat username password connect_string [data_folder]

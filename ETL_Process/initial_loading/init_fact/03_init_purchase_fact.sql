@@ -1,10 +1,12 @@
 -- ===================================================================
 -- 03_init_purchase_fact.sql     PURCHASE_FACT
--- Grain: one row per restocking purchase line (10,615 rows in data\)
+-- Grain: one row per restocking purchase line
 -- Source: PURCHASE
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
---   SECTION 2: no sequence   - the PK is the degenerate purchase_ID
+--   SECTION 2: no sequence   - PK is composite (date, supplier, branch,
+--                              product keys); purchase_ID is UNIQUE and
+--                              drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
@@ -20,7 +22,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW purchase_fact_staging_v AS
 SELECT
-    p.purchase_ID,                                -- degenerate dim / PK
+    p.purchase_ID,                                -- degenerate dim / UNIQUE
 
     -- ---------- NATURAL keys ----------
     p.product_ID,
@@ -64,7 +66,9 @@ WHERE p.purchase_ID   IS NOT NULL
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
--- purchase_ID from the source is the PK and a degenerate dimension.
+-- The PK is the composite of the four dimension keys; purchase_ID from
+-- the source is UNIQUE and is the degenerate dimension the incremental
+-- load's NOT EXISTS anti-join uses.
 -- ===================================================================
 
 -- ===================================================================
