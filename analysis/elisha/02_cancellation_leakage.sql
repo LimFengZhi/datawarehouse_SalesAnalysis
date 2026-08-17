@@ -34,8 +34,9 @@
 --   FACTS: order_fact + reservation_fact (drill-across on status)
 --
 -- MEASURE DEFINITION
---   Value = gross - discount, EXCLUDING tax (consistent with the
---   revenue definition used across this project's reports).
+--   Value = the fact's stored line total, taken as-is (no
+--   recomputation): order_total_amt / serv_total_amt, both defined
+--   in the DWH as price - discount + tax.
 --   Reservation No-Show counts as LEAKED - the slot was consumed
 --   but produced no revenue.
 --
@@ -67,8 +68,8 @@ SELECT
         WHEN f.order_status = 'Completed' THEN 'REALIZED'
         WHEN f.order_status = 'Cancelled' THEN 'LEAKED'
         ELSE 'PIPELINE'
-    END               AS revenue_bucket,
-    SUM(f.order_gross_amt - f.order_discount_amt) AS revenue_value,
+    END               AS sales_bucket,
+    SUM(f.order_total_amt)                        AS sales_value,
     COUNT(DISTINCT f.order_ID)                    AS txn_count
 FROM order_fact f
 JOIN date_dim     dd ON f.date_key     = dd.date_key
@@ -101,8 +102,8 @@ SELECT
         WHEN f.res_status = 'Completed'               THEN 'REALIZED'
         WHEN f.res_status IN ('Cancelled', 'No-Show') THEN 'LEAKED'
         ELSE 'PIPELINE'
-    END               AS revenue_bucket,
-    SUM(f.serv_price - f.serv_discount_amt)       AS revenue_value,
+    END               AS sales_bucket,
+    SUM(f.serv_total_amt)                         AS sales_value,
     COUNT(DISTINCT f.res_ID)                      AS txn_count
 FROM reservation_fact f
 JOIN date_dim     dd ON f.date_key     = dd.date_key
@@ -136,7 +137,7 @@ TTITLE CENTER '=====================================================' SKIP 1 -
 
 -- Define column formats
 COLUMN cal_year      FORMAT A6            HEADING 'Year'
-COLUMN realized_rev  FORMAT 999,999,990.00 HEADING 'Realized (RM)'
+COLUMN realized_sales  FORMAT 999,999,990.00 HEADING 'Realized (RM)'
 COLUMN product_leak  FORMAT 9,999,990.00  HEADING 'Product Leak'
 COLUMN service_leak  FORMAT 9,999,990.00  HEADING 'Service Leak'
 COLUMN total_leak    FORMAT 99,999,990.00 HEADING 'Total Leaked'
@@ -145,26 +146,26 @@ COLUMN leak_rate     FORMAT A8            HEADING 'Leak %'
 
 -- one blank line after EVERY row, plus a grand-total row
 BREAK ON ROW SKIP 1 ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF realized_rev product_leak service_leak total_leak lost_txns ON REPORT
+COMPUTE SUM LABEL 'TOTAL' OF realized_sales product_leak service_leak total_leak lost_txns ON REPORT
 
 SELECT
     TO_CHAR(cal_year) AS cal_year,
-    SUM(CASE WHEN revenue_bucket = 'REALIZED'
-             THEN revenue_value ELSE 0 END)               AS realized_rev,
-    SUM(CASE WHEN revenue_bucket = 'LEAKED'
+    SUM(CASE WHEN sales_bucket = 'REALIZED'
+             THEN sales_value ELSE 0 END)               AS realized_sales,
+    SUM(CASE WHEN sales_bucket = 'LEAKED'
               AND channel = 'Product Order'
-             THEN revenue_value ELSE 0 END)               AS product_leak,
-    SUM(CASE WHEN revenue_bucket = 'LEAKED'
+             THEN sales_value ELSE 0 END)               AS product_leak,
+    SUM(CASE WHEN sales_bucket = 'LEAKED'
               AND channel = 'Service Reservation'
-             THEN revenue_value ELSE 0 END)               AS service_leak,
-    SUM(CASE WHEN revenue_bucket = 'LEAKED'
-             THEN revenue_value ELSE 0 END)               AS total_leak,
-    SUM(CASE WHEN revenue_bucket = 'LEAKED'
+             THEN sales_value ELSE 0 END)               AS service_leak,
+    SUM(CASE WHEN sales_bucket = 'LEAKED'
+             THEN sales_value ELSE 0 END)               AS total_leak,
+    SUM(CASE WHEN sales_bucket = 'LEAKED'
              THEN txn_count ELSE 0 END)                   AS lost_txns,
     TO_CHAR(ROUND(
-        SUM(CASE WHEN revenue_bucket = 'LEAKED' THEN revenue_value ELSE 0 END) * 100.0 /
-        NULLIF(SUM(CASE WHEN revenue_bucket IN ('REALIZED','LEAKED')
-                        THEN revenue_value ELSE 0 END), 0), 1),
+        SUM(CASE WHEN sales_bucket = 'LEAKED' THEN sales_value ELSE 0 END) * 100.0 /
+        NULLIF(SUM(CASE WHEN sales_bucket IN ('REALIZED','LEAKED')
+                        THEN sales_value ELSE 0 END), 0), 1),
         '990.9') || '%'                                   AS leak_rate
 FROM CANCELLATION_LEAKAGE_V
 GROUP BY
@@ -172,7 +173,7 @@ GROUP BY
 ORDER BY
     cal_year;
 
--- Report Section 2: Branch Ranking by Leaked Revenue
+-- Report Section 2: Branch Ranking by Leaked Sales
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
@@ -187,7 +188,7 @@ TTITLE CENTER '=====================================================' SKIP 1 -
 
 COLUMN ranking       FORMAT 99999         HEADING 'Rank'
 COLUMN br_city       FORMAT A15           HEADING 'Branch'
-COLUMN realized_rev  FORMAT 999,999,990.00 HEADING 'Realized (RM)'
+COLUMN realized_sales  FORMAT 999,999,990.00 HEADING 'Realized (RM)'
 COLUMN product_leak  FORMAT 9,999,990.00  HEADING 'Product Leak'
 COLUMN service_leak  FORMAT 9,999,990.00  HEADING 'Service Leak'
 COLUMN total_leak    FORMAT 99,999,990.00 HEADING 'Total Leaked'
@@ -196,35 +197,35 @@ COLUMN pct_of_leak   FORMAT A10           HEADING '% of Leak'
 
 -- one blank line after EVERY row, plus a grand-total row
 BREAK ON ROW SKIP 1 ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF realized_rev product_leak service_leak total_leak ON REPORT
+COMPUTE SUM LABEL 'TOTAL' OF realized_sales product_leak service_leak total_leak ON REPORT
 
 WITH
 BRANCH_LEAKAGE AS (
     SELECT
         br_ID,
         MAX(br_city) AS br_city,
-        SUM(CASE WHEN revenue_bucket = 'REALIZED'
-                 THEN revenue_value ELSE 0 END)           AS realized_rev,
-        SUM(CASE WHEN revenue_bucket = 'LEAKED'
+        SUM(CASE WHEN sales_bucket = 'REALIZED'
+                 THEN sales_value ELSE 0 END)           AS realized_sales,
+        SUM(CASE WHEN sales_bucket = 'LEAKED'
                   AND channel = 'Product Order'
-                 THEN revenue_value ELSE 0 END)           AS product_leak,
-        SUM(CASE WHEN revenue_bucket = 'LEAKED'
+                 THEN sales_value ELSE 0 END)           AS product_leak,
+        SUM(CASE WHEN sales_bucket = 'LEAKED'
                   AND channel = 'Service Reservation'
-                 THEN revenue_value ELSE 0 END)           AS service_leak,
-        SUM(CASE WHEN revenue_bucket = 'LEAKED'
-                 THEN revenue_value ELSE 0 END)           AS total_leak
+                 THEN sales_value ELSE 0 END)           AS service_leak,
+        SUM(CASE WHEN sales_bucket = 'LEAKED'
+                 THEN sales_value ELSE 0 END)           AS total_leak
     FROM CANCELLATION_LEAKAGE_V
     GROUP BY br_ID
 )
 SELECT
     RANK() OVER (ORDER BY bl.total_leak DESC)             AS ranking,
     bl.br_city,
-    bl.realized_rev,
+    bl.realized_sales,
     bl.product_leak,
     bl.service_leak,
     bl.total_leak,
     TO_CHAR(ROUND(bl.total_leak * 100.0 /
-        NULLIF(bl.realized_rev + bl.total_leak, 0), 1),
+        NULLIF(bl.realized_sales + bl.total_leak, 0), 1),
         '990.9') || '%'                                   AS leak_rate,
     TO_CHAR(ROUND(RATIO_TO_REPORT(bl.total_leak) OVER () * 100, 1),
         '990.9') || '%'                                   AS pct_of_leak
@@ -274,14 +275,14 @@ ITEM_LEAKAGE AS (
         item_ID,
         MAX(item_name)     AS item_name,
         MAX(item_category) AS item_category,
-        SUM(CASE WHEN revenue_bucket = 'LEAKED'
-                 THEN revenue_value ELSE 0 END)           AS leaked_value,
-        SUM(CASE WHEN revenue_bucket = 'LEAKED'
+        SUM(CASE WHEN sales_bucket = 'LEAKED'
+                 THEN sales_value ELSE 0 END)           AS leaked_value,
+        SUM(CASE WHEN sales_bucket = 'LEAKED'
                  THEN txn_count ELSE 0 END)               AS lost_txns,
-        SUM(CASE WHEN revenue_bucket IN ('REALIZED','LEAKED')
-                 THEN revenue_value ELSE 0 END)           AS winnable_value,
-        SUM(SUM(CASE WHEN revenue_bucket = 'LEAKED'
-                     THEN revenue_value ELSE 0 END))
+        SUM(CASE WHEN sales_bucket IN ('REALIZED','LEAKED')
+                 THEN sales_value ELSE 0 END)           AS winnable_value,
+        SUM(SUM(CASE WHEN sales_bucket = 'LEAKED'
+                     THEN sales_value ELSE 0 END))
             OVER (PARTITION BY br_ID)                     AS branch_leak
     FROM CANCELLATION_LEAKAGE_V
     GROUP BY
