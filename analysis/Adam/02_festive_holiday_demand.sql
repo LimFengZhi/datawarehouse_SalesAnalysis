@@ -18,7 +18,7 @@
 --   1. Which festivals does the calendar actually flag, and for
 --      which years?
 --   2. How much bigger is an average RUN-UP day than a normal
---      trading day, and has that held up over seven years?
+--      trading day, and has that held up over eight years?
 --   3. Day by day, what shape does demand take around a festival?
 --   4. Is the pattern company-wide, or driven by a few branches?
 --   5. Does festive demand shift the product MIX, or lift the whole
@@ -41,8 +41,10 @@
 --       Chinese New Year      18 days   (peak x1.75)
 --       Christmas Day         16 days   (peak x1.40)
 --       Deepavali             14 days   (peak x1.45, if ever flagged)
---   Documented in sales_data\data\README_DATASET.md and encoded in
---   the FESTIVALS list of sales_data\data2\gen_data2.py.
+--   Documented in sales_data2\README.md and encoded in the FESTIVALS
+--   list of sales_data2\gen_sales_data2.py (one unified generator now
+--   covers all eight years, replacing the old data\/data2\/data3\
+--   three-generator split).
 --
 -- ===================================================================
 -- HOW FESTIVALS ARE MATCHED - READ THIS BEFORE CHANGING IT
@@ -91,7 +93,12 @@
 --   regenerated - a change to shared ETL, not to this report.
 --
 -- FACT USED  (one)
---   order_fact   product sales, Completed lines only, 800,092 rows
+--   order_fact   product sales, Completed lines only, ~670,000 rows
+--   across 13 branches, 2018-2025. order_fact no longer stores a unit
+--   price or a gross amount (removed - the price now lives only in
+--   product_dim, version-in-force on the order date); this report
+--   reconstructs revenue from order_total_amt and order_tax_amt
+--   instead, see MEASURE DEFINITIONS below.
 --   Services are deliberately out of scope - reservation seasonality
 --   is a separate report.
 --
@@ -104,6 +111,11 @@
 -- MEASURE DEFINITIONS
 --   Revenue   = gross - discount, EXCLUDING tax (SST is passed on to
 --               the government). Only COMPLETED orders count.
+--               order_fact stores no gross amount or unit price (the
+--               price now lives only in product_dim); reconstructed
+--               as order_total_amt - order_tax_amt, since the ETL
+--               computes order_total_amt = qty*price - discount + tax,
+--               so subtracting tax alone leaves gross - discount.
 --   Avg/day   = revenue divided by the number of CALENDAR days of
 --               that type, not the number of days that had a sale -
 --               a dead day is data, not an absence of data.
@@ -124,36 +136,47 @@
 --   6  SUMMARY STATISTICS                    ROLL-UP
 --
 -- WHAT TO LOOK FOR
---   - Section 1A: expect THREE festivals, seven years each. If Hari
---     Raya is absent, the pattern matching failed - check 1B for the
---     actual stored name. If a YEAR is missing, gen_holidays.py was
---     never run for it; fix that before reading anything else
+--   - Section 1A: expect THREE festivals, EIGHT years each (2018-2025).
+--     If Hari Raya is absent, the pattern matching failed - check 1B
+--     for the actual stored name. If a YEAR is missing, gen_holidays.py
+--     was never run for it; fix that before reading anything else
 --   - Section 2: the RUN-UP uplift is the durable finding - positive
---     in all seven years. It is WIDEST in the worst trading years,
---     because the normal-day baseline collapsed during lockdown
---     while the festive rush still happened
---   - Section 2, festival day: THE SIGN FLIPS BETWEEN ERAS.
---     2019-2022 collapses (shops shut, everyone is home
---     celebrating). 2023-2025 peaks instead. That is not a business
---     change - the 2019-22 CSVs and the 2023-25 CSVs were produced
---     by different generators that model the holiday itself in
---     opposite ways. Report the RUN-UP as the finding and the
---     festival day as a known discontinuity
+--     in all eight years (RM +30% to +61%). It is WIDEST in 2021, the
+--     worst trading year (FMCO), because the normal-day baseline
+--     collapsed while the festive rush still happened
+--   - Section 2, festival day: NEGATIVE IN EVERY YEAR, 2018 through
+--     2025 (RM -25% to -66%, no exceptions). All eight years now come
+--     from ONE generator (sales_data2\gen_sales_data2.py) that applies
+--     the same holiday-day dip (x0.45) throughout, so - unlike the old
+--     three-generator dataset this report was first written against -
+--     there is no era discontinuity to work around here. Shops are
+--     genuinely quieter on the gazetted day itself; the run-up carries
+--     the season
 --   - Section 3: the classic shape - a steady climb through the
---     run-up, peaking 1-3 days out, then the festival day itself.
---     Run it for 2019 and again for 2025 to see the flip first-hand
---   - Section 4: every branch shows the uplift, so it is real demand,
---     not one branch's promotion. Ipoh only has data from 2023
---   - Section 5: uplift is BROAD-BASED - every category lands within
---     a few points of the others. Festive demand lifts the entire
---     basket rather than shifting the mix toward gift items. That is
---     a finding in its own right, and the opposite of what retail
---     intuition expects
---   - Raya MOVES about 11 days earlier each year: 2019-06-05,
---     2020-05-24, 2021-05-13, 2022-05-02, 2023-04-22, 2024-04-10,
---     2025-03-31. Any month-on-month comparison across years is
---     meaningless unless it is anchored to the festival date, which
---     is exactly what section 3 does
+--     run-up, peaking 1-3 days out, then a drop on the festival day.
+--     Consistent in every year now; 2021 (widest run-up) and 2025
+--     (deepest festival-day drop) are the sections most worth running
+--   - Section 4: every branch shows the uplift (RM +29% to +43% across
+--     all 13 branches), so it is real demand, not one branch's
+--     promotion. Ipoh, the newest branch (opened 2023-03-01), still
+--     shows a normal uplift once it is trading
+--   - Section 5: uplift is NOT broad-based - it ranges from RM +66%
+--     (Serum) down to RM +6% (Spot Treatment), and MIX ON NORMAL vs
+--     MIX IN RUN-UP moves several points for the categories at either
+--     end (Serum +3pp, Moisturizer/Sunscreen/Spot Treatment each
+--     losing 1-2pp). Festive demand shifts the basket toward serums,
+--     eye care and masks rather than lifting every category evenly -
+--     the opposite of this report's original finding, and it matches
+--     the generator's own run-up category weighting
+--     (gen_sales_data2.py: Serum / Eye Cream / Face Mask get an extra
+--     x1.15 during a run-up). Check this section's actual output for
+--     the year and festival you run, rather than assuming the ranking
+--     above is fixed - it was only checked for CNY 2025
+--   - Raya MOVES about 11 days earlier each year: 2018-06-15,
+--     2019-06-05, 2020-05-24, 2021-05-13, 2022-05-02, 2023-04-22,
+--     2024-04-10, 2025-03-31. Any month-on-month comparison across
+--     years is meaningless unless it is anchored to the festival date,
+--     which is exactly what section 3 does
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -280,7 +303,7 @@ GROUP  BY festival
 ORDER  BY festival;
 
 PROMPT
-PROMPT   Expect THREE festivals, 7 years each. Deepavali normally will
+PROMPT   Expect THREE festivals, 8 years each. Deepavali normally will
 PROMPT   NOT appear: gen_holidays.py loads national holidays only.
 PROMPT   If Hari Raya is missing, check section 1B for its real name.
 PROMPT
@@ -361,7 +384,7 @@ CLEAR BREAKS
 CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 2. AVERAGE DAILY REVENUE BY DAY TYPE, 2019 - 2025' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 2. AVERAGE DAILY REVENUE BY DAY TYPE, 2018 - 2025' SKIP 1 -
        CENTER 'EACH FESTIVAL WITH ITS OWN RUN-UP WINDOW' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
@@ -429,7 +452,12 @@ day_type AS (
 sales AS (
     -- aggregate the fact ONCE, then attach it to the day scaffold
     SELECT f.date_key,
-           SUM(f.order_gross_amt - f.order_discount_amt) AS rev
+           -- order_fact no longer stores gross or unit price (the
+           -- price now lives only in product_dim, version-in-force).
+           -- order_total_amt = qty*price - discount + tax, so
+           -- subtracting tax alone reconstructs gross - discount
+           -- without a product_dim join.
+           SUM(f.order_total_amt - f.order_tax_amt) AS rev
     FROM   order_fact f
     WHERE  f.order_status = 'Completed'
     GROUP  BY f.date_key
@@ -460,9 +488,9 @@ ORDER  BY cal_year;
 
 PROMPT
 PROMPT   RUN-UP UPLIFT is positive in every year. That is the finding.
-PROMPT   FESTIVAL DAY flips sign in 2023: negative 2019-2022, positive
-PROMPT   2023-2025. That is a source-data discontinuity between the two
-PROMPT   CSV generations, not a change in customer behaviour.
+PROMPT   FESTIVAL DAY is negative in every year too, 2018 through 2025,
+PROMPT   no exceptions. Shops are genuinely quieter on the gazetted day
+PROMPT   itself; the run-up is where the season's revenue actually is.
 PROMPT
 
 
@@ -539,7 +567,12 @@ day_type AS (
 ),
 sales AS (
     SELECT f.date_key,
-           SUM(f.order_gross_amt - f.order_discount_amt) AS rev
+           -- order_fact no longer stores gross or unit price (the
+           -- price now lives only in product_dim, version-in-force).
+           -- order_total_amt = qty*price - discount + tax, so
+           -- subtracting tax alone reconstructs gross - discount
+           -- without a product_dim join.
+           SUM(f.order_total_amt - f.order_tax_amt) AS rev
     FROM   order_fact f
     WHERE  f.order_status = 'Completed'
     GROUP  BY f.date_key
@@ -598,8 +631,9 @@ PROMPT   the run-up, then what happens on day 0. The longest bar is
 PROMPT   the busiest day of this window; the rest are in proportion.
 PROMPT   Watch the DAY column too - Saturdays and Sundays run high on
 PROMPT   their own, so part of the sawtooth is the weekly cycle, not
-PROMPT   the festival. Run this for 2019 and again for 2025 to see the
-PROMPT   era flip described in section 2.
+PROMPT   the festival. The run-up climb and the day-0 drop described in
+PROMPT   section 2 hold in every year - try 2021 (widest run-up) or
+PROMPT   2025 (deepest day-0 drop) to see them most clearly.
 PROMPT
 
 
@@ -689,7 +723,12 @@ sales AS (
     -- aggregate the fact ONCE per branch per day, joined through the
     -- dimension, then attach to the scaffold below
     SELECT b.br_ID, f.date_key,
-           SUM(f.order_gross_amt - f.order_discount_amt) AS rev
+           -- order_fact no longer stores gross or unit price (the
+           -- price now lives only in product_dim, version-in-force).
+           -- order_total_amt = qty*price - discount + tax, so
+           -- subtracting tax alone reconstructs gross - discount
+           -- without a product_dim join.
+           SUM(f.order_total_amt - f.order_tax_amt) AS rev
     FROM   order_fact f
     JOIN   branch_dim b ON b.branch_key = f.branch_key
     WHERE  f.order_status = 'Completed'
@@ -823,7 +862,12 @@ cats AS (
 sales AS (
     -- aggregate ONCE per category per day for the chosen branch
     SELECT p.product_category, f.date_key,
-           SUM(f.order_gross_amt - f.order_discount_amt) AS rev
+           -- order_fact no longer stores gross or unit price (the
+           -- price now lives only in product_dim, version-in-force).
+           -- order_total_amt = qty*price - discount + tax, so
+           -- subtracting tax alone reconstructs gross - discount
+           -- without a product_dim join.
+           SUM(f.order_total_amt - f.order_tax_amt) AS rev
     FROM   order_fact  f
     JOIN   product_dim p ON p.product_key = f.product_key
     JOIN   branch_dim  b ON b.branch_key  = f.branch_key
@@ -860,10 +904,10 @@ FROM   by_cat
 ORDER  BY uplift_pct DESC;
 
 PROMPT
-PROMPT   Compare the last two columns. If festive shoppers bought a
-PROMPT   DIFFERENT basket, MIX IN RUN-UP would diverge from MIX ON
-PROMPT   NORMAL. They track each other closely, so the uplift is
-PROMPT   broad-based rather than a shift toward gift categories.
+PROMPT   Compare the last two columns. A category whose MIX IN RUN-UP
+PROMPT   sits above its MIX ON NORMAL is taking a bigger slice of the
+PROMPT   basket during the run-up, not just riding the overall lift.
+PROMPT   Serum typically shows the widest gap here.
 PROMPT
 
 
@@ -877,7 +921,7 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 6. FESTIVE DEMAND SUMMARY STATISTICS' SKIP 1 -
-       CENTER 'ALL BRANCHES 2019 - 2025, FOCUS YEAR &focus_y' SKIP 1 -
+       CENTER 'ALL BRANCHES 2018 - 2025, FOCUS YEAR &focus_y' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -935,7 +979,12 @@ day_type AS (
 ),
 sales AS (
     SELECT f.date_key,
-           SUM(f.order_gross_amt - f.order_discount_amt) AS rev
+           -- order_fact no longer stores gross or unit price (the
+           -- price now lives only in product_dim, version-in-force).
+           -- order_total_amt = qty*price - discount + tax, so
+           -- subtracting tax alone reconstructs gross - discount
+           -- without a product_dim join.
+           SUM(f.order_total_amt - f.order_tax_amt) AS rev
     FROM   order_fact f
     WHERE  f.order_status = 'Completed'
     GROUP  BY f.date_key
@@ -992,7 +1041,7 @@ SELECT 'Festivals matched in date_dim'          AS metric_name,
        TO_CHAR(fests)                                                AS metric_value FROM stats
 UNION ALL SELECT 'Gazetted festival days flagged',
        TO_CHAR(fest_day_rows)                                        FROM stats
-UNION ALL SELECT 'Run-up days 2019-2025',
+UNION ALL SELECT 'Run-up days 2018-2025',
        TO_CHAR(runup_days) || ' of ' || TO_CHAR(all_days) || ' days' FROM stats
 UNION ALL SELECT 'Avg revenue, NORMAL day (RM)',
        TRIM(TO_CHAR(normal_avg, '999,990.00'))                       FROM stats
