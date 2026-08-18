@@ -29,9 +29,9 @@
 --      procedures exist  (STEP 0 below checks)
 --   2. the data24_25 CSVs are loaded into the OLTP
 --        cd operational_DB\sqlloader_control_files
---        load_all.bat dwh <password> XE "...\sales_data2\data24_25"
+--        load_all.bat dwh <password> XE "...\sales_data3\data24_25"
 --   3. the 2025 price changes are applied to the OLTP
---        @sales_data2\data24_25\99_price_change_2025.sql
+--        @sales_data3\data24_25\99_price_change_2025.sql
 --
 --   Step 3 must come BEFORE this file. The maintain procedures compare
 --   the dimension against the OLTP, so the OLTP has to carry the new

@@ -59,14 +59,16 @@ datawarehouse_SalesAnalysis\
 │   ├── create_operational_db.sql           14 CREATE TABLEs
 │   └── sqlloader_control_files\            14 .ctl + load_all.bat / .sh
 │
-├── sales_data2\                        THE RAW CSVs  (one generator, three load folders)
-│   ├── gen_sales_data2.py                  regenerates + self-verifies everything below
+├── sales_data3\                        THE RAW CSVs  (revision 3: one generator, three load folders)
+│   ├── gen_sales_data3.py                  regenerates + self-verifies everything below
 │   ├── data18_21\   2018-2021   12 branches                 (initial load)
 │   ├── data22_23\   2022-2023   + Ipoh + 99_price_increase_2023.sql
 │   └── data24_25\   2024-2025   + 2 suppliers + 99_price_change_2025.sql
 │
+├── sales_data2\                        REVISION 2 - same rows and IDs as sales_data3, different
+│                                       amounts (loss-making cost base); reference only, load ONE of the two
 ├── sales_data\                         LEGACY CSVs (2019-2025, 5-6 branches) - reference only,
-│                                       not loadable alongside sales_data2 (IDs collide)
+│                                       not loadable alongside sales_data3 (IDs collide)
 │
 ├── dwh\                                THE WAREHOUSE SCHEMA
 │   ├── create_dwh.sql                      13 tables: 8 dims + 5 facts
@@ -109,9 +111,9 @@ loaded, and the same view serves both the initial and the incremental load.
 
 | Load | Source | What it proves |
 |---|---|---|
-| **Initial** | `sales_data2\data18_21\` (2018–2021) | full build from empty: 12 branches, the COVID years included |
-| **Subsequent 1** | `sales_data2\data22_23\` (2022–2023) | new branch (Ipoh), 50 staff, 5 products, 2 services, 7k customers **+ 7 price rises** become SCD2 history |
-| **Subsequent 2** | `sales_data2\data24_25\` (2024–2025) | new customers, staff and suppliers **+ 8 more product and 6 service price changes** — two products now carry three versions each |
+| **Initial** | `sales_data3\data18_21\` (2018–2021) | full build from empty: 12 branches, the COVID years included |
+| **Subsequent 1** | `sales_data3\data22_23\` (2022–2023) | new branch (Ipoh), 50 staff, 5 products, 2 services, 7k customers **+ 7 price rises** become SCD2 history |
+| **Subsequent 2** | `sales_data3\data24_25\` (2024–2025) | new customers, staff and suppliers **+ 8 more product and 6 service price changes** — two products now carry three versions each |
 
 New records and changed records are handled by deliberately separate scripts:
 
@@ -170,7 +172,7 @@ Both loads are **idempotent** — run them a second time and every procedure rep
 0 expired, 0 updated.
 
 The CSVs themselves are verified before they leave the generator:
-`python sales_data2\gen_sales_data2.py --verify` re-reads all three folders and checks FKs, ID
+`python sales_data3\gen_sales_data3.py --verify` re-reads all three folders and checks FKs, ID
 continuity, registration/hire/opening dates, therapist schedules, closed-salon days, price eras and
 tax rules.
 
@@ -200,8 +202,13 @@ The dataset is synthetic but deliberately not flat, so there is something to ana
 - **Payroll and overheads that react** — 20 % then 15 % pay cuts during lockdown, 13th-month and Raya
   bonuses that follow the moving Raya month, landlord rent rebates in the closure months, then a
   steady 3 %/year rise.
+- **A P&L that makes sense** (revision 3) — revenue − stock purchases − payroll − rent/utilities is
+  close to break-even in 2018–19, negative in the MCO years, positive from 2022 and ~10 % by 2024–25;
+  in FY2024 12 of 13 branches are in the black (Ipoh, in its second year, is not). Baskets are bigger
+  in the festive run-ups (2.7 units/line vs 2.4) and biggest on mega-sale days (2.9). `sales_data2\`
+  is the same data with the earlier cost base (every branch loss-making) — kept for comparison.
 
-Per-dataset detail: [sales_data2/README.md](sales_data2/README.md) ·
-[data18_21](sales_data2/data18_21/README_DATA18_21.md) ·
-[data22_23](sales_data2/data22_23/README_DATA22_23.md) ·
-[data24_25](sales_data2/data24_25/README_DATA24_25.md)
+Per-dataset detail: [sales_data3/README.md](sales_data3/README.md) ·
+[data18_21](sales_data3/data18_21/README_DATA18_21.md) ·
+[data22_23](sales_data3/data22_23/README_DATA22_23.md) ·
+[data24_25](sales_data3/data24_25/README_DATA24_25.md)

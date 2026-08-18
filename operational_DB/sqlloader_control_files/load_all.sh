@@ -5,7 +5,7 @@
 # Usage: ./load_all.sh username password connect_string [data_folder]
 #
 #   ./load_all.sh dwh mypass XE
-#       -> uses ../../sales_data2/data18_21 automatically
+#       -> uses ../../sales_data3/data18_21 automatically
 #
 #   ./load_all.sh dwh mypass XE /path/to/csv_folder
 #       -> uses the folder you name
@@ -18,7 +18,7 @@ set -u
 U=${1:-}; P=${2:-}; DB=${3:-}
 
 CTL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA=${4:-"$CTL/../../sales_data2/data18_21"}
+DATA=${4:-"$CTL/../../sales_data3/data18_21"}
 
 if [ -z "$DB" ]; then
     echo "Usage: ./load_all.sh username password connect_string [data_folder]"

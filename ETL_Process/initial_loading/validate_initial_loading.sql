@@ -1,6 +1,6 @@
 -- ===================================================================
 -- validate_initial_loading.sql
--- ALL verification queries for the INITIAL load (sales_data2\data18_21, 2018-2021).
+-- ALL verification queries for the INITIAL load (sales_data3\data18_21, 2018-2021).
 -- Run AFTER initial_load_date_dim.sql + holiday_update.sql, the seven
 -- init_dimension scripts and the five init_fact scripts:
 --

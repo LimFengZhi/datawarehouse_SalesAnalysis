@@ -5,12 +5,12 @@ End to end, from an empty schema to an eight-year, thirteen-branch warehouse.
 Three parts:
 
 - **Part A — first build.** The OLTP tables, the 2018–2021 CSVs in
-  [sales_data2/data18_21/](sales_data2/data18_21/) (12 branches), and the whole warehouse.
+  [sales_data3/data18_21/](sales_data3/data18_21/) (12 branches), and the whole warehouse.
   ~520,000 source rows.
-- **Part B — adding data22_23.** The 2022–2023 rows in [sales_data2/data22_23/](sales_data2/data22_23/)
+- **Part B — adding data22_23.** The 2022–2023 rows in [sales_data3/data22_23/](sales_data3/data22_23/)
   *without* wiping what Part A built. ~380,000 more rows, the Ipoh branch, new products and services,
   and the 2023 price rise that becomes SCD Type 2 history.
-- **Part C — adding data24_25.** The 2024–2025 rows in [sales_data2/data24_25/](sales_data2/data24_25/):
+- **Part C — adding data24_25.** The 2024–2025 rows in [sales_data3/data24_25/](sales_data3/data24_25/):
   ~450,000 more rows, two new suppliers, and the 2025 product **and service** price changes.
 
 Connect as your schema user for everything:
@@ -20,10 +20,13 @@ sqlplus dwh/yourpassword@XE
 ```
 
 
-> **Legacy data.** `sales_data\` (data / data2 / data3, 2019–2025, 5–6 branches) is the previous
-> generation of the dataset and is kept for reference only. Its IDs start at 1 too, so it can **not**
-> be loaded into the same OLTP as `sales_data2\`. Pick one tree; the ETL, validation counts and this
-> guide are written for `sales_data2\`.
+> **Other data trees.** `sales_data2\` is revision 2 of the same dataset — identical rows and IDs,
+> only the amount columns differ (its cost base makes every branch loss-making; see
+> [sales_data3/README.md](sales_data3/README.md)). Load **one** of `sales_data2\` / `sales_data3\`,
+> never both — the row counts and every step below are the same for either. `sales_data\` (data /
+> data2 / data3, 2019–2025, 5–6 branches) is the previous generation, reference only; its IDs start at
+> 1 too, so it can **not** be loaded into the same OLTP. The ETL, validation counts and this guide are
+> written for `sales_data3\`.
 
 ---
 
@@ -35,8 +38,8 @@ datawarehouse_SalesAnalysis\
 │   ├── create_operational_db.sql           14 CREATE TABLEs
 │   └── sqlloader_control_files\            14 .ctl + load_all.bat / .sh
 │
-├── sales_data2\                        THE RAW CSVs (one generator, three load folders)
-│   ├── gen_sales_data2.py                  regenerates all three folders (seeded)
+├── sales_data3\                        THE RAW CSVs (revision 3: one generator, three load folders)
+│   ├── gen_sales_data3.py                  regenerates all three folders (seeded)
 │   ├── data18_21\   14 CSVs, 2018-2021    12 branches
 │   ├── data22_23\   14 CSVs, 2022-2023  + 99_price_increase_2023.sql   (+ Ipoh)
 │   └── data24_25\   14 CSVs, 2024-2025  + 99_price_change_2025.sql
@@ -92,7 +95,7 @@ cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\sq
 load_all.bat dwh yourpassword XE
 ```
 
-With no 4th argument the script defaults to `..\..\sales_data2\data18_21`. It switches into that
+With no 4th argument the script defaults to `..\..\sales_data3\data18_21`. It switches into that
 folder so each control file finds its CSV, then loads all 14 tables in dependency order. Logs land
 next to the script, **suffixed with the data folder** so a later run against `data22_23\` doesn't
 overwrite them — check `branch_data18_21.log` first:
@@ -210,7 +213,7 @@ fails *silently* rather than loudly — see the note at the end of this part.
 
 ```
 cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_control_files
-load_all.bat dwh yourpassword XE "c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data22_23"
+load_all.bat dwh yourpassword XE "c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data3\data22_23"
 ```
 
 The 4th argument points the same control files at the other folder. Every file in `data22_23\` is
@@ -246,7 +249,7 @@ UNION ALL SELECT 'branch_expense', COUNT(*), 5202  FROM branch_expense;
 ## B2. Apply the 2023 price rise
 
 ```sql
-@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data22_23\99_price_increase_2023.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data3\data22_23\99_price_increase_2023.sql
 ```
 
 Seven top sellers go up, effective 2023-01-01. The 2023 order lines in data22_23 already carry the
@@ -349,10 +352,10 @@ Same pattern as Part B, different files. The procedures from B3 are reused as-is
 
 ```
 cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_control_files
-load_all.bat dwh yourpassword XE "c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data24_25"
+load_all.bat dwh yourpassword XE "c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data3\data24_25"
 ```
 ```sql
-@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2\data24_25\99_price_change_2025.sql
+@c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data3\data24_25\99_price_change_2025.sql
 @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\execute_sub2.sql
 ```
 ```
@@ -400,9 +403,9 @@ A7  validate_initial_loading.sql
 ## Regenerating the CSVs
 
 ```
-cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data2
-python gen_sales_data2.py            # ~1 minute, rewrites all three folders, then self-verifies
-python gen_sales_data2.py --verify   # only re-check the CSVs already on disk
+cd c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\sales_data3
+python gen_sales_data3.py            # ~1 minute, rewrites all three folders, then self-verifies
+python gen_sales_data3.py --verify   # only re-check the CSVs already on disk
 ```
 
 The generator is seeded, so the output is identical every run. It ends with an integrity pass over
@@ -419,7 +422,7 @@ two `validate_*.sql` files, the two `execute_*` files and the READMEs.
 |---|---|---|
 | `TRUNCATE TABLE order_fact;` | one fact table | a single load went wrong |
 | [dwh/clear_dwh.sql](dwh/clear_dwh.sql) | empties all dims + facts, drops the 8 sequences, **keeps the tables and the OLTP** | re-run the warehouse build without touching SQL\*Loader |
-| [drop_all.sql](drop_all.sql) | destroys every object in the schema, OLTP included | the DDL changed, or you are switching between `sales_data\` and `sales_data2\` |
+| [drop_all.sql](drop_all.sql) | destroys every object in the schema, OLTP included | the DDL changed, or you are switching between data trees (`sales_data\` / `sales_data2\` / `sales_data3\`) |
 
 `clear_dwh.sql` is the one you want almost every time. `drop_all.sql` costs you another full
 SQL\*Loader run over ~1.3 million rows.
@@ -439,7 +442,7 @@ children, so `TRUNCATE` works there and is much faster.
 | `ORA-01950: no privileges on tablespace` | user has no quota | `GRANT UNLIMITED TABLESPACE TO dwh;` as SYSDBA |
 | `ORA-01653 / ORA-01654: unable to extend table/index ... in tablespace SYSTEM` | the tablespace holding the warehouse is full | the dataset must be smaller for that tablespace, or the schema needs to live in a larger/autoextending tablespace |
 | `ORA-02291: parent key not found` | loaded a child before its parent | follow the load order |
-| `ORA-00001: unique constraint violated` | loaded the same CSV twice, loaded `sales_data\` on top of `sales_data2\`, or a sequence was not reset | `TRUNCATE` and reload; `clear_dwh.sql` drops the sequences; `drop_all.sql` to switch trees |
+| `ORA-00001: unique constraint violated` | loaded the same CSV twice, loaded `sales_data\` on top of `sales_data3\`, or a sequence was not reset | `TRUNCATE` and reload; `clear_dwh.sql` drops the sequences; `drop_all.sql` to switch trees |
 | `ORA-01861: literal does not match format string` | date format mismatch | the `.ctl` files already set `DATE 'YYYY-MM-DD'` per column |
 | `ORA-02290: check constraint violated` | a status or gender value outside the allowed list | values are case-sensitive: `Completed`, not `complete` |
 | `ORA-12899: value too large for column` | a value longer than the column | widen the column, or check the mapping |

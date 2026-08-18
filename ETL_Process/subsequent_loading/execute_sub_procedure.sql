@@ -53,13 +53,13 @@
 -- ===================================================================
 -- PREREQUISITES
 -- ===================================================================
---   1. the warehouse is already built from sales_data2\data18_21\
+--   1. the warehouse is already built from sales_data3\data18_21\
 --      (see LOADING_GUIDE.md Part A)
 --   2. the data22_23 CSVs are loaded into the OLTP
 --        cd operational_DB\sqlloader_control_files
---        load_all.bat dwh <password> XE "...\sales_data2\data22_23"
+--        load_all.bat dwh <password> XE "...\sales_data3\data22_23"
 --   3. the 2023 price rise is applied to the OLTP
---        @sales_data2\data22_23\99_price_increase_2023.sql
+--        @sales_data3\data22_23\99_price_increase_2023.sql
 --
 --   Step 3 must come BEFORE this file. maintain_SCD2 compares the
 --   dimension against the OLTP, so the OLTP has to carry the new
