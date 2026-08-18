@@ -1,18 +1,25 @@
 -- ===================================================================
 -- 01_fy2024_branch_paradox.sql
 -- SALES ANALYSIS - FY2024 BRANCH PERFORMANCE PARADOX
---   "Our top-revenue branch is our least profitable" - is it true?
---   company per year -> SLICE the focus year -> rank revenue vs profit
---   (in RM and in margin) -> why (cost structure) -> is the year
---   special -> the two branches quarter by quarter -> their expense
---   lines -> verdict
+--   "Our top-revenue branch is our least profitable" - is it true,
+--   and if a branch IS in the red, why?
+--   company per year (money + customers) -> SLICE the focus year ->
+--   the average branch per STATE -> every branch under its state ->
+--   ONE branch (default Ipoh, the loss-maker) vs the average branch:
+--   its customers -> WHY (staffing, cost ratios, what-ifs).
+--   The companion 01b_focus_branch_sales_mix.sql (same prompts) drills
+--   the same branch into its product / service mix, loyalty tiers and
+--   customer home cities.
 --
 -- Run in SQL*Plus as the warehouse owner:
 --   sqlplus dwh/yourpassword@XE
 --   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\analysis\Fz\01_fy2024_branch_paradox.sql
 --
--- PARAMETER (prompted)
+-- PARAMETERS (prompted)
 --   focus year   the financial year every slice zooms into (default 2024)
+--   branch       the branch city sections 4-5 drill into (default Ipoh -
+--                if the name matches nothing, the branch with the LOWEST
+--                net profit in the focus year is taken)
 --
 -- WHAT IT ANSWERS
 --   1. Is the branch that sells the most really the branch that keeps
@@ -35,9 +42,9 @@
 --               salary_payment_fact    payroll
 --               branch_expense_fact    rent, utilities and upkeep
 --   dims      date_dim.cal_year / cal_quarter        -> the drill path
---             branch_dim.br_ID / br_city             -> the rows
+--             branch_dim.br_state / br_ID / br_city  -> the rows
+--             customer_dim cus_ID / cus_state         -> who buys, from where
 --             branch_utils_dim.util_name             -> expense split
---             staff_dim.st_ID                        -> headcount only
 --   measures  see MEASURE DEFINITIONS
 --
 -- MEASURE DEFINITIONS
@@ -58,8 +65,16 @@
 --   Net profit      = revenue - COGS - salary - expenses
 --                     (the warehouse's own definition, see the header of
 --                     ETL_Process\initial_loading\init_fact\03_init_purchase_fact.sql)
---   Margin %        = net profit / revenue x 100
---   Headcount       = COUNT(DISTINCT st_ID) of staff paid in the year
+--   Margin %        = net profit / revenue x 100  (printed as EARNING %
+--                     in sections 1-3: how many sen of every ringgit sold
+--                     the branch keeps)
+--   Customer        = a distinct cus_ID (never customer_key: customer_dim
+--                     is SCD2) with at least one COMPLETED order or visit
+--                     in the period. A customer who shops at two branches
+--                     counts once at each branch, once for the company.
+--   New customer    = first ever transaction anywhere falls in the year
+--   Local %         = customers whose home state (customer_dim.cus_state)
+--                     is the branch's state (2, 3)
 --
 --   Every fact is cut on date_dim.cal_year through its date_key, never
 --   on the pay_period / billing_period strings - so a December pay
@@ -68,8 +83,7 @@
 --
 --   All facts are grouped on the branch NATURAL key (br_ID), not the
 --   surrogate branch_key - branch_dim is SCD2, so one branch could own
---   several branch_key rows and must still roll up as one line. Heads
---   are COUNT(DISTINCT st_ID) for the same reason (staff_dim is SCD2).
+--   several branch_key rows and must still roll up as one line.
 --
 --   Sections 1-5 and 7 all roll up from the SAME quarter-grain base
 --   query (WITH pnl AS ...), so the totals reconcile across sections.
@@ -93,82 +107,98 @@
 --   - 2020 and 2021 carry MCO / FMCO closure months (salons shut, pay
 --     cuts, rent rebates) - ranks in those years are distorted.
 --
--- DIMENSIONS USED  (four)
---   date_dim          cal_year, cal_quarter
---   branch_dim        br_ID, br_city
---   branch_utils_dim  util_name
---   staff_dim         st_ID  (headcount only)
+-- DIMENSIONS USED  (five)
+--   date_dim          cal_year, cal_date
+--   branch_dim        br_ID, br_city, br_state
+--   customer_dim      cus_ID, cus_state                (sections 1-4)
+--   branch_utils_dim  util_name                        (section 5, rent)
+--   staff_dim         st_ID                            (section 5, heads)
 --
 -- REPORT SECTIONS  (each one is ONE OLAP operation)
---   1  COMPANY P+L PER YEAR              ROLL-UP    all branches, 2018-2025
---   2  FOCUS YEAR: REVENUE vs PROFIT     SLICE      year = focus year, one
---      RANKING                                      row per branch - THE TEST
---   3  FOCUS YEAR: COST STRUCTURE        SLICE      same slice, cost ratios
---                                                   and per-head figures - WHY
---   4A NET-PROFIT (RM) RANK PER YEAR     PIVOT      years across - is the
---   4B NET-MARGIN RANK PER YEAR          PIVOT      focus year special, and
---                                                   does the yardstick matter?
---   5  THE TWO BRANCHES BY QUARTER       DRILL-DOWN year -> quarter for the
---                                                   top-revenue and the
---                                                   least-profitable branch
---   6  THE TWO BRANCHES: EXPENSES BY     DICE       2 branches x 6 utility
---      CATEGORY                                     categories x focus year
---   7  SUMMARY STATISTICS + VERDICT                 the answer in one line
+--   1  COMPANY P+L AND CUSTOMERS         ROLL-UP    product / service /
+--      PER YEAR                                     total sales, purchase
+--                                                   cost, salary, expense,
+--                                                   net profit, earning %,
+--                                                   customers, new %, sales
+--                                                   per customer
+--   2  FOCUS YEAR BY STATE               SLICE +    the AVERAGE branch of
+--                                        ROLL-UP    each state: avg sales,
+--                                                   costs, profit, cost %,
+--                                                   avg customers, new %,
+--                                                   local %, sales/customer
+--   3  FOCUS YEAR: EVERY BRANCH          SLICE      all 13 branches under
+--                                                   their state: money +
+--                                                   customers, AVERAGE
+--                                                   branch as the last row
+--   -- from here on: THE FOCUS BRANCH vs THE AVERAGE BRANCH --
+--   4  FOCUS BRANCH: ITS CUSTOMERS        DRILL-     how many customers, new vs
+--                                        ACROSS     returning, orders, visits,
+--                                                   sales per customer, vs the
+--                                                   average branch
+--   5  WHY                                          cost structure side by
+--                                                   side + what-ifs + verdict
 --
---   The two branches in sections 5-6 are NOT hard-coded: the script
---   looks up which branch has the highest revenue and which has the
---   lowest net profit in the focus year and drills into those.
+--   The best-earning branch used as the yardstick in section 5 is NOT
+--   hard-coded: the script looks it up for the focus year.
 --
--- WHAT TO LOOK FOR  (FY2024)
---   Revision 3 (sales_data3), from the CSV pre-check - confirm against
---   the spool after loading:
---   - Section 1: revenue RM 9.6 M (2018) -> 16.3 M (2024); margin -4 %
---     2018, -2 % 2019, -16 % / -29 % in the MCO years, +5 % 2022, +8 %
---     2023, +10 % 2024, +12 % 2025. Payroll ~44 % of revenue, COGS ~36 %.
---   - Section 2: Petaling Jaya #1 revenue (RM 2.20 M) AND #1 net profit
---     (RM +391 k, 17.8 %); Kuala Lumpur #2 / #2 (14.2 %); 12 of 13
---     branches positive; Ipoh (2nd year, 18 heads) the only loss
---     (-13 %); Melaka the weakest of the rest (about 0 %). The headline
---     does NOT hold on either yardstick.
---   - Section 3: PJ salary 38 % / rent 8 % of revenue; Ipoh salary 64 %.
---   - Sections 5-6: Q4 still the biggest revenue quarter and the
---     December bonus still dents Q4 profit; rent ~78 % of expenses.
+-- WHAT TO LOOK FOR  (FY2024, revision 3 = sales_data3, from the spool
+--   of the full 2018-2025 load)
+--   - Section 1: total sales RM 9.63 M (2018) -> 16.33 M (2024) ->
+--     17.72 M (2025); earning % -3.8 (2018), -1.9 (2019), -16.3 / -29.2
+--     in the MCO years, +5.3 (2022), +8.1 (2023), +9.8 (2024), +11.5
+--     (2025). Salary paid ~44 % of sales, purchase cost ~36 %, branch
+--     expense ~10 % in 2024. Customers 5,305 (2018) -> 16,168 (2024)
+--     -> 17,958 (2025); the new-customer share falls from 43 % (2019)
+--     to 19 % (2025) as the base matures; ~RM 1,000 per customer.
+--   - Section 2: Johor (Johor Bahru alone) has the highest average
+--     sales per branch (RM 1.46 M), then Selangor (5 branches, RM 1.39 M
+--     avg) with the best earning % (+13.1) and Wilayah Persekutuan (4).
+--     Klang Valley branches serve ~2,000 customers each, 96-97 % local,
+--     the single-branch states ~50 % local. Perak (Ipoh alone, second
+--     year) is the only state in the red: 831 customers, 27 % local,
+--     31 % new - but RM 1,071 per customer vs RM 670 company-wide.
+--     Company average branch: RM 1.26 M sales, 1,873 customers,
+--     RM 124 k net profit, +9.8 %.
+--   - Section 3: Selangor and Wilayah Persekutuan carry the big
+--     branches - Petaling Jaya (RM 2.20 M, +17.8 %, 3,355 customers),
+--     Kuala Lumpur (RM 2.01 M, +14.2 %, 2,994); Melaka is the thinnest
+--     positive branch (RM 814 k, +0.6 %); Ipoh (Perak) the only loss
+--     (-12.7 %) and by far the fewest customers (831 vs 1,172-3,355
+--     everywhere else) while its sales per customer is the highest
+--     (RM 1,071 vs RM 630-695). Sales per customer is flat across the
+--     other 12 branches - they differ in HOW MANY customers they have,
+--     not in what each spends. The AVERAGE BRANCH row (RM 1.26 M,
+--     1,873 customers, +8.4 % mean earning) is the yardstick section 4
+--     measures Ipoh against.
+--   - Section 4 - THE WHY: Ipoh served 831 customers in FY2024 against
+--     1,873 at the average branch (-56 %); 31 % of them were NEW (19 %
+--     at the average branch - it is still building its base). Its
+--     customers are loyal and spend MORE each - RM 1,071 and 4.3
+--     transactions per customer vs RM 670 and 2.7 - but there are not
+--     enough of them. (01b shows the rest: the same product / service
+--     mix as the company but 23-40 % less of every category to about
+--     half the buyers; only 224 local Perak customers, giving 68 % of
+--     the sales.)
+--   - Section 5 - the cost side of the same story: Ipoh sells 29 % less
+--     than the average branch with the same headcount (18 vs 17.8), so
+--     sales per head is RM 49 k vs 70 k while salary per head is normal
+--     (RM 31.7 k vs 30.7 k); salary takes 64 % of sales vs 44 %
+--     (+20 pts), purchasing is on par, premises +2.6 pts. What-ifs: at
+--     the average salary ratio Ipoh would earn RM +68 k (+7.7 %); at
+--     the average sales per head it needs 12.6 heads, not 18; it must
+--     sell RM 1.07 M (+20 %) to break even - or, per section 4, win roughly
+--     170 more customers like the ones it has. Verdict: PAYROLL sized
+--     for a mature branch, customer base of a new one.
+--   - Run it with branch = Melaka to see the other thin one (salary
+--     51 % of sales, rent 9.2 %), or with year 2023 for Ipoh's opening
+--     year, or with a nonsense branch name to land on the least
+--     profitable branch automatically.
 --
---   Revision 2 (sales_data2), from the spool of the full 2018-2025 load:
---   THE ANSWER DEPENDS ON THE YARDSTICK - and that is the real finding.
---   - Section 1: revenue grows every year except the MCO dip (2020-21)
---     and margin improves steadily (-106 % in 2018 to -70 % in 2025),
---     but the company never reaches break-even: payroll alone is
---     ~91 % of revenue and COGS ~60 %. FY2024 is not special.
---   - Section 2, in RM: Petaling Jaya sells the most (RM 1.40 M) and
---     ranks #12 of 13 by net profit (-RM 732 k); Kuala Lumpur (#2 on
---     revenue) is #13 (-RM 786 k). The three smallest shops - Gombak,
---     Selayang, Melaka - are the "most profitable" simply because they
---     lose the least. Rank gap -11 for PJ and KL, +11 for Gombak.
---   - Section 2, in margin: the same PJ has the BEST margin (-52.3 %),
---     KL second (-61.2 %); Ipoh is worst (-124.5 %), Melaka next
---     (-97.2 %). Sort by margin and the table nearly inverts.
---   - Section 3: PJ has the lowest salary-to-revenue ratio (78 %) and
---     the lowest rent-to-revenue (14.5 %) and is the ONLY branch that
---     covers salary + premises before stock (pre-COGS margin +3.3 %).
---     KL's rent is 20.6 % of revenue (Bukit Bintang) and its expenses
---     26.5 % - the reason it drops below PJ. Ipoh: salary 132 % of
---     revenue (18 heads for a shop selling RM 569 k).
---   - Section 4A: in RM, PJ has been second-last or third-last EVERY
---     year 2018-2025 (#11 of 12 before Ipoh, #12 of 13 in 2024) and KL
---     last or second-last every year - the standing order, not a 2024
---     event. Section 4B: on margin PJ is #1 in ALL eight years and KL
---     #2 in seven of them; the yardstick, not the year, makes the
---     paradox.
---   - Section 5: Q4 is the biggest revenue quarter for both branches
---     (28 % of the year) but also the worst-loss quarter in RM: the
---     13th-month bonus lands in December payroll.
---   - Section 6: rent is ~78 % of expenses in every branch; KL pays
---     RM 265 k against the average branch's RM 143 k.
---   - Section 7: two verdict rows - "HOLDS"/"DOES NOT HOLD" in RM and
---     in margin - with the ranks that back them.
---   Note "least profitable" in RM is Kuala Lumpur, not PJ, so even the
---   RM verdict reads DOES NOT HOLD (PJ is #12 of 13, one place above).
+--   Against revision 2 (sales_data2 - the same rows and customers with
+--   the old cost base) every branch is loss-making in every year
+--   (payroll ~91 % of sales), so the top-revenue branch also posts one
+--   of the biggest RM losses while keeping the best margin: read the
+--   ranks, margins and ratios there, not the sign of the RM figure.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -179,7 +209,7 @@ CLEAR BREAKS
 CLEAR COMPUTES
 SET DEFINE ON
 SET PAGESIZE 60
-SET LINESIZE 150
+SET LINESIZE 165
 SET FEEDBACK OFF
 SET VERIFY OFF
 SET ECHO OFF
@@ -187,7 +217,8 @@ SET TERMOUT ON
 SET TRIMSPOOL ON
 
 -- SQL*Plus caps an ACCEPT prompt at 99 characters - keep it short.
-ACCEPT focus_year NUMBER DEFAULT 2024 PROMPT 'Focus year (default 2024): '
+ACCEPT focus_year  NUMBER DEFAULT 2024       PROMPT 'Focus year (default 2024): '
+ACCEPT focus_branch CHAR  DEFAULT 'Ipoh'     PROMPT 'Branch city for sections 4-5 (default Ipoh): '
 
 -- ---- values reused in every title ---------------------------------
 -- TERMOUT OFF hides these helper queries (only works when the file is
@@ -200,69 +231,81 @@ SELECT TO_CHAR(SYSDATE, 'DD-MON-YYYY') AS run_dt FROM dual;
 COLUMN focus_y NEW_VALUE focus_y NOPRINT
 SELECT TO_CHAR(&focus_year) AS focus_y FROM dual;
 
--- ---- the two branches sections 5 and 6 drill into ------------------
--- top_rev_*  = the branch with the highest revenue in the focus year
--- low_prof_* = the branch with the lowest net profit in the focus year
--- If they are the same branch, the headline holds and sections 5-6
--- simply show that one branch.
-COLUMN top_rev_id    NEW_VALUE top_rev_id    NOPRINT
-COLUMN top_rev_city  NEW_VALUE top_rev_city  NOPRINT
-COLUMN low_prof_id   NEW_VALUE low_prof_id   NOPRINT
-COLUMN low_prof_city NEW_VALUE low_prof_city NOPRINT
+-- ---- the branch sections 4-5 drill into -----------------------------
+-- focus_*  = the branch whose city matches the prompt (default Ipoh,
+--            the loss-making one). If nothing matches, the script falls
+--            back to the branch with the LOWEST net profit in the focus
+--            year, so the drill always lands on the branch that most
+--            needs explaining.
+-- best_*   = the branch with the highest earning % in the focus year -
+--            the yardstick sections 6 and 7 compare against.
+COLUMN focus_id     NEW_VALUE focus_id     NOPRINT
+COLUMN focus_city   NEW_VALUE focus_city   NOPRINT
+COLUMN focus_br_state NEW_VALUE focus_br_state NOPRINT
+COLUMN best_id      NEW_VALUE best_id      NOPRINT
+COLUMN best_city    NEW_VALUE best_city    NOPRINT
 
 WITH pnl AS (
-    SELECT br_ID, br_city,
+    SELECT br_ID, br_city, br_state,
            SUM(rev) AS rev, SUM(cost) AS cost
     FROM (
-        SELECT b.br_ID, b.br_city,
+        SELECT b.br_ID, b.br_city, b.br_state,
                SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cost
         FROM   order_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  f.order_status = 'Completed'
         AND    d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_city, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
+        SELECT b.br_ID, b.br_city, b.br_state,
                SUM(f.serv_total_amt - f.serv_tax_amt), 0
         FROM   reservation_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  f.res_status = 'Completed'
         AND    d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_city, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
+        SELECT b.br_ID, b.br_city, b.br_state,
                0, SUM(f.purchase_total_cost)
         FROM   purchase_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_city, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
+        SELECT b.br_ID, b.br_city, b.br_state,
                0, SUM(f.base_amount + f.bonus_amount)
         FROM   salary_payment_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_city, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
+        SELECT b.br_ID, b.br_city, b.br_state,
                0, SUM(f.payment_amount)
         FROM   branch_expense_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_city, b.br_state
     )
-    GROUP BY br_ID, br_city
+    GROUP BY br_ID, br_city, br_state
+),
+cand AS (
+    SELECT br_ID, br_city, br_state, rev - cost AS net,
+           (rev - cost) / NULLIF(rev, 0) AS margin,
+           CASE WHEN UPPER(br_city) LIKE '%' || UPPER(TRIM('&focus_branch')) || '%'
+                THEN 0 ELSE 1 END AS miss
+    FROM   pnl
 )
-SELECT TO_CHAR(MAX(br_ID)   KEEP (DENSE_RANK FIRST ORDER BY rev DESC))        AS top_rev_id,
-       MAX(br_city)         KEEP (DENSE_RANK FIRST ORDER BY rev DESC)         AS top_rev_city,
-       TO_CHAR(MAX(br_ID)   KEEP (DENSE_RANK FIRST ORDER BY rev - cost ASC))  AS low_prof_id,
-       MAX(br_city)         KEEP (DENSE_RANK FIRST ORDER BY rev - cost ASC)   AS low_prof_city
-FROM   pnl;
+SELECT TO_CHAR(MAX(br_ID) KEEP (DENSE_RANK FIRST ORDER BY miss, net))       AS focus_id,
+       MAX(br_city)       KEEP (DENSE_RANK FIRST ORDER BY miss, net)        AS focus_city,
+       MAX(br_state)      KEEP (DENSE_RANK FIRST ORDER BY miss, net)        AS focus_br_state,
+       TO_CHAR(MAX(br_ID) KEEP (DENSE_RANK FIRST ORDER BY margin DESC NULLS LAST)) AS best_id,
+       MAX(br_city)       KEEP (DENSE_RANK FIRST ORDER BY margin DESC NULLS LAST)  AS best_city
+FROM   cand;
 
 CLEAR COLUMNS
 SET TERMOUT ON
@@ -271,81 +314,83 @@ SPOOL fy2024_branch_paradox_output.txt
 
 
 -- ###################################################################
--- SECTION 1 - COMPANY P+L PER YEAR  (profit and loss)
--- OLAP: ROLL-UP to year grain over all five facts, all branches.
--- Sets the scene: how big is the business, and is the focus year
--- unusual for the company as a whole?
+-- SECTION 1 - COMPANY P+L AND CUSTOMERS PER YEAR
+-- OLAP: ROLL-UP to year grain over all five facts, all branches, plus
+-- the customer side of the same year: how many distinct customers
+-- bought, how many were NEW (first ever seen that year) and what each
+-- one was worth. EARNING % = net profit / total sales.
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 1. COMPANY P+L PER YEAR' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 1. COMPANY P+L AND CUSTOMERS PER YEAR' SKIP 1 -
        CENTER 'ALL BRANCHES, 2018 - 2025 (ROLL-UP)' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN cal_year      HEADING 'YEAR'                FORMAT 9999
-COLUMN product_rev   HEADING 'PRODUCT|REV (RM)'    FORMAT 999,999,990.00
-COLUMN service_rev   HEADING 'SERVICE|REV (RM)'    FORMAT 999,999,990.00
-COLUMN total_rev     HEADING 'TOTAL|REVENUE (RM)'  FORMAT 999,999,990.00
-COLUMN cogs          HEADING 'COGS (RM)'           FORMAT 999,999,990.00
-COLUMN gross_profit  HEADING 'GROSS|PROFIT (RM)'   FORMAT S999,999,990.00
-COLUMN salary_cost   HEADING 'SALARY (RM)'         FORMAT 999,999,990.00
-COLUMN expense_cost  HEADING 'EXPENSES (RM)'       FORMAT 999,999,990.00
-COLUMN net_profit    HEADING 'NET|PROFIT (RM)'     FORMAT S999,999,990.00
-COLUMN margin_pct    HEADING 'MARGIN|%'            FORMAT S990.0
-COLUMN yoy_pct       HEADING 'NET|YOY %'           FORMAT S9990.0
+COLUMN cal_year      HEADING 'YEAR'                 FORMAT 9999
+COLUMN product_rev   HEADING 'PRODUCT|SALES (RM)'   FORMAT 999,999,990.00
+COLUMN service_rev   HEADING 'SERVICE|SALES (RM)'   FORMAT 999,999,990.00
+COLUMN total_rev     HEADING 'TOTAL|SALES (RM)'     FORMAT 999,999,990.00
+COLUMN cogs          HEADING 'PURCHASE|COST (RM)'   FORMAT 999,999,990.00
+COLUMN salary_cost   HEADING 'SALARY|PAID (RM)'     FORMAT 999,999,990.00
+COLUMN expense_cost  HEADING 'BRANCH|EXPENSE (RM)'  FORMAT 999,999,990.00
+COLUMN net_profit    HEADING 'NET|PROFIT (RM)'      FORMAT S999,999,990.00
+COLUMN earning_pct   HEADING 'EARNING|%'            FORMAT S990.0
+COLUMN customers     HEADING 'CUSTOMERS'            FORMAT 999,990
+COLUMN new_pct       HEADING 'NEW|%'                FORMAT 990.0
+COLUMN sales_cus     HEADING 'SALES PER|CUSTOMER'   FORMAT 99,990.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF product_rev service_rev total_rev cogs gross_profit salary_cost expense_cost net_profit ON REPORT
+COMPUTE SUM LABEL 'TOTAL' OF product_rev service_rev total_rev cogs salary_cost expense_cost net_profit ON REPORT
 
 WITH pnl AS (
-    -- quarter-grain base: one row per branch / year / quarter with all
-    -- five measures already side by side (drill-across on date + branch)
-    SELECT br_ID, br_city, cal_year, cal_quarter,
+    -- year-grain base: one row per branch / year with all five money
+    -- measures side by side (drill-across on date + branch)
+    SELECT br_ID, cal_year,
            SUM(product_rev)  AS product_rev,
            SUM(service_rev)  AS service_rev,
            SUM(cogs)         AS cogs,
            SUM(salary_cost)  AS salary_cost,
            SUM(expense_cost) AS expense_cost
     FROM (
-        SELECT b.br_ID, b.br_city, d.cal_year, d.cal_quarter,
+        SELECT b.br_ID, d.cal_year,
                SUM(f.order_total_amt - f.order_tax_amt) AS product_rev,
                0 AS service_rev, 0 AS cogs, 0 AS salary_cost, 0 AS expense_cost
         FROM   order_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  f.order_status = 'Completed'
-        GROUP  BY b.br_ID, b.br_city, d.cal_year, d.cal_quarter
+        GROUP  BY b.br_ID, d.cal_year
         UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year, d.cal_quarter,
+        SELECT b.br_ID, d.cal_year,
                0, SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0
         FROM   reservation_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  f.res_status = 'Completed'
-        GROUP  BY b.br_ID, b.br_city, d.cal_year, d.cal_quarter
+        GROUP  BY b.br_ID, d.cal_year
         UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year, d.cal_quarter,
+        SELECT b.br_ID, d.cal_year,
                0, 0, SUM(f.purchase_total_cost), 0, 0
         FROM   purchase_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year, d.cal_quarter
+        GROUP  BY b.br_ID, d.cal_year
         UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year, d.cal_quarter,
+        SELECT b.br_ID, d.cal_year,
                0, 0, 0, SUM(f.base_amount + f.bonus_amount), 0
         FROM   salary_payment_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year, d.cal_quarter
+        GROUP  BY b.br_ID, d.cal_year
         UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year, d.cal_quarter,
+        SELECT b.br_ID, d.cal_year,
                0, 0, 0, 0, SUM(f.payment_amount)
         FROM   branch_expense_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year, d.cal_quarter
+        GROUP  BY b.br_ID, d.cal_year
     )
-    GROUP BY br_ID, br_city, cal_year, cal_quarter
+    GROUP BY br_ID, cal_year
 ),
 company_year AS (
     SELECT cal_year,
@@ -359,181 +404,438 @@ company_year AS (
              - SUM(cogs) - SUM(salary_cost) - SUM(expense_cost) AS net_profit
     FROM   pnl
     GROUP  BY cal_year
+),
+cus_year AS (
+    -- one row per customer per year they bought (orders or visits,
+    -- Completed only); first_year marks when they were first seen
+    SELECT cus_ID, cal_year, MIN(cal_year) OVER (PARTITION BY cus_ID) AS first_year
+    FROM (
+        SELECT c.cus_ID, d.cal_year
+        FROM   order_fact   f
+        JOIN   date_dim     d ON d.date_key     = f.date_key
+        JOIN   customer_dim c ON c.customer_key = f.customer_key
+        WHERE  f.order_status = 'Completed'
+        UNION
+        SELECT c.cus_ID, d.cal_year
+        FROM   reservation_fact f
+        JOIN   date_dim     d ON d.date_key     = f.date_key
+        JOIN   customer_dim c ON c.customer_key = f.customer_key
+        WHERE  f.res_status = 'Completed'
+    )
+),
+cust AS (
+    SELECT cal_year, COUNT(*) AS customers,
+           SUM(CASE WHEN first_year = cal_year THEN 1 ELSE 0 END) AS new_cus
+    FROM   cus_year
+    GROUP  BY cal_year
 )
-SELECT cal_year, product_rev, service_rev, total_rev, cogs,
-       total_rev - cogs                                                  AS gross_profit,
-       salary_cost, expense_cost, net_profit,
-       ROUND(net_profit / NULLIF(total_rev, 0) * 100, 1)                 AS margin_pct,
-       -- ABS on the denominator: profits are negative, and "less loss
-       -- than last year" must read as a positive change
-       ROUND( (net_profit - LAG(net_profit) OVER (ORDER BY cal_year))
-             / NULLIF(ABS(LAG(net_profit) OVER (ORDER BY cal_year)), 0) * 100, 1) AS yoy_pct
-FROM   company_year
-ORDER  BY cal_year;
+SELECT y.cal_year, y.product_rev, y.service_rev, y.total_rev, y.cogs, y.salary_cost, y.expense_cost,
+       y.net_profit,
+       ROUND(y.net_profit / NULLIF(y.total_rev, 0) * 100, 1)           AS earning_pct,
+       c.customers,
+       ROUND(c.new_cus / NULLIF(c.customers, 0) * 100, 1)              AS new_pct,
+       ROUND(y.total_rev / NULLIF(c.customers, 0), 2)                  AS sales_cus
+FROM   company_year y
+LEFT   JOIN cust c ON c.cal_year = y.cal_year
+ORDER  BY y.cal_year;
 
 
 -- ###################################################################
--- SECTION 2 - FOCUS YEAR: BRANCH RANKING, REVENUE vs NET PROFIT
--- OLAP: SLICE - fix ONE dimension member (cal_year = focus year) and
--- look at the branch plane of that year. This is THE TEST of the
--- headline: read the PROFIT RANK and the MARGIN RANK on the row where
--- REV RANK = 1.
--- RANK GAP = revenue rank - profit rank: 0 means the branch keeps
--- exactly as much as its sales rank suggests; positive means it ranks
--- HIGHER on profit than on revenue; negative means it sells well but
--- keeps less (in RM) than its peers.
+-- SECTION 2 - FOCUS YEAR BY STATE: THE AVERAGE BRANCH
+-- OLAP: SLICE (cal_year = focus year) then ROLL-UP branch -> state.
+-- One row per state: how many branches trade there and what the
+-- AVERAGE branch in that state sold, spent, kept and served - with
+-- the cost lines and the earning as a % of the state's sales, the
+-- average number of customers per branch, how many of them were NEW
+-- this year, how many are LOCAL (home state = branch state) and what
+-- each customer was worth. The last row is the average branch of the
+-- whole company.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 2. FY&focus_y BRANCH RANKING: REVENUE vs NET PROFIT' SKIP 1 -
-       CENTER 'ONE ROW PER BRANCH, ORDERED BY REVENUE (SLICE: YEAR = &focus_y)' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 2. FY&focus_y BY STATE: THE AVERAGE BRANCH' SKIP 1 -
+       CENTER 'PER-BRANCH AVERAGES, COST / EARNING %, CUSTOMERS (SLICE: YEAR = &focus_y, ROLL-UP TO STATE)' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN rev_rank      HEADING 'REV|RANK'            FORMAT 99
-COLUMN br_city       HEADING 'BRANCH'              FORMAT A15
-COLUMN total_rev     HEADING 'TOTAL|REVENUE (RM)'  FORMAT 99,999,990.00
-COLUMN cogs          HEADING 'COGS (RM)'           FORMAT 99,999,990.00
-COLUMN gross_profit  HEADING 'GROSS|PROFIT (RM)'   FORMAT S9,999,990.00
-COLUMN salary_cost   HEADING 'SALARY (RM)'         FORMAT 99,999,990.00
-COLUMN expense_cost  HEADING 'EXPENSES (RM)'       FORMAT 9,999,990.00
-COLUMN net_profit    HEADING 'NET|PROFIT (RM)'     FORMAT S99,999,990.00
-COLUMN profit_rank   HEADING 'PROFIT|RANK'         FORMAT 99
-COLUMN rank_gap      HEADING 'RANK|GAP'            FORMAT S99
-COLUMN margin_pct    HEADING 'MARGIN|%'            FORMAT S990.0
-COLUMN margin_rank   HEADING 'MARGIN|RANK'         FORMAT 99
-COLUMN br_ID         NOPRINT
-
-BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF total_rev cogs gross_profit salary_cost expense_cost net_profit ON REPORT
+COLUMN br_state      HEADING 'STATE'                FORMAT A19
+COLUMN branches      HEADING 'BR'                   FORMAT 99
+COLUMN avg_sales     HEADING 'AVG TOTAL|SALES (RM)' FORMAT 9,999,990.00
+COLUMN avg_cogs      HEADING 'AVG PURCH|COST (RM)'  FORMAT 9,999,990.00
+COLUMN avg_salary    HEADING 'AVG SALARY|PAID (RM)' FORMAT 9,999,990.00
+COLUMN avg_expense   HEADING 'AVG BRANCH|EXPENSE'   FORMAT 999,990.00
+COLUMN avg_profit    HEADING 'AVG NET|PROFIT (RM)'  FORMAT S9,999,990.00
+COLUMN cogs_pct      HEADING 'PURCH|%'              FORMAT 990.0
+COLUMN salary_pct    HEADING 'SALARY|%'             FORMAT 990.0
+COLUMN expense_pct   HEADING 'EXPENSE|%'            FORMAT 990.0
+COLUMN earning_pct   HEADING 'EARNING|%'            FORMAT S990.0
+COLUMN avg_cust      HEADING 'AVG CUST|PER BR'      FORMAT 99,990
+COLUMN new_pct       HEADING 'NEW|%'                FORMAT 990.0
+COLUMN local_pct     HEADING 'LOCAL|%'              FORMAT 990.0
+COLUMN sales_cus     HEADING 'SALES PER|CUSTOMER'   FORMAT 9,990.00
+COLUMN sort_key      NOPRINT
 
 WITH pnl AS (
-    SELECT br_ID, br_city,
-           SUM(product_rev)  AS product_rev,
-           SUM(service_rev)  AS service_rev,
-           SUM(cogs)         AS cogs,
-           SUM(salary_cost)  AS salary_cost,
-           SUM(expense_cost) AS expense_cost
+    -- one row per branch for the focus year (state carried along)
+    SELECT br_ID, br_state,
+           SUM(rev) AS rev, SUM(cogs) AS cogs, SUM(sal) AS sal, SUM(exp) AS exp
     FROM (
-        SELECT b.br_ID, b.br_city,
-               SUM(f.order_total_amt - f.order_tax_amt) AS product_rev,
-               0 AS service_rev, 0 AS cogs, 0 AS salary_cost, 0 AS expense_cost
+        SELECT b.br_ID, b.br_state,
+               SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cogs, 0 AS sal, 0 AS exp
         FROM   order_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  f.order_status = 'Completed'
         AND    d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0
+        SELECT b.br_ID, b.br_state,
+               SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0
         FROM   reservation_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  f.res_status = 'Completed'
         AND    d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, 0, SUM(f.purchase_total_cost), 0, 0
+        SELECT b.br_ID, b.br_state,
+               0, SUM(f.purchase_total_cost), 0, 0
         FROM   purchase_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, 0, 0, SUM(f.base_amount + f.bonus_amount), 0
+        SELECT b.br_ID, b.br_state,
+               0, 0, SUM(f.base_amount + f.bonus_amount), 0
         FROM   salary_payment_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_state
         UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, 0, 0, 0, SUM(f.payment_amount)
+        SELECT b.br_ID, b.br_state,
+               0, 0, 0, SUM(f.payment_amount)
         FROM   branch_expense_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
+        GROUP  BY b.br_ID, b.br_state
     )
-    GROUP BY br_ID, br_city
+    GROUP BY br_ID, br_state
 ),
-branch_year AS (
-    SELECT br_ID, br_city,
-           product_rev + service_rev                                     AS total_rev,
-           cogs, salary_cost, expense_cost,
-           product_rev + service_rev - cogs                              AS gross_profit,
-           product_rev + service_rev - cogs - salary_cost - expense_cost AS net_profit
-    FROM   pnl
+txn AS (
+    -- customer side, all years (needed to know when a customer was first seen)
+    SELECT b.br_ID, b.br_state, c.cus_ID, c.cus_state, d.cal_year
+    FROM   order_fact   f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.order_status = 'Completed'
+    UNION ALL
+    SELECT b.br_ID, b.br_state, c.cus_ID, c.cus_state, d.cal_year
+    FROM   reservation_fact f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.res_status = 'Completed'
+),
+first_seen AS (
+    SELECT cus_ID, MIN(cal_year) AS first_year FROM txn GROUP BY cus_ID
+),
+cust AS (
+    SELECT t.br_ID,
+           COUNT(DISTINCT t.cus_ID)                                                    AS customers,
+           COUNT(DISTINCT CASE WHEN fs.first_year = &focus_year THEN t.cus_ID END)      AS new_cus,
+           COUNT(DISTINCT CASE WHEN t.cus_state = t.br_state THEN t.cus_ID END)         AS local_cus
+    FROM   txn t JOIN first_seen fs ON fs.cus_ID = t.cus_ID
+    WHERE  t.cal_year = &focus_year
+    GROUP  BY t.br_ID
+),
+by_state AS (
+    -- roll-up branch -> state (plus the whole company as one more row)
+    SELECT p.br_state, COUNT(*) AS branches,
+           SUM(p.rev) AS sales, SUM(p.cogs) AS cogs, SUM(p.sal) AS sal, SUM(p.exp) AS exp,
+           SUM(c.customers) AS customers, SUM(c.new_cus) AS new_cus, SUM(c.local_cus) AS local_cus,
+           1 AS sort_key
+    FROM   pnl p LEFT JOIN cust c ON c.br_ID = p.br_ID
+    GROUP  BY p.br_state
+    UNION ALL
+    SELECT 'ALL STATES', COUNT(*),
+           SUM(p.rev), SUM(p.cogs), SUM(p.sal), SUM(p.exp),
+           SUM(c.customers), SUM(c.new_cus), SUM(c.local_cus), 2
+    FROM   pnl p LEFT JOIN cust c ON c.br_ID = p.br_ID
 )
-SELECT RANK() OVER (ORDER BY total_rev  DESC)                          AS rev_rank,
-       br_city, total_rev, cogs, gross_profit, salary_cost, expense_cost, net_profit,
-       RANK() OVER (ORDER BY net_profit DESC)                          AS profit_rank,
-       RANK() OVER (ORDER BY total_rev  DESC)
-         - RANK() OVER (ORDER BY net_profit DESC)                      AS rank_gap,
-       ROUND(net_profit / NULLIF(total_rev, 0) * 100, 1)               AS margin_pct,
-       -- second yardstick: profit per RM of sales. When every branch
-       -- runs at a loss, the RM rank rewards being small; the margin
-       -- rank rewards converting sales into profit
-       RANK() OVER (ORDER BY net_profit / NULLIF(total_rev, 0) DESC)   AS margin_rank,
-       br_ID
-FROM   branch_year
-ORDER  BY rev_rank;
+SELECT br_state, branches,
+       sales / branches                                    AS avg_sales,
+       cogs  / branches                                    AS avg_cogs,
+       sal   / branches                                    AS avg_salary,
+       exp   / branches                                    AS avg_expense,
+       (sales - cogs - sal - exp) / branches               AS avg_profit,
+       ROUND(cogs / NULLIF(sales, 0) * 100, 1)             AS cogs_pct,
+       ROUND(sal  / NULLIF(sales, 0) * 100, 1)             AS salary_pct,
+       ROUND(exp  / NULLIF(sales, 0) * 100, 1)             AS expense_pct,
+       ROUND((sales - cogs - sal - exp) / NULLIF(sales, 0) * 100, 1) AS earning_pct,
+       ROUND(customers / branches)                         AS avg_cust,
+       ROUND(new_cus   / NULLIF(customers, 0) * 100, 1)    AS new_pct,
+       ROUND(local_cus / NULLIF(customers, 0) * 100, 1)    AS local_pct,
+       ROUND(sales / NULLIF(customers, 0), 2)              AS sales_cus,
+       sort_key
+FROM   by_state
+ORDER  BY sort_key, avg_sales DESC;
 
 
 -- ###################################################################
--- SECTION 3 - FOCUS YEAR: COST STRUCTURE PER BRANCH
--- OLAP: SLICE (same slice as section 2), the WHY behind the ranks -
--- every cost line as a share of that branch's own revenue, plus
--- revenue and salary per head. Sorted by net margin, best first.
--- "PRE-COGS" = revenue - salary - expenses: does the branch at least
--- cover its people and its premises before stock is counted?
+-- SECTION 3 - FOCUS YEAR: EVERY BRANCH, STATE BY STATE
+-- OLAP: SLICE (year = focus year) down to the branch grain, all 13
+-- branches grouped under their state (biggest branch first inside a
+-- state): sales, each cost line, net profit, earning %, and the
+-- customer side - customers served, NEW %, LOCAL % and sales per
+-- customer. The last row is the AVERAGE branch (mean of the 13 rows),
+-- the yardstick section 4 uses.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 3. FY&focus_y COST STRUCTURE PER BRANCH' SKIP 1 -
-       CENTER 'EVERY COST LINE AS % OF EACH BRANCH REVENUE, BEST MARGIN FIRST' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 3. FY&focus_y EVERY BRANCH, STATE BY STATE' SKIP 1 -
+       CENTER 'MONEY AND CUSTOMERS, ONE ROW PER BRANCH, AVERAGE BRANCH LAST (SLICE: YEAR = &focus_y)' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN br_city       HEADING 'BRANCH'              FORMAT A15
-COLUMN total_rev     HEADING 'TOTAL|REVENUE (RM)'  FORMAT 99,999,990.00
-COLUMN heads         HEADING 'HEADS'               FORMAT 990
-COLUMN rev_head      HEADING 'REVENUE|PER HEAD'    FORMAT 999,990
-COLUMN sal_head      HEADING 'SALARY|PER HEAD'     FORMAT 999,990
-COLUMN cogs_pct      HEADING 'COGS|% REV'          FORMAT 990.0
-COLUMN salary_pct    HEADING 'SALARY|% REV'        FORMAT 990.0
-COLUMN expense_pct   HEADING 'EXPENSE|% REV'       FORMAT 990.0
-COLUMN rent_pct      HEADING 'RENT|% REV'          FORMAT 990.0
-COLUMN gross_pct     HEADING 'GROSS|MARGIN %'      FORMAT S990.0
-COLUMN precogs_pct   HEADING 'PRE-COGS|MARGIN %'   FORMAT S990.0
-COLUMN margin_pct    HEADING 'NET|MARGIN %'        FORMAT S990.0
+COLUMN br_state      HEADING 'STATE'                FORMAT A19
+COLUMN br_city       HEADING 'BRANCH'               FORMAT A14
+COLUMN total_rev     HEADING 'TOTAL|SALES (RM)'     FORMAT 99,999,990.00
+COLUMN cogs          HEADING 'PURCHASE|COST (RM)'   FORMAT 9,999,990.00
+COLUMN salary_cost   HEADING 'SALARY|PAID (RM)'     FORMAT 9,999,990.00
+COLUMN expense_cost  HEADING 'BRANCH|EXPENSE (RM)'  FORMAT 9,999,990.00
+COLUMN net_profit    HEADING 'NET|PROFIT (RM)'      FORMAT S9,999,990.00
+COLUMN earning_pct   HEADING 'EARNING|%'            FORMAT S990.0
+COLUMN customers     HEADING 'CUSTOMERS'            FORMAT 99,990
+COLUMN new_pct       HEADING 'NEW|%'                FORMAT 990.0
+COLUMN local_pct     HEADING 'LOCAL|%'              FORMAT 990.0
+COLUMN sales_cus     HEADING 'SALES PER|CUSTOMER'   FORMAT 9,990.00
 COLUMN br_ID         NOPRINT
 
-BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF total_rev heads ON REPORT
-COMPUTE AVG LABEL 'AVG' OF cogs_pct salary_pct expense_pct rent_pct gross_pct precogs_pct margin_pct ON REPORT
+-- state printed once per group; the report row is the AVERAGE branch
+-- (mean of the branch rows - the % and per-customer columns are the
+-- mean of the branch values, not recomputed from totals)
+BREAK ON br_state SKIP 1 ON REPORT
+COMPUTE AVG LABEL 'AVERAGE BRANCH' OF total_rev cogs salary_cost expense_cost net_profit earning_pct customers new_pct local_pct sales_cus ON REPORT
+
+WITH pnl AS (
+    SELECT br_ID, br_city, br_state,
+           SUM(rev) AS rev, SUM(cogs) AS cogs, SUM(sal) AS sal, SUM(exp) AS exp
+    FROM (
+        SELECT b.br_ID, b.br_city, b.br_state,
+               SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cogs, 0 AS sal, 0 AS exp
+        FROM   order_fact f
+        JOIN   date_dim   d ON d.date_key   = f.date_key
+        JOIN   branch_dim b ON b.branch_key = f.branch_key
+        WHERE  f.order_status = 'Completed'
+        AND    d.cal_year = &focus_year
+        GROUP  BY b.br_ID, b.br_city, b.br_state
+        UNION ALL
+        SELECT b.br_ID, b.br_city, b.br_state,
+               SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0
+        FROM   reservation_fact f
+        JOIN   date_dim   d ON d.date_key   = f.date_key
+        JOIN   branch_dim b ON b.branch_key = f.branch_key
+        WHERE  f.res_status = 'Completed'
+        AND    d.cal_year = &focus_year
+        GROUP  BY b.br_ID, b.br_city, b.br_state
+        UNION ALL
+        SELECT b.br_ID, b.br_city, b.br_state,
+               0, SUM(f.purchase_total_cost), 0, 0
+        FROM   purchase_fact f
+        JOIN   date_dim   d ON d.date_key   = f.date_key
+        JOIN   branch_dim b ON b.branch_key = f.branch_key
+        WHERE  d.cal_year = &focus_year
+        GROUP  BY b.br_ID, b.br_city, b.br_state
+        UNION ALL
+        SELECT b.br_ID, b.br_city, b.br_state,
+               0, 0, SUM(f.base_amount + f.bonus_amount), 0
+        FROM   salary_payment_fact f
+        JOIN   date_dim   d ON d.date_key   = f.date_key
+        JOIN   branch_dim b ON b.branch_key = f.branch_key
+        WHERE  d.cal_year = &focus_year
+        GROUP  BY b.br_ID, b.br_city, b.br_state
+        UNION ALL
+        SELECT b.br_ID, b.br_city, b.br_state,
+               0, 0, 0, SUM(f.payment_amount)
+        FROM   branch_expense_fact f
+        JOIN   date_dim   d ON d.date_key   = f.date_key
+        JOIN   branch_dim b ON b.branch_key = f.branch_key
+        WHERE  d.cal_year = &focus_year
+        GROUP  BY b.br_ID, b.br_city, b.br_state
+    )
+    GROUP BY br_ID, br_city, br_state
+),
+txn AS (
+    SELECT b.br_ID, b.br_state, c.cus_ID, c.cus_state, d.cal_year
+    FROM   order_fact   f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.order_status = 'Completed'
+    UNION ALL
+    SELECT b.br_ID, b.br_state, c.cus_ID, c.cus_state, d.cal_year
+    FROM   reservation_fact f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.res_status = 'Completed'
+),
+first_seen AS (
+    SELECT cus_ID, MIN(cal_year) AS first_year FROM txn GROUP BY cus_ID
+),
+cust AS (
+    SELECT t.br_ID,
+           COUNT(DISTINCT t.cus_ID)                                                    AS customers,
+           COUNT(DISTINCT CASE WHEN fs.first_year = &focus_year THEN t.cus_ID END)      AS new_cus,
+           COUNT(DISTINCT CASE WHEN t.cus_state = t.br_state THEN t.cus_ID END)         AS local_cus
+    FROM   txn t JOIN first_seen fs ON fs.cus_ID = t.cus_ID
+    WHERE  t.cal_year = &focus_year
+    GROUP  BY t.br_ID
+)
+SELECT p.br_state, p.br_city,
+       p.rev                                                         AS total_rev,
+       p.cogs, p.sal AS salary_cost, p.exp AS expense_cost,
+       p.rev - p.cogs - p.sal - p.exp                                AS net_profit,
+       ROUND((p.rev - p.cogs - p.sal - p.exp) / NULLIF(p.rev, 0) * 100, 1) AS earning_pct,
+       c.customers,
+       ROUND(c.new_cus   / NULLIF(c.customers, 0) * 100, 1)          AS new_pct,
+       ROUND(c.local_cus / NULLIF(c.customers, 0) * 100, 1)          AS local_pct,
+       ROUND(p.rev / NULLIF(c.customers, 0), 2)                      AS sales_cus,
+       p.br_ID
+FROM   pnl p
+LEFT   JOIN cust c ON c.br_ID = p.br_ID
+ORDER  BY p.br_state, p.rev DESC;
+
+
+-- ###################################################################
+-- SECTION 4 - THE FOCUS BRANCH: ITS CUSTOMERS IN THE FOCUS YEAR
+-- OLAP: DRILL-ACROSS order_fact + reservation_fact on customer_dim
+-- for the focus branch, with the AVERAGE branch underneath. A
+-- customer = a distinct cus_ID (never customer_key - SCD2) who
+-- COMPLETED at least one order or visit at the branch in the year.
+-- NEW = the customer's first-ever transaction anywhere in the company
+-- falls in the focus year; RETURNING = seen before.
+-- ###################################################################
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+
+TTITLE CENTER '+==========================================================+' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 4. FY&focus_y &focus_city: HOW MANY CUSTOMERS, HOW MUCH SALES' SKIP 1 -
+       CENTER 'THE FOCUS BRANCH vs THE AVERAGE BRANCH' SKIP 1 -
+       CENTER '+==========================================================+' SKIP 1 -
+       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
+
+COLUMN role          HEADING 'BRANCH'               FORMAT A16
+COLUMN customers     HEADING 'CUSTOMERS'            FORMAT 99,990
+COLUMN new_cus       HEADING 'NEW'                  FORMAT 99,990
+COLUMN ret_cus       HEADING 'RETURNING'            FORMAT 99,990
+COLUMN new_pct       HEADING 'NEW|%'                FORMAT 990.0
+COLUMN orders        HEADING 'ORDERS'               FORMAT 99,990
+COLUMN visits        HEADING 'VISITS'               FORMAT 99,990
+COLUMN sales         HEADING 'TOTAL|SALES (RM)'     FORMAT 9,999,990.00
+COLUMN sales_cus     HEADING 'SALES PER|CUSTOMER'   FORMAT 99,990.00
+COLUMN txn_cus       HEADING 'TXNS PER|CUSTOMER'    FORMAT 90.00
+COLUMN sort_key      NOPRINT
+
+WITH txn AS (
+    -- every completed order and visit, all years, with the customer
+    -- (all years are needed to know when a customer was first seen)
+    SELECT b.br_ID, c.cus_ID, d.cal_date, d.cal_year, 'O' AS kind, f.order_ID AS txn_id,
+           f.order_total_amt - f.order_tax_amt AS amt
+    FROM   order_fact   f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.order_status = 'Completed'
+    UNION ALL
+    SELECT b.br_ID, c.cus_ID, d.cal_date, d.cal_year, 'R', f.res_ID,
+           f.serv_total_amt - f.serv_tax_amt
+    FROM   reservation_fact f
+    JOIN   date_dim     d ON d.date_key     = f.date_key
+    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
+    JOIN   customer_dim c ON c.customer_key = f.customer_key
+    WHERE  f.res_status = 'Completed'
+),
+first_seen AS (
+    SELECT cus_ID, MIN(cal_date) AS first_dt FROM txn GROUP BY cus_ID
+),
+yr AS (
+    SELECT t.br_ID, t.cus_ID, t.kind, t.txn_id, t.amt,
+           CASE WHEN EXTRACT(YEAR FROM fs.first_dt) = &focus_year THEN 1 ELSE 0 END AS is_new
+    FROM   txn t
+    JOIN   first_seen fs ON fs.cus_ID = t.cus_ID
+    WHERE  t.cal_year = &focus_year
+),
+per_branch AS (
+    SELECT br_ID,
+           COUNT(DISTINCT cus_ID)                                     AS customers,
+           COUNT(DISTINCT CASE WHEN is_new = 1 THEN cus_ID END)       AS new_cus,
+           COUNT(DISTINCT CASE WHEN kind = 'O' THEN txn_id END)       AS orders,
+           COUNT(DISTINCT CASE WHEN kind = 'R' THEN txn_id END)       AS visits,
+           SUM(amt)                                                   AS sales
+    FROM   yr
+    GROUP  BY br_ID
+),
+rows_ AS (
+    SELECT UPPER('&focus_city') AS role, customers, new_cus, orders, visits, sales, 1 AS sort_key
+    FROM   per_branch WHERE br_ID = &focus_id
+    UNION ALL
+    SELECT 'AVERAGE BRANCH', AVG(customers), AVG(new_cus), AVG(orders), AVG(visits), AVG(sales), 2
+    FROM   per_branch
+)
+SELECT role, customers, new_cus,
+       customers - new_cus                                   AS ret_cus,
+       ROUND(new_cus / NULLIF(customers, 0) * 100, 1)        AS new_pct,
+       orders, visits, sales,
+       ROUND(sales / NULLIF(customers, 0), 2)                AS sales_cus,
+       ROUND((orders + visits) / NULLIF(customers, 0), 2)    AS txn_cus,
+       sort_key
+FROM   rows_
+ORDER  BY 11;
+
+
+-- ###################################################################
+-- SECTION 5 - WHY: THE FOCUS BRANCH vs THE AVERAGE AND THE BEST BRANCH
+-- The cost structure side by side - staffing, sales per head, salary
+-- per head, every cost line as % of sales - then two what-ifs that
+-- size the problem: what profit would be at the average branch's
+-- salary ratio, and how much the branch must sell to break even on
+-- its current cost base.
+-- ###################################################################
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+
+TTITLE CENTER '+==========================================================+' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 5. FY&focus_y WHY IS &focus_city WHERE IT IS?' SKIP 1 -
+       CENTER 'FOCUS BRANCH vs THE AVERAGE BRANCH vs &best_city (BEST EARNING %)' SKIP 1 -
+       CENTER '+==========================================================+' SKIP 1 -
+       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
+
+COLUMN metric_name  HEADING 'METRIC'                    FORMAT A34
+COLUMN v_focus      HEADING '&focus_city'                FORMAT A16 JUSTIFY RIGHT
+COLUMN v_avg        HEADING 'AVERAGE|BRANCH'             FORMAT A16 JUSTIFY RIGHT
+COLUMN v_best       HEADING '&best_city'                 FORMAT A16 JUSTIFY RIGHT
+COLUMN v_gap        HEADING 'FOCUS vs|AVERAGE'           FORMAT A18 JUSTIFY RIGHT
+COLUMN sort_key     NOPRINT
 
 WITH pnl AS (
     SELECT br_ID, br_city,
-           SUM(product_rev)  AS product_rev,
-           SUM(service_rev)  AS service_rev,
-           SUM(cogs)         AS cogs,
-           SUM(salary_cost)  AS salary_cost,
-           SUM(expense_cost) AS expense_cost,
-           SUM(rent_cost)    AS rent_cost
+           SUM(rev) AS rev, SUM(cogs) AS cogs, SUM(sal) AS sal, SUM(exp) AS exp, SUM(rent) AS rent
     FROM (
         SELECT b.br_ID, b.br_city,
-               SUM(f.order_total_amt - f.order_tax_amt) AS product_rev,
-               0 AS service_rev, 0 AS cogs, 0 AS salary_cost, 0 AS expense_cost, 0 AS rent_cost
+               SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cogs, 0 AS sal, 0 AS exp, 0 AS rent
         FROM   order_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -542,7 +844,7 @@ WITH pnl AS (
         GROUP  BY b.br_ID, b.br_city
         UNION ALL
         SELECT b.br_ID, b.br_city,
-               0, SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0, 0
+               SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0, 0
         FROM   reservation_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -551,7 +853,7 @@ WITH pnl AS (
         GROUP  BY b.br_ID, b.br_city
         UNION ALL
         SELECT b.br_ID, b.br_city,
-               0, 0, SUM(f.purchase_total_cost), 0, 0, 0
+               0, SUM(f.purchase_total_cost), 0, 0, 0
         FROM   purchase_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -559,7 +861,7 @@ WITH pnl AS (
         GROUP  BY b.br_ID, b.br_city
         UNION ALL
         SELECT b.br_ID, b.br_city,
-               0, 0, 0, SUM(f.base_amount + f.bonus_amount), 0, 0
+               0, 0, SUM(f.base_amount + f.bonus_amount), 0, 0
         FROM   salary_payment_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -568,7 +870,7 @@ WITH pnl AS (
         UNION ALL
         -- expenses carry the third dimension: rent is split out here
         SELECT b.br_ID, b.br_city,
-               0, 0, 0, 0, SUM(f.payment_amount),
+               0, 0, 0, SUM(f.payment_amount),
                SUM(CASE WHEN u.util_name = 'Rent' THEN f.payment_amount ELSE 0 END)
         FROM   branch_expense_fact f
         JOIN   date_dim         d ON d.date_key         = f.date_key
@@ -580,8 +882,6 @@ WITH pnl AS (
     GROUP BY br_ID, br_city
 ),
 heads AS (
-    -- people paid in the focus year, counted once each (st_ID, not the
-    -- SCD2 surrogate staff_key)
     SELECT b.br_ID, COUNT(DISTINCT s.st_ID) AS heads
     FROM   salary_payment_fact f
     JOIN   date_dim   d ON d.date_key   = f.date_key
@@ -589,601 +889,115 @@ heads AS (
     JOIN   staff_dim  s ON s.staff_key  = f.staff_key
     WHERE  d.cal_year = &focus_year
     GROUP  BY b.br_ID
-)
-SELECT p.br_city,
-       p.product_rev + p.service_rev                                        AS total_rev,
-       h.heads,
-       ROUND((p.product_rev + p.service_rev) / NULLIF(h.heads, 0))          AS rev_head,
-       ROUND(p.salary_cost / NULLIF(h.heads, 0))                            AS sal_head,
-       ROUND(p.cogs         / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1) AS cogs_pct,
-       ROUND(p.salary_cost  / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1) AS salary_pct,
-       ROUND(p.expense_cost / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1) AS expense_pct,
-       ROUND(p.rent_cost    / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1) AS rent_pct,
-       ROUND((p.product_rev + p.service_rev - p.cogs)
-             / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1)              AS gross_pct,
-       ROUND((p.product_rev + p.service_rev - p.salary_cost - p.expense_cost)
-             / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1)              AS precogs_pct,
-       ROUND((p.product_rev + p.service_rev - p.cogs - p.salary_cost - p.expense_cost)
-             / NULLIF(p.product_rev + p.service_rev, 0) * 100, 1)              AS margin_pct,
-       p.br_ID
-FROM   pnl p
-LEFT   JOIN heads h ON h.br_ID = p.br_ID
-ORDER  BY margin_pct DESC;
-
-
--- ###################################################################
--- SECTION 4A - NET-PROFIT (RM) RANK PER BRANCH PER YEAR
--- OLAP: PIVOT - years across, branches down; each cell is the branch's
--- rank by net profit in RM among the branches trading that year
--- (1 = best). Answers "is the focus year a one-off?": a branch that
--- sits at the bottom every year is there structurally; a branch that
--- only slipped in the focus year had a bad year.
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 4A. NET-PROFIT (RM) RANK PER BRANCH PER YEAR' SKIP 1 -
-       CENTER '1 = MOST PROFITABLE THAT YEAR, 2018 - 2025 (PIVOT: YEARS ACROSS)' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN br_city   HEADING 'BRANCH'      FORMAT A15
-COLUMN y2018     HEADING '2018'        FORMAT 99
-COLUMN y2019     HEADING '2019'        FORMAT 99
-COLUMN y2020     HEADING '2020'        FORMAT 99
-COLUMN y2021     HEADING '2021'        FORMAT 99
-COLUMN y2022     HEADING '2022'        FORMAT 99
-COLUMN y2023     HEADING '2023'        FORMAT 99
-COLUMN y2024     HEADING '2024'        FORMAT 99
-COLUMN y2025     HEADING '2025'        FORMAT 99
-COLUMN avg_rank  HEADING 'AVG|RANK'    FORMAT 90.0
-COLUMN best_yr   HEADING 'BEST|YEAR'   FORMAT 9999
-COLUMN worst_yr  HEADING 'WORST|YEAR'  FORMAT 9999
-COLUMN focus_np  HEADING 'FY&focus_y NET|PROFIT (RM)' FORMAT S99,999,990.00
-COLUMN br_ID     NOPRINT
-
-WITH pnl AS (
-    SELECT br_ID, br_city, cal_year,
-           SUM(rev) AS rev, SUM(cost) AS cost
-    FROM (
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cost
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               SUM(f.serv_total_amt - f.serv_tax_amt), 0
-        FROM   reservation_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.res_status = 'Completed'
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, SUM(f.purchase_total_cost)
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, SUM(f.base_amount + f.bonus_amount)
-        FROM   salary_payment_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-    )
-    GROUP BY br_ID, br_city, cal_year
 ),
-ranked AS (
-    SELECT br_ID, br_city, cal_year,
-           rev - cost                                                        AS net_profit,
-           RANK() OVER (PARTITION BY cal_year ORDER BY rev - cost DESC)      AS rnk
-    FROM   pnl
-)
-SELECT br_city,
-       -- no ELSE, so a year the branch did not trade (Ipoh before 2023)
-       -- prints blank instead of a rank
-       MAX(CASE WHEN cal_year = 2018 THEN rnk END) AS y2018,
-       MAX(CASE WHEN cal_year = 2019 THEN rnk END) AS y2019,
-       MAX(CASE WHEN cal_year = 2020 THEN rnk END) AS y2020,
-       MAX(CASE WHEN cal_year = 2021 THEN rnk END) AS y2021,
-       MAX(CASE WHEN cal_year = 2022 THEN rnk END) AS y2022,
-       MAX(CASE WHEN cal_year = 2023 THEN rnk END) AS y2023,
-       MAX(CASE WHEN cal_year = 2024 THEN rnk END) AS y2024,
-       MAX(CASE WHEN cal_year = 2025 THEN rnk END) AS y2025,
-       ROUND(AVG(rnk), 1)                                                  AS avg_rank,
-       MAX(cal_year) KEEP (DENSE_RANK FIRST ORDER BY rnk ASC,  net_profit DESC) AS best_yr,
-       MAX(cal_year) KEEP (DENSE_RANK FIRST ORDER BY rnk DESC, net_profit ASC)  AS worst_yr,
-       MAX(CASE WHEN cal_year = &focus_year THEN net_profit END)          AS focus_np,
-       br_ID
-FROM   ranked
-GROUP  BY br_ID, br_city
-ORDER  BY MAX(CASE WHEN cal_year = &focus_year THEN rnk END) NULLS LAST, br_ID;
-
-
--- ###################################################################
--- SECTION 4B - MARGIN RANK PER BRANCH PER YEAR
--- OLAP: PIVOT again, same cube, other yardstick: rank by net margin
--- (net profit / revenue). Because every branch runs at a loss, the RM
--- rank in 4A favours SMALL branches (small shop, small loss); the
--- margin rank shows who converts each ringgit of sales best. If the
--- top-revenue branch is at the bottom of 4A and the top of 4B, the
--- "paradox" is an artefact of the yardstick, not of the branch.
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 4B. NET-MARGIN RANK PER BRANCH PER YEAR' SKIP 1 -
-       CENTER '1 = BEST MARGIN THAT YEAR, 2018 - 2025 (PIVOT: YEARS ACROSS)' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN br_city   HEADING 'BRANCH'      FORMAT A15
-COLUMN y2018     HEADING '2018'        FORMAT 99
-COLUMN y2019     HEADING '2019'        FORMAT 99
-COLUMN y2020     HEADING '2020'        FORMAT 99
-COLUMN y2021     HEADING '2021'        FORMAT 99
-COLUMN y2022     HEADING '2022'        FORMAT 99
-COLUMN y2023     HEADING '2023'        FORMAT 99
-COLUMN y2024     HEADING '2024'        FORMAT 99
-COLUMN y2025     HEADING '2025'        FORMAT 99
-COLUMN avg_rank  HEADING 'AVG|RANK'    FORMAT 90.0
-COLUMN best_yr   HEADING 'BEST|YEAR'   FORMAT 9999
-COLUMN worst_yr  HEADING 'WORST|YEAR'  FORMAT 9999
-COLUMN focus_mg  HEADING 'FY&focus_y|MARGIN %' FORMAT S990.0
-COLUMN br_ID     NOPRINT
-
-WITH pnl AS (
-    SELECT br_ID, br_city, cal_year,
-           SUM(rev) AS rev, SUM(cost) AS cost
-    FROM (
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cost
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               SUM(f.serv_total_amt - f.serv_tax_amt), 0
-        FROM   reservation_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.res_status = 'Completed'
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, SUM(f.purchase_total_cost)
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, SUM(f.base_amount + f.bonus_amount)
-        FROM   salary_payment_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-    )
-    GROUP BY br_ID, br_city, cal_year
+m AS (
+    SELECT p.br_ID, p.br_city, p.rev, p.cogs, p.sal, p.exp, p.rent, NVL(h.heads, 0) AS heads,
+           p.rev - p.cogs - p.sal - p.exp AS net
+    FROM   pnl p LEFT JOIN heads h ON h.br_ID = p.br_ID
 ),
-ranked AS (
-    SELECT br_ID, br_city, cal_year,
-           (rev - cost) / NULLIF(rev, 0) * 100                                AS margin_pct,
-           RANK() OVER (PARTITION BY cal_year
-                        ORDER BY (rev - cost) / NULLIF(rev, 0) DESC)          AS rnk
-    FROM   pnl
-)
-SELECT br_city,
-       MAX(CASE WHEN cal_year = 2018 THEN rnk END) AS y2018,
-       MAX(CASE WHEN cal_year = 2019 THEN rnk END) AS y2019,
-       MAX(CASE WHEN cal_year = 2020 THEN rnk END) AS y2020,
-       MAX(CASE WHEN cal_year = 2021 THEN rnk END) AS y2021,
-       MAX(CASE WHEN cal_year = 2022 THEN rnk END) AS y2022,
-       MAX(CASE WHEN cal_year = 2023 THEN rnk END) AS y2023,
-       MAX(CASE WHEN cal_year = 2024 THEN rnk END) AS y2024,
-       MAX(CASE WHEN cal_year = 2025 THEN rnk END) AS y2025,
-       ROUND(AVG(rnk), 1)                                                  AS avg_rank,
-       MAX(cal_year) KEEP (DENSE_RANK FIRST ORDER BY rnk ASC,  margin_pct DESC) AS best_yr,
-       MAX(cal_year) KEEP (DENSE_RANK FIRST ORDER BY rnk DESC, margin_pct ASC)  AS worst_yr,
-       ROUND(MAX(CASE WHEN cal_year = &focus_year THEN margin_pct END), 1) AS focus_mg,
-       br_ID
-FROM   ranked
-GROUP  BY br_ID, br_city
-ORDER  BY MAX(CASE WHEN cal_year = &focus_year THEN rnk END) NULLS LAST, br_ID;
-
-
--- ###################################################################
--- SECTION 5 - THE TWO BRANCHES, QUARTER BY QUARTER
--- OLAP: DRILL-DOWN year -> quarter, restricted to the branch with the
--- highest revenue in the focus year and the branch with the lowest
--- net profit (looked up above; if they are the same branch only one
--- block prints and the headline holds).
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 5. FY&focus_y BY QUARTER (DRILL-DOWN)' SKIP 1 -
-       CENTER 'TOP REVENUE: &top_rev_city   vs   LEAST PROFITABLE: &low_prof_city' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN role          HEADING 'ROLE'                FORMAT A16
-COLUMN br_city       HEADING 'BRANCH'              FORMAT A15
-COLUMN qtr           HEADING 'QTR'                 FORMAT A3
-COLUMN total_rev     HEADING 'REVENUE (RM)'        FORMAT 9,999,990.00
-COLUMN cogs          HEADING 'COGS (RM)'           FORMAT 9,999,990.00
-COLUMN salary_cost   HEADING 'SALARY (RM)'         FORMAT 9,999,990.00
-COLUMN expense_cost  HEADING 'EXPENSES (RM)'       FORMAT 999,990.00
-COLUMN net_profit    HEADING 'NET|PROFIT (RM)'     FORMAT S9,999,990.00
--- a branch's opening quarter (Ipoh Q1 2023: one month of sales against
--- two months of payroll) can run below -1000 %, so one digit wider here
-COLUMN margin_pct    HEADING 'MARGIN|%'            FORMAT S9990.0
-COLUMN rev_share     HEADING 'SHARE OF|YEAR REV %' FORMAT 990.0
-COLUMN sort_key      NOPRINT
-
-BREAK ON role SKIP 1 ON br_city
-COMPUTE SUM LABEL 'YEAR' OF total_rev cogs salary_cost expense_cost net_profit ON role
-
-WITH pnl AS (
-    SELECT br_ID, br_city, cal_quarter,
-           SUM(rev) AS rev, SUM(cogs) AS cogs, SUM(sal) AS sal, SUM(exp) AS exp
-    FROM (
-        SELECT b.br_ID, b.br_city, d.cal_quarter,
-               SUM(f.order_total_amt - f.order_tax_amt) AS rev, 0 AS cogs, 0 AS sal, 0 AS exp
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        AND    d.cal_year = &focus_year
-        AND    b.br_ID IN (&top_rev_id, &low_prof_id)
-        GROUP  BY b.br_ID, b.br_city, d.cal_quarter
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_quarter,
-               SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0
-        FROM   reservation_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.res_status = 'Completed'
-        AND    d.cal_year = &focus_year
-        AND    b.br_ID IN (&top_rev_id, &low_prof_id)
-        GROUP  BY b.br_ID, b.br_city, d.cal_quarter
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_quarter,
-               0, SUM(f.purchase_total_cost), 0, 0
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year = &focus_year
-        AND    b.br_ID IN (&top_rev_id, &low_prof_id)
-        GROUP  BY b.br_ID, b.br_city, d.cal_quarter
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_quarter,
-               0, 0, SUM(f.base_amount + f.bonus_amount), 0
-        FROM   salary_payment_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year = &focus_year
-        AND    b.br_ID IN (&top_rev_id, &low_prof_id)
-        GROUP  BY b.br_ID, b.br_city, d.cal_quarter
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_quarter,
-               0, 0, 0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year = &focus_year
-        AND    b.br_ID IN (&top_rev_id, &low_prof_id)
-        GROUP  BY b.br_ID, b.br_city, d.cal_quarter
-    )
-    GROUP BY br_ID, br_city, cal_quarter
-)
-SELECT CASE WHEN br_ID = &top_rev_id AND br_ID = &low_prof_id THEN 'TOP REV + LOWEST'
-            WHEN br_ID = &top_rev_id                          THEN 'TOP REVENUE'
-            ELSE                                                   'LEAST PROFITABLE' END AS role,
-       br_city,
-       'Q' || cal_quarter                                              AS qtr,
-       rev                                                             AS total_rev,
-       cogs, sal                                                       AS salary_cost,
-       exp                                                             AS expense_cost,
-       rev - cogs - sal - exp                                          AS net_profit,
-       ROUND((rev - cogs - sal - exp) / NULLIF(rev, 0) * 100, 1)       AS margin_pct,
-       ROUND(RATIO_TO_REPORT(rev) OVER (PARTITION BY br_ID) * 100, 1)  AS rev_share,
-       CASE WHEN br_ID = &top_rev_id THEN 1 ELSE 2 END                 AS sort_key
-FROM   pnl
-ORDER  BY sort_key, cal_quarter;
-
-
--- ###################################################################
--- SECTION 6 - THE TWO BRANCHES: EXPENSES BY CATEGORY
--- OLAP: DICE - a sub-cube of two branch members x six utility members
--- x one year, with the all-branch AVERAGE as the yardstick (third
--- dimension branch_utils_dim). Rent % = rent / total expenses.
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 6. FY&focus_y EXPENSES BY CATEGORY (DICE)' SKIP 1 -
-       CENTER '&top_rev_city vs &low_prof_city vs THE AVERAGE BRANCH' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN br_label      HEADING 'BRANCH'         FORMAT A27
-COLUMN rent          HEADING 'RENT (RM)'      FORMAT 9,999,990.00
-COLUMN electricity   HEADING 'ELECTRIC (RM)'  FORMAT 999,990.00
-COLUMN water         HEADING 'WATER (RM)'     FORMAT 999,990.00
-COLUMN internet      HEADING 'INTERNET (RM)'  FORMAT 999,990.00
-COLUMN maintenance   HEADING 'MAINT. (RM)'    FORMAT 999,990.00
-COLUMN waste         HEADING 'WASTE (RM)'     FORMAT 999,990.00
-COLUMN total_exp     HEADING 'TOTAL|EXPENSE (RM)' FORMAT 9,999,990.00
-COLUMN rent_pct      HEADING 'RENT %|OF EXP'  FORMAT 990.0
-COLUMN sort_key      NOPRINT
-
-WITH exp_cat AS (
-    -- third dimension: which utility category each payment belongs to
-    SELECT b.br_ID, b.br_city, u.util_name,
-           SUM(f.payment_amount) AS amt
-    FROM   branch_expense_fact f
-    JOIN   date_dim         d ON d.date_key         = f.date_key
-    JOIN   branch_dim       b ON b.branch_key       = f.branch_key
-    JOIN   branch_utils_dim u ON u.branch_utils_key = f.branch_utils_key
-    WHERE  d.cal_year = &focus_year
-    GROUP  BY b.br_ID, b.br_city, u.util_name
+-- one-row helper blocks, CROSS JOINed below (Oracle 11g rejects KEEP /
+-- scalar subqueries inside an aggregate SELECT list - ORA-00937)
+fx AS (SELECT * FROM m WHERE br_ID = &focus_id),
+bx AS (SELECT * FROM m WHERE br_ID = &best_id),
+ax AS (
+    -- the average branch: every sum / number of branches; ratios from the sums
+    SELECT SUM(rev) / COUNT(*) AS rev, SUM(cogs) / COUNT(*) AS cogs, SUM(sal) / COUNT(*) AS sal,
+           SUM(exp) / COUNT(*) AS exp, SUM(rent) / COUNT(*) AS rent, SUM(heads) / COUNT(*) AS heads,
+           SUM(net) / COUNT(*) AS net
+    FROM   m
 ),
-pivoted AS (
-    SELECT br_ID, br_city,
-           SUM(CASE WHEN util_name = 'Rent'             THEN amt ELSE 0 END) AS rent,
-           SUM(CASE WHEN util_name = 'Electricity'      THEN amt ELSE 0 END) AS electricity,
-           SUM(CASE WHEN util_name = 'Water'            THEN amt ELSE 0 END) AS water,
-           SUM(CASE WHEN util_name = 'Internet'         THEN amt ELSE 0 END) AS internet,
-           SUM(CASE WHEN util_name = 'Maintenance'      THEN amt ELSE 0 END) AS maintenance,
-           SUM(CASE WHEN util_name = 'Waste Management' THEN amt ELSE 0 END) AS waste,
-           SUM(amt)                                                          AS total_exp
-    FROM   exp_cat
-    GROUP  BY br_ID, br_city
-),
-picked AS (
-    SELECT CASE WHEN br_ID = &top_rev_id AND br_ID = &low_prof_id THEN br_city || ' (both)'
-                WHEN br_ID = &top_rev_id THEN br_city || ' (top rev)'
-                ELSE                          br_city || ' (least prof)' END AS br_label,
-           rent, electricity, water, internet, maintenance, waste, total_exp,
-           CASE WHEN br_ID = &top_rev_id THEN 1 ELSE 2 END AS sort_key
-    FROM   pivoted
-    WHERE  br_ID IN (&top_rev_id, &low_prof_id)
-    UNION ALL
-    -- the yardstick: the average branch of the focus year
-    SELECT 'AVERAGE BRANCH',
-           AVG(rent), AVG(electricity), AVG(water), AVG(internet),
-           AVG(maintenance), AVG(waste), AVG(total_exp), 3
-    FROM   pivoted
+x AS (
+    SELECT fx.rev  AS f_rev,  ax.rev  AS a_rev,  bx.rev  AS b_rev,
+           fx.cogs AS f_cogs, ax.cogs AS a_cogs, bx.cogs AS b_cogs,
+           fx.sal  AS f_sal,  ax.sal  AS a_sal,  bx.sal  AS b_sal,
+           fx.exp  AS f_exp,  ax.exp  AS a_exp,  bx.exp  AS b_exp,
+           fx.rent AS f_rent, ax.rent AS a_rent, bx.rent AS b_rent,
+           fx.heads AS f_heads, ax.heads AS a_heads, bx.heads AS b_heads,
+           fx.net  AS f_net,  ax.net  AS a_net,  bx.net  AS b_net
+    FROM   fx CROSS JOIN ax CROSS JOIN bx
 )
-SELECT br_label, rent, electricity, water, internet, maintenance, waste, total_exp,
-       ROUND(rent / NULLIF(total_exp, 0) * 100, 1) AS rent_pct,
-       sort_key
-FROM   picked
+-- outer SELECT only right-aligns the four value columns with LPAD/TRIM,
+-- the rows are built by the UNION ALL inside (no semicolon in these
+-- comments - SQL*Plus would end the statement there)
+SELECT metric_name,
+       LPAD(TRIM(v_focus), 16) AS v_focus, LPAD(TRIM(v_avg), 16) AS v_avg,
+       LPAD(TRIM(v_best), 16) AS v_best,  LPAD(TRIM(v_gap), 18) AS v_gap, sort_key
+FROM (
+SELECT 'Total sales (RM)' AS metric_name,
+       TO_CHAR(f_rev, '99,999,990') AS v_focus, TO_CHAR(a_rev, '99,999,990') AS v_avg,
+       TO_CHAR(b_rev, '99,999,990') AS v_best,
+       TO_CHAR((f_rev - a_rev) / NULLIF(a_rev, 0) * 100, 'S990.0') || '%' AS v_gap, 1 AS sort_key
+FROM   x
+UNION ALL SELECT 'Heads paid in the year',
+       TO_CHAR(f_heads, '990'), TO_CHAR(a_heads, '990.0'), TO_CHAR(b_heads, '990'),
+       TO_CHAR((f_heads - a_heads) / NULLIF(a_heads, 0) * 100, 'S990.0') || '%', 2 FROM x
+UNION ALL SELECT 'Sales per head (RM)',
+       TO_CHAR(f_rev / NULLIF(f_heads, 0), '99,999,990'), TO_CHAR(a_rev / NULLIF(a_heads, 0), '99,999,990'),
+       TO_CHAR(b_rev / NULLIF(b_heads, 0), '99,999,990'),
+       TO_CHAR((f_rev / NULLIF(f_heads, 0) - a_rev / NULLIF(a_heads, 0))
+               / NULLIF(a_rev / NULLIF(a_heads, 0), 0) * 100, 'S990.0') || '%', 3 FROM x
+UNION ALL SELECT 'Salary per head (RM)',
+       TO_CHAR(f_sal / NULLIF(f_heads, 0), '99,999,990'), TO_CHAR(a_sal / NULLIF(a_heads, 0), '99,999,990'),
+       TO_CHAR(b_sal / NULLIF(b_heads, 0), '99,999,990'),
+       TO_CHAR((f_sal / NULLIF(f_heads, 0) - a_sal / NULLIF(a_heads, 0))
+               / NULLIF(a_sal / NULLIF(a_heads, 0), 0) * 100, 'S990.0') || '%', 4 FROM x
+UNION ALL SELECT 'Salary paid % of sales',
+       TO_CHAR(f_sal / NULLIF(f_rev, 0) * 100, '990.0') || '%', TO_CHAR(a_sal / NULLIF(a_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR(b_sal / NULLIF(b_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR((f_sal / NULLIF(f_rev, 0) - a_sal / NULLIF(a_rev, 0)) * 100, 'S990.0') || ' pts', 5 FROM x
+UNION ALL SELECT 'Purchase cost % of sales',
+       TO_CHAR(f_cogs / NULLIF(f_rev, 0) * 100, '990.0') || '%', TO_CHAR(a_cogs / NULLIF(a_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR(b_cogs / NULLIF(b_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR((f_cogs / NULLIF(f_rev, 0) - a_cogs / NULLIF(a_rev, 0)) * 100, 'S990.0') || ' pts', 6 FROM x
+UNION ALL SELECT 'Branch expense % of sales',
+       TO_CHAR(f_exp / NULLIF(f_rev, 0) * 100, '990.0') || '%', TO_CHAR(a_exp / NULLIF(a_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR(b_exp / NULLIF(b_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR((f_exp / NULLIF(f_rev, 0) - a_exp / NULLIF(a_rev, 0)) * 100, 'S990.0') || ' pts', 7 FROM x
+UNION ALL SELECT '   of which rent % of sales',
+       TO_CHAR(f_rent / NULLIF(f_rev, 0) * 100, '990.0') || '%', TO_CHAR(a_rent / NULLIF(a_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR(b_rent / NULLIF(b_rev, 0) * 100, '990.0') || '%',
+       TO_CHAR((f_rent / NULLIF(f_rev, 0) - a_rent / NULLIF(a_rev, 0)) * 100, 'S990.0') || ' pts', 8 FROM x
+UNION ALL SELECT 'Net profit (RM)',
+       TO_CHAR(f_net, 'S99,999,990'), TO_CHAR(a_net, 'S99,999,990'), TO_CHAR(b_net, 'S99,999,990'),
+       TO_CHAR(f_net - a_net, 'S99,999,990'), 9 FROM x
+UNION ALL SELECT 'Earning %',
+       TO_CHAR(f_net / NULLIF(f_rev, 0) * 100, 'S990.0') || '%', TO_CHAR(a_net / NULLIF(a_rev, 0) * 100, 'S990.0') || '%',
+       TO_CHAR(b_net / NULLIF(b_rev, 0) * 100, 'S990.0') || '%',
+       TO_CHAR((f_net / NULLIF(f_rev, 0) - a_net / NULLIF(a_rev, 0)) * 100, 'S990.0') || ' pts', 10 FROM x
+UNION ALL SELECT '-- what if ----------------------', ' ', ' ', ' ', ' ', 11 FROM dual
+-- what-if 1: same sales, but payroll at the AVERAGE branch's % of sales
+UNION ALL SELECT 'Payroll at the average % of sales',
+       'RM ' || TRIM(TO_CHAR(f_rev * a_sal / NULLIF(a_rev, 0), '99,999,990')), ' ', ' ',
+       'saves ' || TRIM(TO_CHAR(f_sal - f_rev * a_sal / NULLIF(a_rev, 0), 'S99,999,990')), 12 FROM x
+UNION ALL SELECT '   -> net profit would be',
+       'RM ' || TRIM(TO_CHAR(f_net + f_sal - f_rev * a_sal / NULLIF(a_rev, 0), 'S99,999,990')), ' ', ' ',
+       TRIM(TO_CHAR((f_net + f_sal - f_rev * a_sal / NULLIF(a_rev, 0)) / NULLIF(f_rev, 0) * 100, 'S990.0')) || '% earning', 13 FROM x
+-- what-if 2: heads the branch would need at the average sales per head
+UNION ALL SELECT 'Heads at average sales per head',
+       TRIM(TO_CHAR(f_rev / NULLIF(a_rev / NULLIF(a_heads, 0), 0), '990.0')) || ' heads', ' ', ' ',
+       'has ' || TRIM(TO_CHAR(f_heads, '990')), 14 FROM x
+-- what-if 3: sales needed to break even on the current payroll + expenses
+-- (purchase cost scales with sales at the branch's own ratio)
+UNION ALL SELECT 'Break-even sales at current costs',
+       'RM ' || TRIM(TO_CHAR((f_sal + f_exp) / NULLIF(1 - f_cogs / NULLIF(f_rev, 0), 0), '99,999,990')), ' ', ' ',
+       TRIM(TO_CHAR(((f_sal + f_exp) / NULLIF(1 - f_cogs / NULLIF(f_rev, 0), 0) - f_rev)
+                    / NULLIF(f_rev, 0) * 100, 'S990.0')) || '% vs actual', 15 FROM x
+UNION ALL SELECT '-- verdict ----------------------', ' ', ' ', ' ', ' ', 16 FROM dual
+UNION ALL SELECT 'WHY',
+       CASE WHEN f_net >= 0 THEN 'in the black'
+            WHEN (f_sal / NULLIF(f_rev, 0) - a_sal / NULLIF(a_rev, 0))
+                 >= GREATEST(f_cogs / NULLIF(f_rev, 0) - a_cogs / NULLIF(a_rev, 0),
+                             f_exp  / NULLIF(f_rev, 0) - a_exp  / NULLIF(a_rev, 0))
+            THEN 'PAYROLL'
+            WHEN (f_exp / NULLIF(f_rev, 0) - a_exp / NULLIF(a_rev, 0))
+                 >= (f_cogs / NULLIF(f_rev, 0) - a_cogs / NULLIF(a_rev, 0))
+            THEN 'PREMISES'
+            ELSE 'PURCHASING' END,
+       ' ', ' ',
+       CASE WHEN f_net >= 0 THEN 'no gap to close'
+            ELSE 'largest gap vs avg' END, 17 FROM x
+)
 ORDER  BY sort_key;
-
-
--- ###################################################################
--- SECTION 7 - SUMMARY STATISTICS + VERDICT
--- The focus-year headline numbers, then the answer to the question in
--- the title in one line.
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 7. FY&focus_y SUMMARY STATISTICS AND VERDICT' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN metric_name  HEADING 'METRIC'  FORMAT A38
-COLUMN metric_value HEADING 'VALUE'   FORMAT A95
-
-WITH pnl AS (
-    SELECT br_ID, br_city,
-           SUM(product_rev)  AS product_rev,
-           SUM(service_rev)  AS service_rev,
-           SUM(cogs)         AS cogs,
-           SUM(salary_cost)  AS salary_cost,
-           SUM(expense_cost) AS expense_cost
-    FROM (
-        SELECT b.br_ID, b.br_city,
-               SUM(f.order_total_amt - f.order_tax_amt) AS product_rev,
-               0 AS service_rev, 0 AS cogs, 0 AS salary_cost, 0 AS expense_cost
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        AND    d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
-        UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, SUM(f.serv_total_amt - f.serv_tax_amt), 0, 0, 0
-        FROM   reservation_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.res_status = 'Completed'
-        AND    d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
-        UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, 0, SUM(f.purchase_total_cost), 0, 0
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
-        UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, 0, 0, SUM(f.base_amount + f.bonus_amount), 0
-        FROM   salary_payment_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
-        UNION ALL
-        SELECT b.br_ID, b.br_city,
-               0, 0, 0, 0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year = &focus_year
-        GROUP  BY b.br_ID, b.br_city
-    )
-    GROUP BY br_ID, br_city
-),
-ranked AS (
-    SELECT br_ID, br_city,
-           product_rev + service_rev                                     AS total_rev,
-           cogs, salary_cost, expense_cost,
-           product_rev + service_rev - salary_cost - expense_cost        AS precogs_profit,
-           product_rev + service_rev - cogs - salary_cost - expense_cost AS net_profit,
-           RANK() OVER (ORDER BY product_rev + service_rev DESC)         AS rev_rank,
-           RANK() OVER (ORDER BY product_rev + service_rev
-                                 - cogs - salary_cost - expense_cost DESC) AS profit_rank,
-           RANK() OVER (ORDER BY (product_rev + service_rev - cogs - salary_cost - expense_cost)
-                                 / NULLIF(product_rev + service_rev, 0) DESC) AS margin_rank
-    FROM   pnl
-),
--- one-row helper blocks; they are CROSS JOINed below instead of being
--- scalar subqueries, which Oracle 11g rejects inside an aggregate
--- SELECT list (ORA-00937)
-totals AS (
-    SELECT SUM(total_rev)                                   AS total_rev,
-           SUM(cogs)                                        AS cogs,
-           SUM(salary_cost)                                 AS salary_cost,
-           SUM(expense_cost)                                AS expense_cost,
-           SUM(net_profit)                                  AS net_profit,
-           COUNT(*)                                         AS num_branches,
-           SUM(CASE WHEN net_profit     > 0 THEN 1 ELSE 0 END) AS in_black_net,
-           SUM(CASE WHEN precogs_profit > 0 THEN 1 ELSE 0 END) AS in_black_precogs
-    FROM   ranked
-),
-top_rev AS (
-    SELECT br_city, total_rev, net_profit, profit_rank, margin_rank,
-           ROUND(net_profit / NULLIF(total_rev, 0) * 100, 1) AS margin_pct
-    FROM   ranked WHERE rev_rank = 1 AND ROWNUM = 1
-),
-best AS (
-    SELECT MAX(br_city)    KEEP (DENSE_RANK FIRST ORDER BY net_profit DESC) AS br_city,
-           MAX(net_profit)                                                AS net_profit,
-           MAX(rev_rank)   KEEP (DENSE_RANK FIRST ORDER BY net_profit DESC) AS rev_rank
-    FROM   ranked
-),
-worst AS (
-    SELECT MIN(br_city)    KEEP (DENSE_RANK LAST  ORDER BY net_profit DESC) AS br_city,
-           MIN(net_profit)                                                AS net_profit,
-           MIN(rev_rank)   KEEP (DENSE_RANK LAST  ORDER BY net_profit DESC) AS rev_rank
-    FROM   ranked
-),
-mrg AS (
-    SELECT MAX(br_city) KEEP (DENSE_RANK FIRST ORDER BY net_profit / NULLIF(total_rev, 0) DESC) AS best_city,
-           MAX(net_profit / NULLIF(total_rev, 0) * 100)                                          AS best_margin,
-           MIN(br_city) KEEP (DENSE_RANK LAST  ORDER BY net_profit / NULLIF(total_rev, 0) DESC) AS worst_city,
-           MIN(net_profit / NULLIF(total_rev, 0) * 100)                                          AS worst_margin
-    FROM   ranked
-),
-stats AS (
-    SELECT t.total_rev, t.cogs, t.salary_cost, t.expense_cost, t.net_profit,
-           t.num_branches, t.in_black_net, t.in_black_precogs,
-           tr.br_city AS top_city, tr.total_rev AS top_rev, tr.net_profit AS top_np,
-           tr.profit_rank AS top_prank, tr.margin_rank AS top_mrank, tr.margin_pct AS top_margin,
-           b.br_city AS best_city, b.net_profit AS best_np, b.rev_rank AS best_rrank,
-           w.br_city AS worst_city, w.net_profit AS worst_np, w.rev_rank AS worst_rrank,
-           m.best_city AS bm_city, m.best_margin, m.worst_city AS wm_city, m.worst_margin
-    FROM   totals t CROSS JOIN top_rev tr CROSS JOIN best b CROSS JOIN worst w CROSS JOIN mrg m
-)
-SELECT 'Company revenue FY&focus_y (RM)'         AS metric_name,
-       TO_CHAR(total_rev,    '999,999,999,990.00')                       AS metric_value FROM stats
-UNION ALL SELECT 'Company COGS (RM)',
-       TO_CHAR(cogs,         '999,999,999,990.00')                       FROM stats
-UNION ALL SELECT 'Company salary cost (RM)',
-       TO_CHAR(salary_cost,  '999,999,999,990.00')                       FROM stats
-UNION ALL SELECT 'Company branch expenses (RM)',
-       TO_CHAR(expense_cost, '999,999,999,990.00')                       FROM stats
-UNION ALL SELECT 'Company net profit (RM)',
-       TO_CHAR(net_profit,   'S999,999,999,990.00')                      FROM stats
-UNION ALL SELECT 'Company margin %',
-       TO_CHAR(net_profit / NULLIF(total_rev, 0) * 100, 'S990.0') || '%'      FROM stats
-UNION ALL SELECT 'COGS as % of revenue',
-       TO_CHAR(cogs / NULLIF(total_rev, 0) * 100, '990.0') || '%'             FROM stats
-UNION ALL SELECT 'Salary as % of revenue',
-       TO_CHAR(salary_cost / NULLIF(total_rev, 0) * 100, '990.0') || '%'      FROM stats
-UNION ALL SELECT 'Expenses as % of revenue',
-       TO_CHAR(expense_cost / NULLIF(total_rev, 0) * 100, '990.0') || '%'     FROM stats
-UNION ALL SELECT 'Branches trading',
-       TO_CHAR(num_branches)                                              FROM stats
-UNION ALL SELECT 'Branches in the black (net)',
-       TO_CHAR(in_black_net) || ' of ' || TO_CHAR(num_branches)           FROM stats
-UNION ALL SELECT 'Branches in the black before COGS',
-       TO_CHAR(in_black_precogs) || ' of ' || TO_CHAR(num_branches)       FROM stats
-UNION ALL SELECT '-- the test --------------------------', ' ' FROM dual
-UNION ALL SELECT 'Top-revenue branch',
-       top_city || '  (RM ' || TRIM(TO_CHAR(top_rev, '999,999,990.00')) || ')' FROM stats
-UNION ALL SELECT '   its net profit (RM)',
-       'RM ' || TRIM(TO_CHAR(top_np, 'S999,999,990.00')) || '  = profit rank #'
-       || TO_CHAR(top_prank) || ' of ' || TO_CHAR(num_branches)           FROM stats
-UNION ALL SELECT '   its net margin',
-       TRIM(TO_CHAR(top_margin, 'S990.0')) || '%  = margin rank #'
-       || TO_CHAR(top_mrank) || ' of ' || TO_CHAR(num_branches)           FROM stats
-UNION ALL SELECT 'Most profitable branch (RM)',
-       best_city  || '  (RM ' || TRIM(TO_CHAR(best_np,  'S999,999,990.00'))
-       || ', revenue rank #' || TO_CHAR(best_rrank) || ')'                FROM stats
-UNION ALL SELECT 'Least profitable branch (RM)',
-       worst_city || '  (RM ' || TRIM(TO_CHAR(worst_np, 'S999,999,990.00'))
-       || ', revenue rank #' || TO_CHAR(worst_rrank) || ')'               FROM stats
-UNION ALL SELECT 'Best margin',
-       bm_city || '  (' || TRIM(TO_CHAR(best_margin,  'S990.0')) || '%)'  FROM stats
-UNION ALL SELECT 'Worst margin',
-       wm_city || '  (' || TRIM(TO_CHAR(worst_margin, 'S990.0')) || '%)'  FROM stats
-UNION ALL SELECT '-- verdict ---------------------------', ' ' FROM dual
--- two yardsticks, two verdicts: in RM the biggest shop can post the
--- biggest loss; per ringgit of sales the same shop can be the best
-UNION ALL SELECT 'PARADOX in RM (net profit)',
-       CASE WHEN top_city = worst_city
-            THEN 'HOLDS - ' || top_city || ' sells the most and loses the most (rank #'
-                 || TO_CHAR(top_prank) || ' of ' || TO_CHAR(num_branches) || ')'
-            ELSE 'DOES NOT HOLD - ' || top_city || ' is #' || TO_CHAR(top_prank)
-                 || ' of ' || TO_CHAR(num_branches) || ' by RM; '
-                 || worst_city || ' loses the most'
-       END                                                                FROM stats
-UNION ALL SELECT 'PARADOX in margin (per RM of sales)',
-       CASE WHEN top_city = wm_city
-            THEN 'HOLDS - ' || top_city || ' sells the most and has the worst margin'
-            ELSE 'DOES NOT HOLD - ' || top_city || ' is #' || TO_CHAR(top_mrank)
-                 || ' of ' || TO_CHAR(num_branches) || ' by margin; '
-                 || wm_city || ' has the worst margin'
-       END                                                                FROM stats;
 
 PROMPT
 PROMPT +==========================================================+
@@ -1202,10 +1016,12 @@ CLEAR BREAKS
 CLEAR COMPUTES
 UNDEFINE focus_year
 UNDEFINE focus_y
-UNDEFINE top_rev_id
-UNDEFINE top_rev_city
-UNDEFINE low_prof_id
-UNDEFINE low_prof_city
+UNDEFINE focus_branch
+UNDEFINE focus_id
+UNDEFINE focus_city
+UNDEFINE focus_br_state
+UNDEFINE best_id
+UNDEFINE best_city
 SET FEEDBACK ON
 SET VERIFY ON
 SET ECHO ON
