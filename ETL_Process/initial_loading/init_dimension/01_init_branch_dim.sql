@@ -1,6 +1,5 @@
 -- ===================================================================
 -- 01_init_branch_dim.sql        BRANCH_DIM  (SCD Type 2)
--- Source: BRANCH (OLTP, 5 rows)
 --   SECTION 1: staging VIEW  - all cleansing / transformation
 --   SECTION 2: SEQUENCE      - surrogate key (1..999 range)
 --   SECTION 3: PROCEDURE     - initial load
@@ -83,9 +82,8 @@ FROM branch b
 WHERE b.br_ID IS NOT NULL;
 
 -- ===================================================================
--- SECTION 2: CREATE SEQUENCE  (1..999 range - 5 branches)
+-- SECTION 2: CREATE SEQUENCE
 -- ===================================================================
--- DROP SEQUENCE seq_branch_key;
 CREATE SEQUENCE seq_branch_key
     START WITH 1
     INCREMENT BY 1
@@ -143,6 +141,5 @@ END;
 
 -- ===================================================================
 -- SECTION 4: RUN
--- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_branch_dim_initial;

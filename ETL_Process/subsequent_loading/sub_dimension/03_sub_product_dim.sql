@@ -19,14 +19,6 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - reuses product_staging_v from
---   ETL_Process\initial_loading\init_dimension\05_init_product_dim.sql
---
--- SECTION 2: SEQUENCE - reuses seq_product_key, continuing from
--- wherever the last load left it.
--- ===================================================================
-
--- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_product_dim_incremental AS

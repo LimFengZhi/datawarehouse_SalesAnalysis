@@ -5,8 +5,8 @@
 --   the same walk as 02_product_category_drilldown.sql - states x years
 --   -> STATE -> branches -> BRANCH -> years x quarters -> YEAR ->
 --   categories ranked -> CATEGORY -> products - but every level now
---   carries the PURCHASE COST next to the sales, so the measure that
---   is ranked and pivoted is GROSS PROFIT and its MARGIN %.
+--   carries the COST OF THE UNITS SOLD next to the sales, so the
+--   measure that is ranked and pivoted is GROSS PROFIT and its MARGIN %.
 --
 -- Run in SQL*Plus as the warehouse owner:
 --   sqlplus dwh/yourpassword@XE
@@ -24,8 +24,8 @@
 --   paused around every prompt, so the output file holds only tables.
 --
 -- WHAT IT ANSWERS
---   1. How much of the product revenue is left after paying the
---      suppliers - state by state, branch by branch, year by year?
+--   1. How much of the product revenue is left after the cost of the
+--      goods sold - state by state, branch by branch, year by year?
 --   2. Which quarters, categories and products carry the best and the
 --      worst margins, and does a category that sells a lot also EARN
 --      a lot?
@@ -38,24 +38,29 @@
 --             branch_dim.br_state / br_ID / br_city
 --             product_dim.product_category / product_name
 --   measures  Sales (RM)     = order_total_amt - order_tax_amt
---             Purchase (RM)  = purchase_total_cost (qty bought x unit cost)
---             Gross profit   = sales - purchase
+--             Unit cost      = the price actually paid to suppliers for
+--                              that product at that branch in that year:
+--                              purchase_total_cost / purchase_qty from
+--                              purchase_fact (falls back to the company-
+--                              wide unit cost of the product-year if the
+--                              branch bought none that year)
+--             COGS (RM)      = units sold x unit cost   ("what I sold,
+--                              costed at what I paid for it")
+--             Gross profit   = sales - COGS
 --             Margin %       = gross profit / sales x 100
---             Realised price = sales / units sold
---             Unit cost      = purchase / units bought
---             Markup         = realised price / unit cost
---             Buy/sold       = units bought / units sold
+--             Realised price = sales / units sold  (after discounts)
+--             Markup         = sales / COGS  (= realised price / unit cost)
+--             Buy/sold       = units bought / units sold  (information:
+--                              > 1 = the branch built stock that period)
 --
 -- READ THIS BEFORE QUOTING A MARGIN
---   Purchase cost here is the stock BOUGHT in the period, by purchase
---   date - not the cost of the units actually sold. Restocking follows
---   sales (about 1.1 x what was sold, plus opening stock for a new
---   branch or a new product), so over a year the two are close and
---   the margin is a fair "restocking-adjusted" gross margin; over a
---   single quarter, or for a branch that has just opened, the buy/sold
---   ratio can be well above 1 and the margin correspondingly low. The
---   BUY/SOLD column is printed wherever it matters so this can be seen.
---   Sections 1-3 print whole ringgit; sections 4-5 print cents.
+--   The product table carries no cost, so the unit cost is derived from
+--   the purchase lines (weighted average per branch, product and year).
+--   COGS therefore matches the units SOLD, not the stock BOUGHT - a
+--   branch that stocks up (opening stock, a launch, the December
+--   run-up) does not see its margin fall; the BUY/SOLD column shows
+--   the stock build-up separately. Sections 1-3 print whole ringgit,
+--   sections 4-5 print cents.
 --
 -- WHY GROUP BY CATEGORY / NAME AND NOT product_key
 --   product_dim is SCD Type 2 (price versions); category and name are
@@ -82,34 +87,33 @@
 --
 -- WHAT TO LOOK FOR  (defaults: 2018-2025 > Selangor > Petaling Jaya >
 --   2025 > Serum, revision-3 data)
---   - Section 1: gross margin is a flat 54-55 % in every state over the
---     range (supplier cost is 33-43 % of shelf price for every product
---     and buying is uniform), so the ranking by gross profit is the
---     ranking by sales: Selangor 44.5 % of company GP, Wilayah
---     Persekutuan 32 %. BUY/SOLD 1.14-1.15 everywhere: the branches
---     buy ~14 % more units than they sell (safety stock, opening stock,
---     new-product launch stock).
+--   - Section 1: gross margin is a flat 60-61 % in every state over the
+--     range (supplier cost is 33-43 % of shelf price for every product,
+--     less the loyalty / promo discounts on the selling side), so the
+--     ranking by gross profit is the ranking by sales: Selangor ~44 % of
+--     company GP, Wilayah Persekutuan ~32 %. BUY/SOLD 1.14-1.15
+--     everywhere: the branches buy ~14 % more units than they sell
+--     (safety stock, opening stock, launch stock) - it no longer
+--     touches the margin, it only shows as stock.
 --   - Section 2 (Selangor): the five branches sit within a point of
---     each other (54.0-55.2 %); PJ 32 % of the state's GP.
---   - Section 3 (PJ): 2018 is the odd year - margin 51.5 %, BUY/SOLD
---     1.21 (a young branch stocking up); from 2019 the margin holds at
---     55-56 % and BUY/SOLD drifts down to 1.09 by 2025. Q4 has the
---     biggest gross profit every year (festive quarter), Q3 the
---     smallest.
+--     each other; PJ ~32 % of the state's GP.
+--   - Section 3 (PJ): margin ~60 % every year, 2018 included (the
+--     opening-stock effect is gone); Q4 has the biggest gross profit
+--     every year (festive quarter), Q3 the smallest; 2020-21 dip with
+--     sales.
 --   - Section 4 (PJ 2025): ranking by gross profit = ranking by sales
 --     (Serum, Moisturizer, Face Mask, Sunscreen ...) because margin is
---     55.8-57.1 % and MARKUP 2.46-2.55 x for every category - there is
---     no high-margin / low-margin category in this business, only
---     bigger and smaller ones. Realised price / unit cost is where the
---     markup shows: Serum RM 98 sold vs RM 40 bought.
---   - Section 5 (Serum): the seven serums earn 54-59 % - Centella and
---     Niacinamide the best, Peptide Firming the lowest, differences
---     that are supplier-cost noise rather than pricing; UNITS BOUGHT
---     runs 3-12 % above UNITS SOLD; PRICE NOW vs REALISED is the
---     loyalty / promo discount.
+--     ~59-62 % and MARKUP ~2.5-2.6 x for every category - there is no
+--     high-margin / low-margin category in this business, only bigger
+--     and smaller ones. Realised price / unit cost is where the markup
+--     shows: Serum ~RM 98 sold vs ~RM 39 cost.
+--   - Section 5 (Serum): the seven serums earn ~58-63 %; differences
+--     are supplier-cost noise rather than pricing; UNITS BOUGHT runs a
+--     few % above UNITS SOLD; PRICE NOW vs REALISED is the loyalty /
+--     promo discount.
 --   - Try: Perak > Ipoh > 2023 - the opening year: BUY/SOLD well above
---     1 in Q1 (opening stock a week before the doors opened) and the
---     lowest margin in the report.
+--     1 in the first year (opening stock) while the margin stays ~60 %,
+--     which is exactly what costing the units SOLD is for.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -176,8 +180,8 @@ SPOOL product_category_margin_output.txt
 -- SECTION 1 - PRODUCT GROSS PROFIT BY STATE (years across)
 -- OLAP: PIVOT - years of the chosen range across (gross profit per
 -- year), states down, whole company; then the range totals: sales,
--- purchase cost, gross profit, MARGIN %, share of company gross
--- profit and the buy/sold ratio.
+-- COGS, gross profit, MARGIN %, share of company gross profit and the
+-- buy/sold ratio (units bought / units sold, information only).
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. PRODUCT GROSS PROFIT BY STATE (RM)' SKIP 1 -
@@ -196,59 +200,84 @@ COLUMN y2023      HEADING 'GP 2023'    FORMAT 9,999,990 &v2023
 COLUMN y2024      HEADING 'GP 2024'    FORMAT 9,999,990 &v2024
 COLUMN y2025      HEADING 'GP 2025'    FORMAT 9,999,990 &v2025
 COLUMN sales      HEADING 'SALES|&f_from-&f_to' FORMAT 999,999,990
-COLUMN cost       HEADING 'PURCHASE|COST'  FORMAT 99,999,990
+COLUMN cogs       HEADING 'COGS'       FORMAT 99,999,990
 COLUMN gp         HEADING 'GROSS|PROFIT'   FORMAT 99,999,990
 COLUMN margin_pct HEADING 'MARGIN|%'   FORMAT 990.0
 COLUMN share_pct  HEADING 'SHARE OF|GP %' FORMAT 990.0
 COLUMN buy_sold   HEADING 'BUY/|SOLD'  FORMAT 90.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cost gp ON REPORT
+COMPUTE SUM LABEL 'ALL' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cogs gp ON REPORT
 
-WITH m AS (
-    -- drill-across: sales and purchases side by side per state / year
-    SELECT br_state, br_ID, cal_year,
-           SUM(amt) AS amt, SUM(units) AS units, SUM(cost) AS cost, SUM(bought) AS bought
-    FROM (
-        SELECT b.br_state, b.br_ID, d.cal_year,
-               SUM(f.order_total_amt - f.order_tax_amt) AS amt, SUM(f.order_qty) AS units,
-               0 AS cost, 0 AS bought
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        AND    d.cal_year BETWEEN &f_from AND &f_to
-        GROUP  BY b.br_state, b.br_ID, d.cal_year
-        UNION ALL
-        SELECT b.br_state, b.br_ID, d.cal_year,
-               0, 0, SUM(f.purchase_total_cost), SUM(f.purchase_qty)
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  d.cal_year BETWEEN &f_from AND &f_to
-        GROUP  BY b.br_state, b.br_ID, d.cal_year
-    )
-    GROUP BY br_state, br_ID, cal_year
+WITH sold AS (
+    -- what was sold, at product grain (Completed lines, tax excluded)
+    SELECT b.br_state, b.br_ID, d.cal_year, p.product_ID,
+           SUM(f.order_qty)                          AS units,
+           SUM(f.order_total_amt - f.order_tax_amt)  AS amt
+    FROM   order_fact  f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  f.order_status = 'Completed'
+    AND    d.cal_year BETWEEN &f_from AND &f_to
+    GROUP  BY b.br_state, b.br_ID, d.cal_year, p.product_ID
+),
+uc AS (
+    -- unit cost actually paid: branch x product x year (purchase cost /
+    -- units bought), all years so every sale finds a cost
+    SELECT b.br_ID, p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost,
+           SUM(f.purchase_qty)                                          AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY b.br_ID, p.product_ID, d.cal_year
+),
+ucc AS (
+    -- fallback: the company-wide unit cost of the product that year
+    SELECT p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY p.product_ID, d.cal_year
+),
+m AS (
+    -- COGS = units sold x the unit cost paid for that product
+    SELECT s.*, s.units * NVL(u.unit_cost, c.unit_cost) AS cogs
+    FROM   sold s
+    LEFT   JOIN uc  u ON u.br_ID = s.br_ID AND u.product_ID = s.product_ID AND u.cal_year = s.cal_year
+    LEFT   JOIN ucc c ON c.product_ID = s.product_ID AND c.cal_year = s.cal_year
+),
+bought AS (
+    SELECT b.br_state, SUM(f.purchase_qty) AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim   d ON d.date_key   = f.date_key
+    JOIN   branch_dim b ON b.branch_key = f.branch_key
+    WHERE  d.cal_year BETWEEN &f_from AND &f_to
+    GROUP  BY b.br_state
 )
-SELECT br_state,
-       COUNT(DISTINCT br_ID)                                    AS branches,
+SELECT m.br_state,
+       COUNT(DISTINCT m.br_ID)                                    AS branches,
        -- no ELSE, so a year the state did not trade prints blank
-       SUM(CASE WHEN cal_year = 2018 THEN amt - cost END)       AS y2018,
-       SUM(CASE WHEN cal_year = 2019 THEN amt - cost END)       AS y2019,
-       SUM(CASE WHEN cal_year = 2020 THEN amt - cost END)       AS y2020,
-       SUM(CASE WHEN cal_year = 2021 THEN amt - cost END)       AS y2021,
-       SUM(CASE WHEN cal_year = 2022 THEN amt - cost END)       AS y2022,
-       SUM(CASE WHEN cal_year = 2023 THEN amt - cost END)       AS y2023,
-       SUM(CASE WHEN cal_year = 2024 THEN amt - cost END)       AS y2024,
-       SUM(CASE WHEN cal_year = 2025 THEN amt - cost END)       AS y2025,
-       SUM(amt)                                                 AS sales,
-       SUM(cost)                                                AS cost,
-       SUM(amt) - SUM(cost)                                     AS gp,
-       ROUND((SUM(amt) - SUM(cost)) / NULLIF(SUM(amt), 0) * 100, 1)   AS margin_pct,
-       ROUND(RATIO_TO_REPORT(SUM(amt) - SUM(cost)) OVER () * 100, 1)  AS share_pct,
-       ROUND(SUM(bought) / NULLIF(SUM(units), 0), 2)            AS buy_sold
+       SUM(CASE WHEN m.cal_year = 2018 THEN m.amt - m.cogs END)   AS y2018,
+       SUM(CASE WHEN m.cal_year = 2019 THEN m.amt - m.cogs END)   AS y2019,
+       SUM(CASE WHEN m.cal_year = 2020 THEN m.amt - m.cogs END)   AS y2020,
+       SUM(CASE WHEN m.cal_year = 2021 THEN m.amt - m.cogs END)   AS y2021,
+       SUM(CASE WHEN m.cal_year = 2022 THEN m.amt - m.cogs END)   AS y2022,
+       SUM(CASE WHEN m.cal_year = 2023 THEN m.amt - m.cogs END)   AS y2023,
+       SUM(CASE WHEN m.cal_year = 2024 THEN m.amt - m.cogs END)   AS y2024,
+       SUM(CASE WHEN m.cal_year = 2025 THEN m.amt - m.cogs END)   AS y2025,
+       SUM(m.amt)                                                 AS sales,
+       SUM(m.cogs)                                                AS cogs,
+       SUM(m.amt) - SUM(m.cogs)                                   AS gp,
+       ROUND((SUM(m.amt) - SUM(m.cogs)) / NULLIF(SUM(m.amt), 0) * 100, 1)   AS margin_pct,
+       ROUND(RATIO_TO_REPORT(SUM(m.amt) - SUM(m.cogs)) OVER () * 100, 1)    AS share_pct,
+       ROUND(MAX(bg.bought) / NULLIF(SUM(m.units), 0), 2)         AS buy_sold
 FROM   m
-GROUP  BY br_state
+LEFT   JOIN bought bg ON bg.br_state = m.br_state
+GROUP  BY m.br_state
 ORDER  BY gp DESC;
 
 -- ---- prompt 1: which state? (spool paused, helper hidden) ----------
@@ -298,7 +327,7 @@ COLUMN y2023      HEADING 'GP 2023'    FORMAT 9,999,990 &v2023
 COLUMN y2024      HEADING 'GP 2024'    FORMAT 9,999,990 &v2024
 COLUMN y2025      HEADING 'GP 2025'    FORMAT 9,999,990 &v2025
 COLUMN sales      HEADING 'SALES|&f_from-&f_to' FORMAT 99,999,990
-COLUMN cost       HEADING 'PURCHASE|COST'  FORMAT 99,999,990
+COLUMN cogs       HEADING 'COGS'       FORMAT 99,999,990
 COLUMN gp         HEADING 'GROSS|PROFIT'   FORMAT 99,999,990
 COLUMN margin_pct HEADING 'MARGIN|%'   FORMAT 990.0
 COLUMN share_pct  HEADING 'SHARE OF|STATE GP %' FORMAT 990.0
@@ -306,52 +335,78 @@ COLUMN buy_sold   HEADING 'BUY/|SOLD'  FORMAT 90.00
 COLUMN br_ID      NOPRINT
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'STATE' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cost gp ON REPORT
+COMPUTE SUM LABEL 'STATE' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cogs gp ON REPORT
 
-WITH m AS (
-    SELECT br_ID, br_city, cal_year,
-           SUM(amt) AS amt, SUM(units) AS units, SUM(cost) AS cost, SUM(bought) AS bought
-    FROM (
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               SUM(f.order_total_amt - f.order_tax_amt) AS amt, SUM(f.order_qty) AS units,
-               0 AS cost, 0 AS bought
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        AND    b.br_state = '&f_state'
-        AND    d.cal_year BETWEEN &f_from AND &f_to
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-        UNION ALL
-        SELECT b.br_ID, b.br_city, d.cal_year,
-               0, 0, SUM(f.purchase_total_cost), SUM(f.purchase_qty)
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  b.br_state = '&f_state'
-        AND    d.cal_year BETWEEN &f_from AND &f_to
-        GROUP  BY b.br_ID, b.br_city, d.cal_year
-    )
-    GROUP BY br_ID, br_city, cal_year
+WITH sold AS (
+    -- what was sold, at product grain (Completed lines, tax excluded)
+    SELECT b.br_ID, b.br_city, d.cal_year, p.product_ID,
+           SUM(f.order_qty)                          AS units,
+           SUM(f.order_total_amt - f.order_tax_amt)  AS amt
+    FROM   order_fact  f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  f.order_status = 'Completed'
+    AND    b.br_state = '&f_state'
+    AND    d.cal_year BETWEEN &f_from AND &f_to
+    GROUP  BY b.br_ID, b.br_city, d.cal_year, p.product_ID
+),
+uc AS (
+    -- unit cost actually paid: branch x product x year (purchase cost /
+    -- units bought), all years so every sale finds a cost
+    SELECT b.br_ID, p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost,
+           SUM(f.purchase_qty)                                          AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY b.br_ID, p.product_ID, d.cal_year
+),
+ucc AS (
+    -- fallback: the company-wide unit cost of the product that year
+    SELECT p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY p.product_ID, d.cal_year
+),
+m AS (
+    -- COGS = units sold x the unit cost paid for that product
+    SELECT s.*, s.units * NVL(u.unit_cost, c.unit_cost) AS cogs
+    FROM   sold s
+    LEFT   JOIN uc  u ON u.br_ID = s.br_ID AND u.product_ID = s.product_ID AND u.cal_year = s.cal_year
+    LEFT   JOIN ucc c ON c.product_ID = s.product_ID AND c.cal_year = s.cal_year
+),
+bought AS (
+    SELECT b.br_ID, SUM(f.purchase_qty) AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim   d ON d.date_key   = f.date_key
+    JOIN   branch_dim b ON b.branch_key = f.branch_key
+    WHERE  b.br_state = '&f_state'
+    AND    d.cal_year BETWEEN &f_from AND &f_to
+    GROUP  BY b.br_ID
 )
-SELECT br_city,
-       SUM(CASE WHEN cal_year = 2018 THEN amt - cost END)       AS y2018,
-       SUM(CASE WHEN cal_year = 2019 THEN amt - cost END)       AS y2019,
-       SUM(CASE WHEN cal_year = 2020 THEN amt - cost END)       AS y2020,
-       SUM(CASE WHEN cal_year = 2021 THEN amt - cost END)       AS y2021,
-       SUM(CASE WHEN cal_year = 2022 THEN amt - cost END)       AS y2022,
-       SUM(CASE WHEN cal_year = 2023 THEN amt - cost END)       AS y2023,
-       SUM(CASE WHEN cal_year = 2024 THEN amt - cost END)       AS y2024,
-       SUM(CASE WHEN cal_year = 2025 THEN amt - cost END)       AS y2025,
-       SUM(amt)                                                 AS sales,
-       SUM(cost)                                                AS cost,
-       SUM(amt) - SUM(cost)                                     AS gp,
-       ROUND((SUM(amt) - SUM(cost)) / NULLIF(SUM(amt), 0) * 100, 1)   AS margin_pct,
-       ROUND(RATIO_TO_REPORT(SUM(amt) - SUM(cost)) OVER () * 100, 1)  AS share_pct,
-       ROUND(SUM(bought) / NULLIF(SUM(units), 0), 2)            AS buy_sold,
-       br_ID
+SELECT m.br_city,
+       SUM(CASE WHEN m.cal_year = 2018 THEN m.amt - m.cogs END)   AS y2018,
+       SUM(CASE WHEN m.cal_year = 2019 THEN m.amt - m.cogs END)   AS y2019,
+       SUM(CASE WHEN m.cal_year = 2020 THEN m.amt - m.cogs END)   AS y2020,
+       SUM(CASE WHEN m.cal_year = 2021 THEN m.amt - m.cogs END)   AS y2021,
+       SUM(CASE WHEN m.cal_year = 2022 THEN m.amt - m.cogs END)   AS y2022,
+       SUM(CASE WHEN m.cal_year = 2023 THEN m.amt - m.cogs END)   AS y2023,
+       SUM(CASE WHEN m.cal_year = 2024 THEN m.amt - m.cogs END)   AS y2024,
+       SUM(CASE WHEN m.cal_year = 2025 THEN m.amt - m.cogs END)   AS y2025,
+       SUM(m.amt)                                                 AS sales,
+       SUM(m.cogs)                                                AS cogs,
+       SUM(m.amt) - SUM(m.cogs)                                   AS gp,
+       ROUND((SUM(m.amt) - SUM(m.cogs)) / NULLIF(SUM(m.amt), 0) * 100, 1)   AS margin_pct,
+       ROUND(RATIO_TO_REPORT(SUM(m.amt) - SUM(m.cogs)) OVER () * 100, 1)    AS share_pct,
+       ROUND(MAX(bg.bought) / NULLIF(SUM(m.units), 0), 2)         AS buy_sold,
+       m.br_ID
 FROM   m
-GROUP  BY br_ID, br_city
+LEFT   JOIN bought bg ON bg.br_ID = m.br_ID
+GROUP  BY m.br_ID, m.br_city
 ORDER  BY gp DESC;
 
 -- ---- prompt 2: which branch? ---------------------------------------
@@ -382,9 +437,9 @@ SPOOL product_category_margin_output.txt APPEND
 -- ###################################################################
 -- SECTION 3 - PRODUCT GROSS PROFIT BY QUARTER (the chosen branch)
 -- OLAP: DRILL-DOWN year -> quarter for one branch: the year's sales,
--- purchase cost, gross profit and margin, then the gross profit of
--- each quarter across, the best quarter and the year-on-year change
--- in gross profit.
+-- COGS, gross profit and margin, then the gross profit of each
+-- quarter across, the best quarter and the year-on-year change in
+-- gross profit.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
@@ -399,7 +454,7 @@ TTITLE CENTER '+==========================================================+' SKI
 COLUMN cal_year   HEADING 'YEAR'       FORMAT 9999
 -- one digit wider than a year needs: the ALL row is eight years
 COLUMN sales      HEADING 'SALES'      FORMAT 99,999,990
-COLUMN cost       HEADING 'PURCHASE|COST' FORMAT 99,999,990
+COLUMN cogs       HEADING 'COGS'       FORMAT 99,999,990
 COLUMN gp         HEADING 'GROSS|PROFIT'  FORMAT 99,999,990
 COLUMN margin_pct HEADING 'MARGIN|%'   FORMAT 990.0
 COLUMN q1         HEADING 'GP Q1'      FORMAT 9,999,990
@@ -411,53 +466,84 @@ COLUMN yoy_pct    HEADING 'GP|YOY %'   FORMAT S9,990.0
 COLUMN buy_sold   HEADING 'BUY/|SOLD'  FORMAT 90.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF sales cost gp q1 q2 q3 q4 ON REPORT
+COMPUTE SUM LABEL 'ALL' OF sales cogs gp q1 q2 q3 q4 ON REPORT
 
-WITH m AS (
-    SELECT cal_year, cal_quarter,
-           SUM(amt) AS amt, SUM(units) AS units, SUM(cost) AS cost, SUM(bought) AS bought
-    FROM (
-        SELECT d.cal_year, d.cal_quarter,
-               SUM(f.order_total_amt - f.order_tax_amt) AS amt, SUM(f.order_qty) AS units,
-               0 AS cost, 0 AS bought
-        FROM   order_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  f.order_status = 'Completed'
-        AND    b.br_ID = &f_br_id
-        AND    d.cal_year BETWEEN &f_from AND &f_to
-        GROUP  BY d.cal_year, d.cal_quarter
-        UNION ALL
-        SELECT d.cal_year, d.cal_quarter,
-               0, 0, SUM(f.purchase_total_cost), SUM(f.purchase_qty)
-        FROM   purchase_fact f
-        JOIN   date_dim   d ON d.date_key   = f.date_key
-        JOIN   branch_dim b ON b.branch_key = f.branch_key
-        WHERE  b.br_ID = &f_br_id
-        AND    d.cal_year BETWEEN &f_from AND &f_to
-        GROUP  BY d.cal_year, d.cal_quarter
-    )
-    GROUP BY cal_year, cal_quarter
+WITH sold AS (
+    -- what was sold, at product grain (Completed lines, tax excluded)
+    SELECT b.br_ID, d.cal_year, d.cal_quarter, p.product_ID,
+           SUM(f.order_qty)                          AS units,
+           SUM(f.order_total_amt - f.order_tax_amt)  AS amt
+    FROM   order_fact  f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  f.order_status = 'Completed'
+    AND    b.br_ID = &f_br_id
+    AND    d.cal_year BETWEEN &f_from AND &f_to
+    GROUP  BY b.br_ID, d.cal_year, d.cal_quarter, p.product_ID
+),
+uc AS (
+    -- unit cost actually paid: branch x product x year (purchase cost /
+    -- units bought), all years so every sale finds a cost
+    SELECT b.br_ID, p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost,
+           SUM(f.purchase_qty)                                          AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY b.br_ID, p.product_ID, d.cal_year
+),
+ucc AS (
+    -- fallback: the company-wide unit cost of the product that year
+    SELECT p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY p.product_ID, d.cal_year
+),
+m AS (
+    -- COGS = units sold x the unit cost paid for that product
+    SELECT s.*, s.units * NVL(u.unit_cost, c.unit_cost) AS cogs
+    FROM   sold s
+    LEFT   JOIN uc  u ON u.br_ID = s.br_ID AND u.product_ID = s.product_ID AND u.cal_year = s.cal_year
+    LEFT   JOIN ucc c ON c.product_ID = s.product_ID AND c.cal_year = s.cal_year
+),
+bought AS (
+    SELECT d.cal_year, SUM(f.purchase_qty) AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim   d ON d.date_key   = f.date_key
+    JOIN   branch_dim b ON b.branch_key = f.branch_key
+    WHERE  b.br_ID = &f_br_id
+    AND    d.cal_year BETWEEN &f_from AND &f_to
+    GROUP  BY d.cal_year
 ),
 yr AS (
-    SELECT cal_year,
-           SUM(amt) AS sales, SUM(cost) AS cost, SUM(amt) - SUM(cost) AS gp,
-           SUM(CASE WHEN cal_quarter = 1 THEN amt - cost END) AS q1,
-           SUM(CASE WHEN cal_quarter = 2 THEN amt - cost END) AS q2,
-           SUM(CASE WHEN cal_quarter = 3 THEN amt - cost END) AS q3,
-           SUM(CASE WHEN cal_quarter = 4 THEN amt - cost END) AS q4,
-           'Q' || MAX(cal_quarter) KEEP (DENSE_RANK FIRST ORDER BY amt - cost DESC) AS best_q,
-           SUM(bought) AS bought, SUM(units) AS units
+    SELECT m.cal_year,
+           SUM(m.amt) AS sales, SUM(m.cogs) AS cogs, SUM(m.amt) - SUM(m.cogs) AS gp,
+           SUM(CASE WHEN m.cal_quarter = 1 THEN m.amt - m.cogs END) AS q1,
+           SUM(CASE WHEN m.cal_quarter = 2 THEN m.amt - m.cogs END) AS q2,
+           SUM(CASE WHEN m.cal_quarter = 3 THEN m.amt - m.cogs END) AS q3,
+           SUM(CASE WHEN m.cal_quarter = 4 THEN m.amt - m.cogs END) AS q4,
+           SUM(m.units) AS units
     FROM   m
+    GROUP  BY m.cal_year
+),
+qbest AS (
+    SELECT cal_year, 'Q' || MAX(cal_quarter) KEEP (DENSE_RANK FIRST ORDER BY gpq DESC) AS best_q
+    FROM   (SELECT cal_year, cal_quarter, SUM(amt - cogs) AS gpq FROM m GROUP BY cal_year, cal_quarter)
     GROUP  BY cal_year
 )
-SELECT cal_year, sales, cost, gp,
-       ROUND(gp / NULLIF(sales, 0) * 100, 1)                                AS margin_pct,
-       q1, q2, q3, q4, best_q,
-       ROUND((gp / NULLIF(LAG(gp) OVER (ORDER BY cal_year), 0) - 1) * 100, 1) AS yoy_pct,
-       ROUND(bought / NULLIF(units, 0), 2)                                  AS buy_sold
-FROM   yr
-ORDER  BY cal_year;
+SELECT y.cal_year, y.sales, y.cogs, y.gp,
+       ROUND(y.gp / NULLIF(y.sales, 0) * 100, 1)                              AS margin_pct,
+       y.q1, y.q2, y.q3, y.q4, qb.best_q,
+       ROUND((y.gp / NULLIF(LAG(y.gp) OVER (ORDER BY y.cal_year), 0) - 1) * 100, 1) AS yoy_pct,
+       ROUND(bg.bought / NULLIF(y.units, 0), 2)                               AS buy_sold
+FROM   yr y
+LEFT   JOIN qbest  qb ON qb.cal_year = y.cal_year
+LEFT   JOIN bought bg ON bg.cal_year = y.cal_year
+ORDER  BY y.cal_year;
 
 -- ---- prompt 3: which year? -----------------------------------------
 SPOOL OFF
@@ -476,7 +562,7 @@ SPOOL product_category_margin_output.txt APPEND
 -- OLAP: DICE (branch x year), categories down RANKED by gross profit,
 -- gross profit per quarter across; MARGIN %, share of the year's
 -- gross profit, buy/sold, and the MARKUP (realised selling price over
--- unit cost). Pick a category from this list next.
+-- the unit cost paid). Pick a category from this list next.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
@@ -491,7 +577,7 @@ TTITLE CENTER '+==========================================================+' SKI
 COLUMN rnk        HEADING 'RANK'       FORMAT 99
 COLUMN product_category HEADING 'CATEGORY' FORMAT A19
 COLUMN sales      HEADING 'SALES (RM)' FORMAT 9,999,990.00
-COLUMN cost       HEADING 'PURCHASE|COST (RM)' FORMAT 999,990.00
+COLUMN cogs       HEADING 'COGS (RM)'  FORMAT 999,990.00
 COLUMN gp         HEADING 'GROSS|PROFIT (RM)' FORMAT 9,999,990.00
 COLUMN margin_pct HEADING 'MARGIN|%'   FORMAT 990.0
 COLUMN share_pct  HEADING 'SHARE OF|GP %' FORMAT 990.0
@@ -505,54 +591,78 @@ COLUMN unit_cost  HEADING 'UNIT|COST'  FORMAT 9,990.00
 COLUMN markup     HEADING 'MARK|UP x'  FORMAT 90.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF sales cost gp q1 q2 q3 q4 ON REPORT
+COMPUTE SUM LABEL 'ALL' OF sales cogs gp q1 q2 q3 q4 ON REPORT
 
-WITH m AS (
-    SELECT product_category, cal_quarter,
-           SUM(amt) AS amt, SUM(units) AS units, SUM(cost) AS cost, SUM(bought) AS bought
-    FROM (
-        SELECT p.product_category, d.cal_quarter,
-               SUM(f.order_total_amt - f.order_tax_amt) AS amt, SUM(f.order_qty) AS units,
-               0 AS cost, 0 AS bought
-        FROM   order_fact  f
-        JOIN   date_dim    d ON d.date_key    = f.date_key
-        JOIN   branch_dim  b ON b.branch_key  = f.branch_key
-        JOIN   product_dim p ON p.product_key = f.product_key
-        WHERE  f.order_status = 'Completed'
-        AND    b.br_ID = &f_br_id
-        AND    d.cal_year = &f_year
-        GROUP  BY p.product_category, d.cal_quarter
-        UNION ALL
-        SELECT p.product_category, d.cal_quarter,
-               0, 0, SUM(f.purchase_total_cost), SUM(f.purchase_qty)
-        FROM   purchase_fact f
-        JOIN   date_dim    d ON d.date_key    = f.date_key
-        JOIN   branch_dim  b ON b.branch_key  = f.branch_key
-        JOIN   product_dim p ON p.product_key = f.product_key
-        WHERE  b.br_ID = &f_br_id
-        AND    d.cal_year = &f_year
-        GROUP  BY p.product_category, d.cal_quarter
-    )
-    GROUP BY product_category, cal_quarter
+WITH sold AS (
+    -- what was sold, at product grain (Completed lines, tax excluded)
+    SELECT b.br_ID, p.product_category, d.cal_year, d.cal_quarter, p.product_ID,
+           SUM(f.order_qty)                          AS units,
+           SUM(f.order_total_amt - f.order_tax_amt)  AS amt
+    FROM   order_fact  f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  f.order_status = 'Completed'
+    AND    b.br_ID = &f_br_id
+    AND    d.cal_year = &f_year
+    GROUP  BY b.br_ID, p.product_category, d.cal_year, d.cal_quarter, p.product_ID
+),
+uc AS (
+    -- unit cost actually paid: branch x product x year (purchase cost /
+    -- units bought), all years so every sale finds a cost
+    SELECT b.br_ID, p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost,
+           SUM(f.purchase_qty)                                          AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY b.br_ID, p.product_ID, d.cal_year
+),
+ucc AS (
+    -- fallback: the company-wide unit cost of the product that year
+    SELECT p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY p.product_ID, d.cal_year
+),
+m AS (
+    -- COGS = units sold x the unit cost paid for that product
+    SELECT s.*, s.units * NVL(u.unit_cost, c.unit_cost) AS cogs
+    FROM   sold s
+    LEFT   JOIN uc  u ON u.br_ID = s.br_ID AND u.product_ID = s.product_ID AND u.cal_year = s.cal_year
+    LEFT   JOIN ucc c ON c.product_ID = s.product_ID AND c.cal_year = s.cal_year
+),
+bought AS (
+    SELECT p.product_category, SUM(f.purchase_qty) AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  b.br_ID = &f_br_id
+    AND    d.cal_year = &f_year
+    GROUP  BY p.product_category
 )
-SELECT RANK() OVER (ORDER BY SUM(amt) - SUM(cost) DESC)          AS rnk,
-       product_category,
-       SUM(amt)                                                  AS sales,
-       SUM(cost)                                                 AS cost,
-       SUM(amt) - SUM(cost)                                      AS gp,
-       ROUND((SUM(amt) - SUM(cost)) / NULLIF(SUM(amt), 0) * 100, 1)   AS margin_pct,
-       ROUND(RATIO_TO_REPORT(SUM(amt) - SUM(cost)) OVER () * 100, 1)  AS share_pct,
-       SUM(CASE WHEN cal_quarter = 1 THEN amt - cost END)        AS q1,
-       SUM(CASE WHEN cal_quarter = 2 THEN amt - cost END)        AS q2,
-       SUM(CASE WHEN cal_quarter = 3 THEN amt - cost END)        AS q3,
-       SUM(CASE WHEN cal_quarter = 4 THEN amt - cost END)        AS q4,
-       ROUND(SUM(bought) / NULLIF(SUM(units), 0), 2)             AS buy_sold,
-       ROUND(SUM(amt)  / NULLIF(SUM(units), 0), 2)               AS avg_price,
-       ROUND(SUM(cost) / NULLIF(SUM(bought), 0), 2)              AS unit_cost,
-       ROUND((SUM(amt) / NULLIF(SUM(units), 0))
-             / NULLIF(SUM(cost) / NULLIF(SUM(bought), 0), 0), 2) AS markup
+SELECT RANK() OVER (ORDER BY SUM(m.amt) - SUM(m.cogs) DESC)      AS rnk,
+       m.product_category,
+       SUM(m.amt)                                                AS sales,
+       SUM(m.cogs)                                               AS cogs,
+       SUM(m.amt) - SUM(m.cogs)                                  AS gp,
+       ROUND((SUM(m.amt) - SUM(m.cogs)) / NULLIF(SUM(m.amt), 0) * 100, 1)   AS margin_pct,
+       ROUND(RATIO_TO_REPORT(SUM(m.amt) - SUM(m.cogs)) OVER () * 100, 1)    AS share_pct,
+       SUM(CASE WHEN m.cal_quarter = 1 THEN m.amt - m.cogs END)  AS q1,
+       SUM(CASE WHEN m.cal_quarter = 2 THEN m.amt - m.cogs END)  AS q2,
+       SUM(CASE WHEN m.cal_quarter = 3 THEN m.amt - m.cogs END)  AS q3,
+       SUM(CASE WHEN m.cal_quarter = 4 THEN m.amt - m.cogs END)  AS q4,
+       ROUND(MAX(bg.bought) / NULLIF(SUM(m.units), 0), 2)        AS buy_sold,
+       ROUND(SUM(m.amt)  / NULLIF(SUM(m.units), 0), 2)           AS avg_price,
+       ROUND(SUM(m.cogs) / NULLIF(SUM(m.units), 0), 2)           AS unit_cost,
+       ROUND(SUM(m.amt) / NULLIF(SUM(m.cogs), 0), 2)             AS markup
 FROM   m
-GROUP  BY product_category
+LEFT   JOIN bought bg ON bg.product_category = m.product_category
+GROUP  BY m.product_category
 ORDER  BY rnk;
 
 -- ---- prompt 4: which category? -------------------------------------
@@ -585,10 +695,10 @@ SPOOL product_category_margin_output.txt APPEND
 -- ###################################################################
 -- SECTION 5 - PRODUCT GROSS PROFIT BY PRODUCT (the chosen category)
 -- OLAP: DRILL-DOWN category -> product for the chosen branch and
--- year: sales, purchase cost, gross profit, margin, share of the
--- category's gross profit, gross profit per quarter across, units
--- sold vs bought, realised price vs unit cost (markup) and the
--- current list price.
+-- year: sales, COGS, gross profit, margin, share of the category's
+-- gross profit, gross profit per quarter across, units sold vs
+-- bought, realised price vs unit cost (markup) and the current list
+-- price.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
@@ -603,7 +713,7 @@ TTITLE CENTER '+==========================================================+' SKI
 COLUMN rnk          HEADING 'RANK'      FORMAT 99
 COLUMN product_name HEADING 'PRODUCT'   FORMAT A32
 COLUMN sales        HEADING 'SALES (RM)' FORMAT 999,990.00
-COLUMN cost         HEADING 'PURCHASE|COST (RM)' FORMAT 999,990.00
+COLUMN cogs         HEADING 'COGS (RM)' FORMAT 999,990.00
 COLUMN gp           HEADING 'GROSS|PROFIT (RM)' FORMAT 999,990.00
 COLUMN margin_pct   HEADING 'MARGIN|%'  FORMAT 990.0
 COLUMN share_pct    HEADING 'SHARE OF|CAT GP %' FORMAT 990.0
@@ -619,69 +729,86 @@ COLUMN markup       HEADING 'MARK|UP x'  FORMAT 90.00
 COLUMN list_price   HEADING 'PRICE NOW|(RM)' FORMAT 9,990.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF sales cost gp q1 q2 q3 q4 units bought ON REPORT
+COMPUTE SUM LABEL 'ALL' OF sales cogs gp q1 q2 q3 q4 units bought ON REPORT
 
-WITH q AS (
-    -- product x quarter, sales and purchases side by side
-    SELECT product_ID, product_name, cal_quarter,
-           SUM(amt) AS amt, SUM(units) AS units, SUM(cost) AS cost, SUM(bought) AS bought
-    FROM (
-        SELECT p.product_ID, p.product_name, d.cal_quarter,
-               SUM(f.order_total_amt - f.order_tax_amt) AS amt, SUM(f.order_qty) AS units,
-               0 AS cost, 0 AS bought
-        FROM   order_fact  f
-        JOIN   date_dim    d ON d.date_key    = f.date_key
-        JOIN   branch_dim  b ON b.branch_key  = f.branch_key
-        JOIN   product_dim p ON p.product_key = f.product_key
-        WHERE  f.order_status = 'Completed'
-        AND    b.br_ID = &f_br_id
-        AND    d.cal_year = &f_year
-        AND    p.product_category = '&f_cat'
-        GROUP  BY p.product_ID, p.product_name, d.cal_quarter
-        UNION ALL
-        SELECT p.product_ID, p.product_name, d.cal_quarter,
-               0, 0, SUM(f.purchase_total_cost), SUM(f.purchase_qty)
-        FROM   purchase_fact f
-        JOIN   date_dim    d ON d.date_key    = f.date_key
-        JOIN   branch_dim  b ON b.branch_key  = f.branch_key
-        JOIN   product_dim p ON p.product_key = f.product_key
-        WHERE  b.br_ID = &f_br_id
-        AND    d.cal_year = &f_year
-        AND    p.product_category = '&f_cat'
-        GROUP  BY p.product_ID, p.product_name, d.cal_quarter
-    )
-    GROUP BY product_ID, product_name, cal_quarter
+WITH sold AS (
+    -- what was sold, at product grain (Completed lines, tax excluded)
+    SELECT b.br_ID, p.product_name, d.cal_year, d.cal_quarter, p.product_ID,
+           SUM(f.order_qty)                          AS units,
+           SUM(f.order_total_amt - f.order_tax_amt)  AS amt
+    FROM   order_fact  f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  f.order_status = 'Completed'
+    AND    b.br_ID = &f_br_id
+    AND    d.cal_year = &f_year
+    AND    p.product_category = '&f_cat'
+    GROUP  BY b.br_ID, p.product_name, d.cal_year, d.cal_quarter, p.product_ID
+),
+uc AS (
+    -- unit cost actually paid: branch x product x year (purchase cost /
+    -- units bought), all years so every sale finds a cost
+    SELECT b.br_ID, p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost,
+           SUM(f.purchase_qty)                                          AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY b.br_ID, p.product_ID, d.cal_year
+),
+ucc AS (
+    -- fallback: the company-wide unit cost of the product that year
+    SELECT p.product_ID, d.cal_year,
+           SUM(f.purchase_total_cost) / NULLIF(SUM(f.purchase_qty), 0) AS unit_cost
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    GROUP  BY p.product_ID, d.cal_year
 ),
 m AS (
-    SELECT product_ID, product_name,
-           SUM(amt) AS amt, SUM(units) AS units, SUM(cost) AS cost, SUM(bought) AS bought,
-           SUM(CASE WHEN cal_quarter = 1 THEN amt - cost END) AS q1,
-           SUM(CASE WHEN cal_quarter = 2 THEN amt - cost END) AS q2,
-           SUM(CASE WHEN cal_quarter = 3 THEN amt - cost END) AS q3,
-           SUM(CASE WHEN cal_quarter = 4 THEN amt - cost END) AS q4
-    FROM   q
-    GROUP  BY product_ID, product_name
+    -- COGS = units sold x the unit cost paid for that product
+    SELECT s.*, s.units * NVL(u.unit_cost, c.unit_cost) AS cogs
+    FROM   sold s
+    LEFT   JOIN uc  u ON u.br_ID = s.br_ID AND u.product_ID = s.product_ID AND u.cal_year = s.cal_year
+    LEFT   JOIN ucc c ON c.product_ID = s.product_ID AND c.cal_year = s.cal_year
+),
+bought AS (
+    SELECT p.product_ID, SUM(f.purchase_qty) AS bought
+    FROM   purchase_fact f
+    JOIN   date_dim    d ON d.date_key    = f.date_key
+    JOIN   branch_dim  b ON b.branch_key  = f.branch_key
+    JOIN   product_dim p ON p.product_key = f.product_key
+    WHERE  b.br_ID = &f_br_id
+    AND    d.cal_year = &f_year
+    GROUP  BY p.product_ID
 ),
 cur_price AS (
     SELECT product_ID, product_unit_price
     FROM   product_dim WHERE is_current_flag = 'Y'
 )
-SELECT RANK() OVER (ORDER BY m.amt - m.cost DESC)                AS rnk,
+SELECT RANK() OVER (ORDER BY SUM(m.amt) - SUM(m.cogs) DESC)      AS rnk,
        m.product_name,
-       m.amt                                                     AS sales,
-       m.cost,
-       m.amt - m.cost                                            AS gp,
-       ROUND((m.amt - m.cost) / NULLIF(m.amt, 0) * 100, 1)       AS margin_pct,
-       ROUND(RATIO_TO_REPORT(m.amt - m.cost) OVER () * 100, 1)   AS share_pct,
-       m.q1, m.q2, m.q3, m.q4,
-       m.units, m.bought,
-       ROUND(m.amt  / NULLIF(m.units, 0), 2)                     AS avg_price,
-       ROUND(m.cost / NULLIF(m.bought, 0), 2)                    AS unit_cost,
-       ROUND((m.amt / NULLIF(m.units, 0))
-             / NULLIF(m.cost / NULLIF(m.bought, 0), 0), 2)       AS markup,
-       c.product_unit_price                                      AS list_price
+       SUM(m.amt)                                                AS sales,
+       SUM(m.cogs)                                               AS cogs,
+       SUM(m.amt) - SUM(m.cogs)                                  AS gp,
+       ROUND((SUM(m.amt) - SUM(m.cogs)) / NULLIF(SUM(m.amt), 0) * 100, 1)   AS margin_pct,
+       ROUND(RATIO_TO_REPORT(SUM(m.amt) - SUM(m.cogs)) OVER () * 100, 1)    AS share_pct,
+       SUM(CASE WHEN m.cal_quarter = 1 THEN m.amt - m.cogs END)  AS q1,
+       SUM(CASE WHEN m.cal_quarter = 2 THEN m.amt - m.cogs END)  AS q2,
+       SUM(CASE WHEN m.cal_quarter = 3 THEN m.amt - m.cogs END)  AS q3,
+       SUM(CASE WHEN m.cal_quarter = 4 THEN m.amt - m.cogs END)  AS q4,
+       SUM(m.units)                                              AS units,
+       MAX(bg.bought)                                            AS bought,
+       ROUND(SUM(m.amt)  / NULLIF(SUM(m.units), 0), 2)           AS avg_price,
+       ROUND(SUM(m.cogs) / NULLIF(SUM(m.units), 0), 2)           AS unit_cost,
+       ROUND(SUM(m.amt) / NULLIF(SUM(m.cogs), 0), 2)             AS markup,
+       MAX(c.product_unit_price)                                 AS list_price
 FROM   m
-LEFT   JOIN cur_price c ON c.product_ID = m.product_ID
+LEFT   JOIN bought    bg ON bg.product_ID = m.product_ID
+LEFT   JOIN cur_price c  ON c.product_ID  = m.product_ID
+GROUP  BY m.product_ID, m.product_name
 ORDER  BY rnk;
 
 PROMPT

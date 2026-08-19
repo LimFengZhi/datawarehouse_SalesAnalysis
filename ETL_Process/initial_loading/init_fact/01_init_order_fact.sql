@@ -1,14 +1,22 @@
 -- ===================================================================
 -- 01_init_order_fact.sql        ORDER_FACT
--- Grain: one row per product line on an order
+-- Grain: one row per PRODUCT per ORDER
 -- Source: ORDER_DETAIL joined to ORDERS
 --
---   SECTION 1: staging VIEW - OLTP cleansing ONLY
+--   SECTION 1: staging VIEW - OLTP cleansing + line aggregation
 --   SECTION 2: no sequence   - PK is composite (dimension keys +
---                              order_ID + order_det_ID); order_det_ID
---                              is UNIQUE and drives the NOT EXISTS
+--                              order_ID); (order_ID, product_key) is
+--                              unique by grain (no constraint) and drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
+--
+-- GRAIN: the ERD carries no order-line ID on the fact, so the fact is
+-- one row per (order, product). The OLTP can put the same product on
+-- two lines of one order (it happens on ~2 % of lines), and those
+-- lines would otherwise collide on the composite PK - so the staging
+-- view GROUPs BY (order_ID, product_ID) and SUMs qty / discount / tax.
+-- line_count says how many OLTP lines were folded into the row; it is
+-- not stored on the fact, only used by the loads and the validation.
 --
 -- The view never touches the dimensions: it exposes NATURAL keys
 -- (cus_ID, br_ID, st_ID, product_ID) and the raw order_date. The
@@ -21,25 +29,24 @@
 -- version whose effective range contains orders.order_date. So the
 -- view emits qty / discount / tax only, and order_total_amt is computed
 -- in the PROCEDURE, where the product_dim version is already joined:
---     order_total_amt = qty * p.product_unit_price - discount + tax
+--     order_total_amt = SUM(qty) * p.product_unit_price - SUM(discount) + SUM(tax)
+-- (one order date -> one price version, so summing first is exact).
 -- ===================================================================
 
 SET SERVEROUTPUT ON
 
 -- ===================================================================
 -- SECTION 1: CORE ETL TRANSFORMATION LOGIC (VIEW)
--- OLTP cleansing only. Natural keys out, no dimension joins.
 -- ===================================================================
 CREATE OR REPLACE VIEW order_fact_staging_v AS
 SELECT
-    od.order_det_ID,                              -- degenerate dim / UNIQUE
     o.order_ID,                                   -- degenerate dim
+    od.product_ID,                                -- (order_ID, product_ID) = the grain
 
     -- ---------- NATURAL keys, resolved to surrogates in SECTION 3 ----
     o.cus_ID,
     o.br_ID,
     o.st_ID,
-    od.product_ID,
     TRUNC(o.order_date)                            AS order_date,
 
     -- ---------- cleansed attributes ----------
@@ -58,48 +65,46 @@ SELECT
         ELSE INITCAP(TRIM(o.order_status))
     END                                            AS clean_order_status,
 
-    -- Quantity must be at least 1 - the OLTP CHECK says > 0, but a
-    -- staging view should never assume the source honoured it.
-    CASE
-        WHEN od.order_quantity IS NULL OR od.order_quantity <= 0 THEN 1
-        WHEN od.order_quantity > 999 THEN 999
-        ELSE od.order_quantity
-    END                                            AS clean_order_qty,
+    -- Quantity must be at least 1 per line - the OLTP CHECK says > 0,
+    -- but a staging view should never assume the source honoured it.
+    -- Summed over the lines of the same product in the order.
+    SUM(CASE
+            WHEN od.order_quantity IS NULL OR od.order_quantity <= 0 THEN 1
+            WHEN od.order_quantity > 999 THEN 999
+            ELSE od.order_quantity
+        END)                                       AS clean_order_qty,
 
-    -- Money components. The unit price is NOT here (see header): the
-    -- procedure multiplies clean_order_qty by the product_dim price.
-    ROUND(NVL(od.order_discount, 0), 2)            AS clean_discount_amt,
-    ROUND(NVL(od.order_tax, 0), 2)                 AS clean_tax_amt,
+    -- Money components, summed over the folded lines. The unit price is
+    -- NOT here (see header): the procedure multiplies clean_order_qty
+    -- by the product_dim price.
+    SUM(ROUND(NVL(od.order_discount, 0), 2))       AS clean_discount_amt,
+    SUM(ROUND(NVL(od.order_tax, 0), 2))            AS clean_tax_amt,
+
+    -- How many OLTP order_detail lines were folded into this row
+    COUNT(*)                                       AS line_count,
 
     -- ---------- data quality flags ----------
-    CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
-              OR od.order_quantity > 999
-         THEN 'Y' ELSE 'N' END                     AS qty_corrected,
+    MAX(CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
+                  OR od.order_quantity > 999
+             THEN 'Y' ELSE 'N' END)                AS qty_corrected,
     CASE WHEN o.order_status IS NULL
          THEN 'Y' ELSE 'N' END                     AS status_defaulted,
-    CASE WHEN od.order_discount IS NULL OR od.order_tax IS NULL
-         THEN 'Y' ELSE 'N' END                     AS money_defaulted
+    MAX(CASE WHEN od.order_discount IS NULL OR od.order_tax IS NULL
+             THEN 'Y' ELSE 'N' END)                AS money_defaulted
 
 FROM order_detail od
 JOIN orders o ON o.order_ID = od.order_ID
 -- Rows missing a key cannot be loaded at all. Excluding them HERE makes
 -- the loss explicit and countable, instead of letting a dimension join
 -- drop them silently later.
-WHERE od.order_det_ID IS NOT NULL
-  AND o.order_ID      IS NOT NULL
+WHERE o.order_ID      IS NOT NULL
   AND o.order_date    IS NOT NULL
   AND o.cus_ID        IS NOT NULL
   AND o.br_ID         IS NOT NULL
   AND o.st_ID         IS NOT NULL
-  AND od.product_ID   IS NOT NULL;
-
--- ===================================================================
--- SECTION 2: SEQUENCE - NOT REQUIRED
--- Facts carry no surrogate key. The PK is the composite of the five
--- dimension keys plus order_ID and order_det_ID; order_det_ID alone is
--- UNIQUE (it comes straight from the source) and is the degenerate
--- dimension the incremental load's NOT EXISTS anti-join uses.
--- ===================================================================
+  AND od.product_ID   IS NOT NULL
+GROUP BY o.order_ID, od.product_ID, o.cus_ID, o.br_ID, o.st_ID,
+         TRUNC(o.order_date), o.order_status;
 
 -- ===================================================================
 -- SECTION 3: ETL (INITIAL LOADING)
@@ -111,6 +116,7 @@ CREATE OR REPLACE PROCEDURE load_order_fact_initial AS
     v_errors   NUMBER := 0;
     v_orphaned NUMBER := 0;
     v_source   NUMBER := 0;
+    v_lines    NUMBER := 0;
 BEGIN
     SELECT COUNT(*) INTO v_count FROM order_fact;
 
@@ -120,11 +126,16 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT COUNT(*) INTO v_source FROM order_detail;
+    -- Source grain is (order, product): count the distinct pairs, not
+    -- the order_detail lines, or duplicate-product lines would look
+    -- like rows that failed to load.
+    SELECT COUNT(*) INTO v_source
+    FROM  (SELECT DISTINCT order_ID, product_ID FROM order_detail);
+    SELECT COUNT(*) INTO v_lines FROM order_detail;
 
     INSERT INTO order_fact (
         date_key, product_key, customer_key, staff_key, branch_key,
-        order_ID, order_det_ID, order_status,
+        order_ID, order_status,
         order_qty, order_discount_amt, order_tax_amt, order_total_amt
     )
     SELECT
@@ -134,7 +145,6 @@ BEGIN
         s.staff_key,
         b.branch_key,
         ls.order_ID,
-        ls.order_det_ID,
         ls.clean_order_status,
         ls.clean_order_qty,
         ls.clean_discount_amt,
@@ -171,14 +181,16 @@ BEGIN
     WHERE  qty_corrected = 'Y'
        OR  status_defaulted = 'Y' OR money_defaulted = 'Y';
 
-    -- How many source rows never made it, for any reason
+    -- How many source (order, product) groups never made it, for any reason
     v_orphaned := v_source - v_count;
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('ORDER_FACT initial load completed:');
+    DBMS_OUTPUT.PUT_LINE(' - OLTP order lines read   : ' || v_lines);
+    DBMS_OUTPUT.PUT_LINE(' - (order, product) groups : ' || v_source);
     DBMS_OUTPUT.PUT_LINE(' - Records inserted        : ' || v_count);
     DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);
-    DBMS_OUTPUT.PUT_LINE(' - Source rows not loaded  : ' || v_orphaned);
+    DBMS_OUTPUT.PUT_LINE(' - Source groups not loaded: ' || v_orphaned);
 
     IF v_orphaned <> 0 THEN
         DBMS_OUTPUT.PUT_LINE('*** WARNING: a dimension lookup failed for '
@@ -196,6 +208,5 @@ END;
 
 -- ===================================================================
 -- SECTION 4: RUN
--- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_order_fact_initial;

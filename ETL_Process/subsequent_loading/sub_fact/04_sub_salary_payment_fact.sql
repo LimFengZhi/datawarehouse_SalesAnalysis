@@ -3,7 +3,7 @@
 --
 --   SECTION 1: no new view - reuses salary_payment_fact_staging_v
 --   SECTION 2: no sequence - PK is composite (date, staff, branch keys
---              + sal_pay_ID); sal_pay_ID is UNIQUE and is what the
+--              + sal_pay_ID); sal_pay_ID is unique by grain (no constraint) and is what the
 --              NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new rows, then update changed ones
 --   SECTION 4: run + verification
@@ -12,24 +12,11 @@
 -- deduction corrected. total_amount is recomputed with the components
 -- so base + bonus - deduction = total keeps holding.
 --
--- Backfill the whole of data22_23 (2022-2023):
---     EXEC load_salary_fact_incremental(DATE '2022-01-01');
+-- Backfill the whole of data24 (2024):
+--     EXEC load_salary_fact_incremental(DATE '2024-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON
-
--- ===================================================================
--- SECTION 1: STAGING VIEW - reuses salary_payment_fact_staging_v from
---   ETL_Process\initial_loading\init_fact\04_init_salary_payment_fact.sql
--- It joins the OLTP STAFF table to expose staff.br_ID (salary_payment
--- has none by design, and staff_dim carries no br_ID either), so
--- branch_key is resolved from branch_dim by that br_ID + payment_date
--- range. Surrogate-key joins are written out below.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - NOT REQUIRED
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)

@@ -11,7 +11,6 @@ TRAILING NULLCOLS
     cus_ID,
     cus_first_name,
     cus_last_name,
-    cus_age,
     cus_gender,
     cus_phone,
     cus_DOB DATE 'YYYY-MM-DD',

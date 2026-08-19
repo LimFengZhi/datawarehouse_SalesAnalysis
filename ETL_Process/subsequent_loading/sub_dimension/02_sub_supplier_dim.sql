@@ -18,14 +18,6 @@
 
 SET SERVEROUTPUT ON
 
--- ===================================================================
--- SECTION 1: STAGING VIEW - reuses supplier_staging_v from
---   ETL_Process\initial_loading\init_dimension\03_init_supplier_dim.sql
--- so a cleansing rule changes once and both loads follow.
---
--- SECTION 2: SEQUENCE - reuses seq_supplier_key. Recreating it would
--- restart at 500 and violate the primary key.
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)

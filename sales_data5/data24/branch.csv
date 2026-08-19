@@ -1,0 +1,5 @@
+br_ID,br_name,br_address_line,br_city,br_state,br_postcode,br_phone,br_email,br_open_date
+14,Glow Beauty Seremban,"No. 10, Jalan Dato Bandar Tunggal",Seremban,Negeri Sembilan,70000,06-7623344,seremban@glowbeauty.com.my,2024-01-01
+15,Glow Beauty Kuantan,"Lot 12, Jalan Tun Ismail",Kuantan,Pahang,25000,09-5158822,kuantan@glowbeauty.com.my,2024-01-01
+16,Glow Beauty Subang Jaya,"No. 5, Jalan SS15/4D",Subang Jaya,Selangor,47500,03-56339911,subang@glowbeauty.com.my,2024-01-01
+17,Glow Beauty Bukit Jalil,"L1-08, Jalan Jalil Perkasa 1",Bukit Jalil,Wilayah Persekutuan,57000,03-89965533,bukitjalil@glowbeauty.com.my,2024-01-01

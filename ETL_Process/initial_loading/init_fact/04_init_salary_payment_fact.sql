@@ -5,7 +5,7 @@
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - PK is composite (date, staff, branch
---                              keys + sal_pay_ID); sal_pay_ID is UNIQUE
+--                              keys + sal_pay_ID); sal_pay_ID is unique by grain (no constraint)
 --                              and drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
@@ -27,7 +27,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW salary_payment_fact_staging_v AS
 SELECT
-    sp.sal_pay_ID,                                -- degenerate dim / UNIQUE
+    sp.sal_pay_ID,                                -- degenerate dim / one row per ID
 
     -- ---------- NATURAL keys ----------
     sp.st_ID,
@@ -69,13 +69,6 @@ WHERE sp.sal_pay_ID   IS NOT NULL
   AND sp.st_ID        IS NOT NULL
   AND st.br_ID        IS NOT NULL
   AND sp.payment_date IS NOT NULL;
-
--- ===================================================================
--- SECTION 2: SEQUENCE - NOT REQUIRED
--- The PK is the composite (date_key, staff_key, branch_key, sal_pay_ID);
--- sal_pay_ID from the source is UNIQUE and is the degenerate dimension
--- the incremental load's NOT EXISTS anti-join uses.
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (INITIAL LOADING)
@@ -153,6 +146,5 @@ END;
 
 -- ===================================================================
 -- SECTION 4: RUN
--- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_salary_fact_initial;

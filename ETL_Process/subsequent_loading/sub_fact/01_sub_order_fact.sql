@@ -2,15 +2,17 @@
 -- 01_sub_order_fact.sql       ORDER_FACT - SUBSEQUENT (INCREMENTAL)
 --
 --   SECTION 1: no new view - reuses order_fact_staging_v
---   SECTION 2: no sequence - PK is composite (dimension keys + order_ID
---              + order_det_ID); order_det_ID is UNIQUE and is what the
---              NOT EXISTS anti-join and STEP 2 match on
+--   SECTION 2: no sequence - PK is composite (dimension keys + order_ID);
+--              (order_ID, product_key) is unique by grain (no constraint) and is what the
+--              NOT EXISTS anti-join and STEP 2 match on. Grain = one row
+--              per (order, product): the staging view already folds
+--              duplicate-product lines of one order into one row.
 --   SECTION 3: PROCEDURE - insert new lines, then update changed ones
 --   SECTION 4: run + verification
 --
 -- TWO STEPS:
---   STEP 1  INSERT order lines that are not in the fact yet
---   STEP 2  UPDATE lines that ARE in the fact but whose values moved
+--   STEP 1  INSERT (order, product) rows that are not in the fact yet
+--   STEP 2  UPDATE rows that ARE in the fact but whose values moved
 --
 -- STEP 2 is what makes a fact load different from a dimension load.
 -- order_status is not frozen at the moment of sale - an order sits at
@@ -30,9 +32,9 @@
 --   so a bare call picks up yesterday and today.
 --
 --   To BACKFILL a historical range, just pass the first date you want.
---   Loading the whole of data22_23 (2022-2023):
---       EXEC load_order_fact_incremental(DATE '2022-01-01');
---   which filters order_date >= 2021-12-31.
+--   Loading the whole of data24 (2024):
+--       EXEC load_order_fact_incremental(DATE '2024-01-01');
+--   which filters order_date >= 2023-12-31.
 --
 --   Note the window opens ONE DAY EARLIER than the date you pass -
 --   that is the "- 1" above, and it is deliberate. On a daily run it
@@ -42,18 +44,6 @@
 -- ===================================================================
 
 SET SERVEROUTPUT ON
-
--- ===================================================================
--- SECTION 1: STAGING VIEW - reuses order_fact_staging_v from
---   ETL_Process\initial_loading\init_fact\01_init_order_fact.sql
--- OLTP cleansing only (qty / discount / tax, no price); the
--- surrogate-key joins and the price lookup are written out in the
--- procedure below, where the raw date drives the window filter.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - NOT REQUIRED
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
@@ -67,19 +57,21 @@ CREATE OR REPLACE PROCEDURE load_order_fact_incremental(
     v_errors  NUMBER := 0;
 BEGIN
     -- ---------------------------------------------------------------
-    -- STEP 1: insert new order lines.
-    -- The NOT EXISTS anti-join on the degenerate order_det_ID (UNIQUE
-    -- in the fact) is what makes this safe to re-run - a second pass
-    -- inserts nothing.
+    -- STEP 1: insert new (order, product) rows.
+    -- The NOT EXISTS anti-join on (order_ID, product_key) - unique by
+    -- grain in the fact (no constraint; PK covers it) - is what makes this safe to re-run: a second pass
+    -- inserts nothing. product_key is fixed by the order date (the
+    -- version in force then), so the key is stable across re-runs as
+    -- long as product versions are never back-dated after a load.
     -- ---------------------------------------------------------------
     INSERT INTO order_fact (
         date_key, product_key, customer_key, staff_key, branch_key,
-        order_ID, order_det_ID, order_status,
+        order_ID, order_status,
         order_qty, order_discount_amt, order_tax_amt, order_total_amt
     )
     SELECT
         d.date_key, p.product_key, c.customer_key, s.staff_key,
-        b.branch_key, ls.order_ID, ls.order_det_ID,
+        b.branch_key, ls.order_ID,
         ls.clean_order_status, ls.clean_order_qty,
         ls.clean_discount_amt, ls.clean_tax_amt,
         -- price from the product_dim version in force on the order date
@@ -106,12 +98,13 @@ BEGIN
                                              AND b.effective_end_date
     WHERE ls.order_date >= v_from
     AND   NOT EXISTS (SELECT 1 FROM order_fact f
-                      WHERE f.order_det_ID = ls.order_det_ID);
+                      WHERE f.order_ID     = ls.order_ID
+                        AND f.product_key  = p.product_key);
 
     v_count := SQL%ROWCOUNT;
 
     -- ---------------------------------------------------------------
-    -- STEP 2: refresh lines already in the fact whose values changed.
+    -- STEP 2: refresh rows already in the fact whose values changed.
     --
     -- Mostly order_status moving on, but a corrected quantity or
     -- discount lands here too. order_total_amt is recomputed with the
@@ -126,7 +119,7 @@ BEGIN
     --
     -- The dimension KEYS are not touched: a changed STATUS does not
     -- move the row to a different customer or product. If the natural
-    -- key itself changed it would be a different order line.
+    -- key itself changed it would be a different (order, product) row.
     --
     -- NVL on both sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
     -- <> would silently skip any change involving a NULL.
@@ -140,7 +133,8 @@ BEGIN
     -- ---------------------------------------------------------------
     MERGE INTO order_fact f
     USING (
-        SELECT ls.order_det_ID,
+        SELECT ls.order_ID,
+               p.product_key,
                ls.clean_order_status,
                ls.clean_order_qty,
                ls.clean_discount_amt,
@@ -154,7 +148,7 @@ BEGIN
                                                   AND p.effective_end_date
         WHERE  ls.order_date >= v_from
     ) src
-    ON (f.order_det_ID = src.order_det_ID)
+    ON (f.order_ID = src.order_ID AND f.product_key = src.product_key)
     WHEN MATCHED THEN UPDATE SET
         f.order_status       = src.clean_order_status,
         f.order_qty          = src.clean_order_qty,

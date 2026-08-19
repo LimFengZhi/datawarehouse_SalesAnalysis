@@ -54,7 +54,6 @@ CREATE TABLE customer (
     cus_ID           NUMBER(10)      NOT NULL,
     cus_first_name   VARCHAR2(50)    NOT NULL,
     cus_last_name    VARCHAR2(50)    NOT NULL,
-    cus_age          NUMBER(3),
     cus_gender       VARCHAR2(10),
     cus_phone        VARCHAR2(20),
     cus_DOB          DATE,
@@ -109,35 +108,25 @@ CREATE TABLE service (
 );
 
 -- ============================================================
--- 7. BRANCH_UTILS_CATEGORY  (lookup)
+-- 7. BRANCH_UTILS  (rent / utilities paid per branch per month;
+--    util_name IS the category - no separate lookup table)
 -- ============================================================
-CREATE TABLE branch_utils_category (
-    br_utils_ID      NUMBER(10)      NOT NULL,
-    util_name        VARCHAR2(50)    NOT NULL,
-    CONSTRAINT pk_br_utils_cat PRIMARY KEY (br_utils_ID),
-    CONSTRAINT uq_br_utils_name UNIQUE (util_name)
-);
-
--- ============================================================
--- 8. BRANCH_EXPENSE
--- ============================================================
-CREATE TABLE branch_expense (
+CREATE TABLE branch_utils (
     br_exp_ID        NUMBER(10)      NOT NULL,
     br_ID            NUMBER(10)      NOT NULL,
-    br_utils_ID      NUMBER(10)      NOT NULL,
+    util_name        VARCHAR2(50)    NOT NULL,   -- Rent / Electricity / Water / Internet /
+                                                 -- Maintenance / Waste Management
     billing_period   VARCHAR2(7),          -- format 'YYYY-MM'
     payment_amount   NUMBER(10,2)    NOT NULL,
     payment_date     DATE,
-    CONSTRAINT pk_branch_expense PRIMARY KEY (br_exp_ID),
-    CONSTRAINT fk_brexp_branch FOREIGN KEY (br_ID)
+    CONSTRAINT pk_branch_utils PRIMARY KEY (br_exp_ID),
+    CONSTRAINT fk_brutils_branch FOREIGN KEY (br_ID)
         REFERENCES branch (br_ID),
-    CONSTRAINT fk_brexp_utils FOREIGN KEY (br_utils_ID)
-        REFERENCES branch_utils_category (br_utils_ID),
-    CONSTRAINT chk_brexp_amount CHECK (payment_amount >= 0)
+    CONSTRAINT chk_brutils_amount CHECK (payment_amount >= 0)
 );
 
 -- ============================================================
--- 9. SALARY_PAYMENT  (no br_ID - derived via staff)
+-- 8. SALARY_PAYMENT  (no br_ID - derived via staff)
 -- ============================================================
 CREATE TABLE salary_payment (
     sal_pay_ID       NUMBER(10)      NOT NULL,
@@ -154,7 +143,7 @@ CREATE TABLE salary_payment (
 );
 
 -- ============================================================
--- 10. ORDERS  ("ORDER" is reserved in Oracle)
+-- 9. ORDERS  ("ORDER" is reserved in Oracle)
 -- ============================================================
 CREATE TABLE orders (
     order_ID         NUMBER(10)      NOT NULL,
@@ -176,7 +165,7 @@ CREATE TABLE orders (
 );
 
 -- ============================================================
--- 11. ORDER_DETAIL  (unit price is NOT stored here - it comes from the
+-- 10. ORDER_DETAIL  (unit price is NOT stored here - it comes from the
 --     PRODUCT table / the product_dim version in force on the order date)
 -- ============================================================
 CREATE TABLE order_detail (
@@ -195,7 +184,7 @@ CREATE TABLE order_detail (
 );
 
 -- ============================================================
--- 12. RESERVATION  (booking_date = when the booking was made,
+-- 11. RESERVATION  (booking_date = when the booking was made,
 --     reservation_date = the appointment day itself)
 -- ============================================================
 CREATE TABLE reservation (
@@ -216,7 +205,7 @@ CREATE TABLE reservation (
 );
 
 -- ============================================================
--- 13. RESERVATION_DETAIL
+-- 12. RESERVATION_DETAIL
 -- ============================================================
 CREATE TABLE reservation_detail (
     res_det_ID       NUMBER(10)      NOT NULL,
@@ -237,7 +226,7 @@ CREATE TABLE reservation_detail (
 );
 
 -- ============================================================
--- 14. PURCHASE
+-- 13. PURCHASE
 -- ============================================================
 CREATE TABLE purchase (
     purchase_ID        NUMBER(10)    NOT NULL,

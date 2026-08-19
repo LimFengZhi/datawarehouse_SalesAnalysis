@@ -5,7 +5,7 @@ SET SERVEROUTPUT ON
 
 -- ===================================================================
 -- SECTION 1: CORE ETL TRANSFORMATION LOGIC (VIEW)
--- Generates every calendar day 2018-01-01 .. 2021-12-31 (1,461 days)
+-- Generates every calendar day 2019-01-01 .. 2023-12-31 (1,826 days)
 -- holiday_ind starts as 'N' for every row; Section 5 flips the
 -- holidays to 'Y'.
 -- ===================================================================
@@ -35,11 +35,11 @@ SELECT
 FROM (
     -- Horizon runs to 2035 so the SUBSEQUENT load can extend the calendar
     -- from this same view. The INITIAL load below bounds itself to
-    -- 2021-12-31, so it still inserts exactly 1,461 days.
-    SELECT TO_DATE('2018-01-01','YYYY-MM-DD') + LEVEL - 1 AS v_date
+    -- 2023-12-31, so it still inserts exactly 1,826 days.
+    SELECT TO_DATE('2019-01-01','YYYY-MM-DD') + LEVEL - 1 AS v_date
     FROM dual
     CONNECT BY LEVEL <= TO_DATE('2035-12-31','YYYY-MM-DD')
-                      - TO_DATE('2018-01-01','YYYY-MM-DD') + 1   -- 6,574 days
+                      - TO_DATE('2019-01-01','YYYY-MM-DD') + 1   -- 6,209 days
 )
 WHERE v_date IS NOT NULL;
 
@@ -84,12 +84,12 @@ BEGIN
         holiday_ind, holiday_name, weekday_ind
     FROM date_staging_v
     -- The view now reaches 2035. Bound the INITIAL load to the source
-    -- data window (sales_data2\data18_21 = 2018-2021) so it still
-    -- inserts exactly 1,461 days. Extending past this is the subsequent
+    -- data window (sales_data5\data19_23 = 2019-2023) so it still
+    -- inserts exactly 1,826 days. Extending past this is the subsequent
     -- load's job:
-    --   EXEC load_date_dim_incremental(2023);   -- data22_23
-    --   EXEC load_date_dim_incremental(2025);   -- data24_25
-    WHERE v_date <= DATE '2021-12-31';
+    --   EXEC load_date_dim_incremental(2024);   -- data24
+    --   EXEC load_date_dim_incremental(2025);   -- data25
+    WHERE v_date <= DATE '2023-12-31';
 
     v_inserted_count := SQL%ROWCOUNT;
 

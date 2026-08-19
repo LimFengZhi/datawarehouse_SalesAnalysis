@@ -2,9 +2,9 @@
 -- 02_sub_reservation_fact.sql  RESERVATION_FACT - SUBSEQUENT LOAD
 --
 --   SECTION 1: no new view - reuses reservation_fact_staging_v
---   SECTION 2: no sequence - PK is composite (dimension keys + res_ID
---              + res_det_ID); res_det_ID is UNIQUE and is what the
---              NOT EXISTS anti-join and STEP 2 match on
+--   SECTION 2: no sequence - PK is composite (dimension keys + res_ID);
+--              (res_ID, service_key, staff_key) is unique by grain (no constraint) and is what
+--              the NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new lines, then update changed ones
 --   SECTION 4: run + verification
 --
@@ -23,22 +23,11 @@
 -- is the SCD2 version in force on the reservation date. Both steps
 -- join service_dim by serv_ID + date range for it.
 --
--- Backfill the whole of data22_23 (2022-2023):
---     EXEC load_res_fact_incremental(DATE '2022-01-01');
+-- Backfill the whole of data24 (2024):
+--     EXEC load_res_fact_incremental(DATE '2024-01-01');
 -- ===================================================================
 
 SET SERVEROUTPUT ON
-
--- ===================================================================
--- SECTION 1: STAGING VIEW - reuses reservation_fact_staging_v from
---   ETL_Process\initial_loading\init_fact\02_init_reservation_fact.sql
--- OLTP cleansing only (no price); surrogate-key joins and the price
--- lookup are written out below.
--- ===================================================================
-
--- ===================================================================
--- SECTION 2: SEQUENCE - NOT REQUIRED
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
@@ -52,21 +41,21 @@ CREATE OR REPLACE PROCEDURE load_res_fact_incremental(
     v_errors  NUMBER := 0;
 BEGIN
     -- ---------------------------------------------------------------
-    -- STEP 1: insert new service lines
+    -- STEP 1: insert new (reservation, service, therapist) rows
     -- ---------------------------------------------------------------
     INSERT INTO reservation_fact (
         date_key, customer_key, staff_key, branch_key, service_key,
-        res_ID, res_det_ID, res_duration, res_status,
+        res_ID, res_duration, res_status,
         start_time, end_time,
         serv_discount_amt, serv_tax_amt, serv_total_amt
     )
     SELECT
         d.date_key, c.customer_key, s.staff_key, b.branch_key,
-        v.service_key, ls.res_ID, ls.res_det_ID, ls.res_duration,
+        v.service_key, ls.res_ID, ls.res_duration,
         ls.clean_res_status, ls.start_time, ls.end_time,
         ls.clean_discount_amt, ls.clean_tax_amt,
         -- price from the service_dim version in force on the reservation date
-        ROUND(  v.serv_price
+        ROUND(  ls.line_count * v.serv_price
               - ls.clean_discount_amt
               + ls.clean_tax_amt, 2)
     -- SCD2 joins pick the version in force on the reservation date.
@@ -86,12 +75,14 @@ BEGIN
                                            AND v.effective_end_date
     WHERE ls.res_date >= v_from
     AND   NOT EXISTS (SELECT 1 FROM reservation_fact f
-                      WHERE f.res_det_ID = ls.res_det_ID);
+                      WHERE f.res_ID      = ls.res_ID
+                        AND f.service_key = v.service_key
+                        AND f.staff_key   = s.staff_key);
 
     v_count := SQL%ROWCOUNT;
 
     -- ---------------------------------------------------------------
-    -- STEP 2: refresh lines whose status or money moved.
+    -- STEP 2: refresh rows whose status or money moved.
     -- Rescheduling changes start_time/end_time too, which is why the
     -- derived res_duration is refreshed with them.
     --
@@ -103,23 +94,32 @@ BEGIN
     -- ---------------------------------------------------------------
     MERGE INTO reservation_fact f
     USING (
-        SELECT ls.res_det_ID,
+        SELECT ls.res_ID,
+               v.service_key,
+               s.staff_key,
                ls.clean_res_status,
                ls.start_time,
                ls.end_time,
                ls.res_duration,
                ls.clean_discount_amt,
                ls.clean_tax_amt,
-               ROUND(  v.serv_price
+               ROUND(  ls.line_count * v.serv_price
                      - ls.clean_discount_amt
                      + ls.clean_tax_amt, 2)          AS serv_total_amt
         FROM   reservation_fact_staging_v ls
         JOIN   service_dim v ON v.serv_ID = ls.serv_ID
                             AND ls.res_date BETWEEN v.effective_start_date
                                                 AND v.effective_end_date
+        -- staff_key is part of the match key, so the same SCD2 lookup
+        -- STEP 1 used is repeated here.
+        JOIN   staff_dim   s ON s.st_ID   = ls.st_ID
+                            AND ls.res_date BETWEEN s.effective_start_date
+                                                AND s.effective_end_date
         WHERE  ls.res_date >= v_from
     ) src
-    ON (f.res_det_ID = src.res_det_ID)
+    ON (    f.res_ID      = src.res_ID
+        AND f.service_key = src.service_key
+        AND f.staff_key   = src.staff_key)
     WHEN MATCHED THEN UPDATE SET
         f.res_status        = src.clean_res_status,
         f.start_time        = src.start_time,

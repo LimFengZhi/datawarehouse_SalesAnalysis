@@ -130,7 +130,7 @@ END;
 
 -- ===================================================================
 -- STEP 3  DROP ALL SEQUENCES
--- The 8 surrogate-key sequences plus any OLTP ones. Emptying a table
+-- The 7 surrogate-key sequences plus any OLTP ones. Emptying a table
 -- never resets its sequence, so these must go too or a rebuild would
 -- carry on from the old numbers.
 -- ===================================================================
@@ -244,10 +244,10 @@ FROM   user_segments;
 -- 1. operational tables
 --      @operational_DB\create_operational_db.sql
 --
--- 2. the CSVs - data first, then data2 / data3
+-- 2. the CSVs - data19_23 first (the default), later data24 / data25
 --      cd operational_DB\sqlloader_control_files
 --      load_all.bat dwh <password> XE
---      load_all.bat dwh <password> XE "c:\...\sales_data\data2"
+--      load_all.bat dwh <password> XE "c:\...\sales_data5\data24"
 --
 -- 3. warehouse tables
 --      @dwh\create_dwh.sql
@@ -255,10 +255,10 @@ FROM   user_segments;
 -- 4. date dimension, then holidays
 --      @ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
 --      (cd ETL_Process\initial_loading\init_data_dim
---       python gen_holidays.py 2019 2022 > holiday_update.sql)
+--       python gen_holidays.py 2019 2023 > holiday_update.sql)
 --      @ETL_Process\initial_loading\init_data_dim\holiday_update.sql
 --
--- 5. dimensions - run the seven init_dimension scripts 01..07
+-- 5. dimensions - run the six init_dimension scripts 01..06
 --
 -- 6. facts - run the five init_fact scripts 01..05
 --

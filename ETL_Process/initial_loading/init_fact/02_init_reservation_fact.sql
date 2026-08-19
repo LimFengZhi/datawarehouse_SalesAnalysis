@@ -1,12 +1,19 @@
 -- ===================================================================
 -- 02_init_reservation_fact.sql   RESERVATION_FACT
--- Grain: one row per service line booked
+-- Grain: one row per SERVICE per THERAPIST per RESERVATION
 -- Source: RESERVATION_DETAIL joined to RESERVATION
 --
---   SECTION 1: staging VIEW - OLTP cleansing ONLY
+--   SECTION 1: staging VIEW - OLTP cleansing + line aggregation
 --   SECTION 2: no sequence   - PK is composite (dimension keys +
---                              res_ID + res_det_ID); res_det_ID is
---                              UNIQUE and drives the NOT EXISTS
+--                              res_ID); (res_ID, service_key, staff_key)
+--                              is unique by grain (no constraint) and drives the NOT EXISTS
+--
+-- GRAIN: the ERD carries no detail-line ID on the fact, so the view
+-- GROUPs BY (res_ID, serv_ID, st_ID) and SUMs discount / tax /
+-- duration (MIN start, MAX end). In the data every such group is one
+-- detail line, so nothing actually folds - the GROUP BY only protects
+-- the composite PK. line_count (not stored) says how many lines a
+-- row holds; the procedure multiplies the service price by it.
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
@@ -18,7 +25,7 @@
 --   * The service price is NOT stored on reservation_detail. It comes
 --     from service_dim.serv_price of the SCD2 version in force on the
 --     reservation date, so serv_total_amt is computed in the PROCEDURE:
---         serv_total_amt = s.serv_price - discount + tax
+--         serv_total_amt = line_count * s.serv_price - discount + tax
 -- staff_key comes from RESERVATION_DETAIL (the therapist who performed
 -- the service), NOT from the reservation header.
 -- ===================================================================
@@ -30,14 +37,13 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW reservation_fact_staging_v AS
 SELECT
-    rd.res_det_ID,                                -- degenerate dim / UNIQUE
     r.res_ID,                                     -- degenerate dim
+    rd.serv_ID,                                   -- (res_ID, serv_ID, st_ID)
+    rd.st_ID,                                     --   = the grain
 
     -- ---------- NATURAL keys ----------
     r.cus_ID,
     r.br_ID,
-    rd.st_ID,
-    rd.serv_ID,
     -- Date of the appointment itself (NOT booking_date, NOT the time
     -- part of start_time). Drives date_key and every SCD2 lookup.
     TRUNC(r.reservation_date)                      AS res_date,
@@ -58,47 +64,52 @@ SELECT
         ELSE INITCAP(TRIM(r.res_status))
     END                                            AS clean_res_status,
 
-    rd.start_time,
-    rd.end_time,
+    MIN(rd.start_time)                             AS start_time,
+    MAX(rd.end_time)                               AS end_time,
 
-    -- DERIVED: slot length in minutes. Guarded against a NULL or
-    -- reversed pair, which would otherwise give a negative duration.
-    CASE
-        WHEN rd.start_time IS NULL OR rd.end_time IS NULL
-          OR rd.end_time <= rd.start_time THEN NULL
-        ELSE ROUND((rd.end_time - rd.start_time) * 24 * 60)
-    END                                            AS res_duration,
+    -- DERIVED: slot length in minutes, summed over the folded lines.
+    -- Guarded against a NULL or reversed pair, which would otherwise
+    -- give a negative duration.
+    SUM(CASE
+            WHEN rd.start_time IS NULL OR rd.end_time IS NULL
+              OR rd.end_time <= rd.start_time THEN NULL
+            ELSE ROUND((rd.end_time - rd.start_time) * 24 * 60)
+        END)                                       AS res_duration,
 
     -- ---------- measures ----------
     -- No price here: reservation_detail has none, and the view must
     -- not read service_dim. The procedure adds the dimension price.
-    ROUND(NVL(rd.serv_discount, 0), 2)             AS clean_discount_amt,
-    ROUND(NVL(rd.serv_tax, 0), 2)                  AS clean_tax_amt,
+    SUM(ROUND(NVL(rd.serv_discount, 0), 2))        AS clean_discount_amt,
+    SUM(ROUND(NVL(rd.serv_tax, 0), 2))             AS clean_tax_amt,
+
+    -- How many OLTP reservation_detail lines were folded into this row
+    COUNT(*)                                       AS line_count,
 
     -- ---------- data quality flags ----------
     CASE WHEN r.res_status IS NULL
          THEN 'Y' ELSE 'N' END                     AS status_defaulted,
-    CASE WHEN rd.start_time IS NULL OR rd.end_time IS NULL
-              OR rd.end_time <= rd.start_time
-         THEN 'Y' ELSE 'N' END                     AS time_unusable,
-    CASE WHEN rd.serv_discount IS NULL OR rd.serv_tax IS NULL
-         THEN 'Y' ELSE 'N' END                     AS money_defaulted
+    MAX(CASE WHEN rd.start_time IS NULL OR rd.end_time IS NULL
+                  OR rd.end_time <= rd.start_time
+             THEN 'Y' ELSE 'N' END)                AS time_unusable,
+    MAX(CASE WHEN rd.serv_discount IS NULL OR rd.serv_tax IS NULL
+             THEN 'Y' ELSE 'N' END)                AS money_defaulted
 
 FROM reservation_detail rd
 JOIN reservation r  ON r.res_ID   = rd.res_ID
-WHERE rd.res_det_ID       IS NOT NULL
-  AND r.res_ID            IS NOT NULL
+WHERE r.res_ID            IS NOT NULL
   AND r.cus_ID            IS NOT NULL
   AND r.br_ID             IS NOT NULL
   AND rd.st_ID            IS NOT NULL
   AND rd.serv_ID          IS NOT NULL
-  AND r.reservation_date  IS NOT NULL;
+  AND r.reservation_date  IS NOT NULL
+GROUP BY r.res_ID, rd.serv_ID, rd.st_ID, r.cus_ID, r.br_ID,
+         TRUNC(r.reservation_date), r.res_status;
 
 -- ===================================================================
 -- SECTION 2: SEQUENCE - NOT REQUIRED
--- The PK is the composite of the five dimension keys plus res_ID and
--- res_det_ID; res_det_ID alone is UNIQUE (straight from the source)
--- and is the degenerate dimension the incremental NOT EXISTS uses.
+-- The PK is the composite of the five dimension keys plus res_ID;
+-- (res_ID, service_key, staff_key) is unique by grain (no constraint) and is what the
+-- incremental NOT EXISTS uses.
 -- ===================================================================
 
 -- ===================================================================
@@ -118,11 +129,14 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT COUNT(*) INTO v_source FROM reservation_detail;
+    -- Source grain is (reservation, service, therapist): count the
+    -- distinct groups, not the detail lines.
+    SELECT COUNT(*) INTO v_source
+    FROM  (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail);
 
     INSERT INTO reservation_fact (
         date_key, customer_key, staff_key, branch_key, service_key,
-        res_ID, res_det_ID, res_duration, res_status,
+        res_ID, res_duration, res_status,
         start_time, end_time,
         serv_discount_amt, serv_tax_amt, serv_total_amt
     )
@@ -133,7 +147,6 @@ BEGIN
         b.branch_key,
         v.service_key,
         ls.res_ID,
-        ls.res_det_ID,
         ls.res_duration,
         ls.clean_res_status,
         ls.start_time,
@@ -143,7 +156,7 @@ BEGIN
         -- Price = the service_dim version in force on the reservation
         -- date (joined below), so a later price change never rewrites
         -- history.
-        ROUND(  v.serv_price
+        ROUND(  ls.line_count * v.serv_price
               - ls.clean_discount_amt
               + ls.clean_tax_amt, 2)                AS serv_total_amt
     -- SCD2 joins pick the version in force on the reservation date.
@@ -175,7 +188,7 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('RESERVATION_FACT initial load completed:');
     DBMS_OUTPUT.PUT_LINE(' - Records inserted        : ' || v_count);
     DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);
-    DBMS_OUTPUT.PUT_LINE(' - Source rows not loaded  : ' || v_orphaned);
+    DBMS_OUTPUT.PUT_LINE(' - Source groups not loaded: ' || v_orphaned);
 
     IF v_orphaned <> 0 THEN
         DBMS_OUTPUT.PUT_LINE('*** WARNING: a dimension lookup failed for '
@@ -193,6 +206,5 @@ END;
 
 -- ===================================================================
 -- SECTION 4: RUN
--- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_reservation_fact_initial;

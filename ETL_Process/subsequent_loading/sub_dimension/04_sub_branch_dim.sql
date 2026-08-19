@@ -14,14 +14,6 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - reuses branch_staging_v from
---   ETL_Process\initial_loading\init_dimension\01_init_branch_dim.sql
---
--- SECTION 2: SEQUENCE - reuses seq_branch_key, continuing from
--- wherever the last load left it.
--- ===================================================================
-
--- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_branch_dim_incremental AS

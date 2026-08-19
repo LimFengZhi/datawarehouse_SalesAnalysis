@@ -16,17 +16,6 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - reuses date_staging_v from
---   ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql
--- Its row generator runs to 2035-12-31; the initial load bounds itself
--- to 2021-12-31. This procedure moves that bound outward.
---
--- SECTION 2: SEQUENCE - reuses date_dim_seq. It carries on from where
--- the initial load stopped; recreating it would restart at 1 and
--- collide with existing primary keys.
--- ===================================================================
-
--- ===================================================================
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_date_dim_incremental(
@@ -106,7 +95,7 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE(' - Calendar now ends   : '
         || TO_CHAR(v_target_end, 'YYYY-MM-DD'));
     DBMS_OUTPUT.PUT_LINE(' - New years arrive with NO holidays. Run:');
-    DBMS_OUTPUT.PUT_LINE('     python gen_holidays.py 2018 '
+    DBMS_OUTPUT.PUT_LINE('     python gen_holidays.py 2019 '
         || p_until_year || ' > holiday_update.sql');
     DBMS_OUTPUT.PUT_LINE('     @holiday_update.sql');
 

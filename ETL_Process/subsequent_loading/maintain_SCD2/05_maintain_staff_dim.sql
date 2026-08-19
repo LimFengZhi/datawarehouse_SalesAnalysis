@@ -7,7 +7,7 @@
 --   SECTION 4: run + verification
 --
 -- SCOPE: CHANGED RECORDS ONLY. New hires belong to
---   sub_dimension\07_sub_staff_dim.sql
+--   sub_dimension\06_sub_staff_dim.sql
 --
 -- THE TYPE 2 CHANGES THAT MATTER: promotion (st_position), resignation
 -- (st_status), plus name / email corrections. Each of those should
@@ -20,14 +20,6 @@
 -- ===================================================================
 
 SET SERVEROUTPUT ON
-
--- ===================================================================
--- SECTION 1: STAGING VIEW - reuses staff_staging_v from
---   ETL_Process\initial_loading\init_dimension\06_init_staff_dim.sql
---
--- SECTION 2: SEQUENCE - reuses seq_staff_key, continuing from
--- wherever the last load left it.
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (MAINTAIN SCD TYPE 2)

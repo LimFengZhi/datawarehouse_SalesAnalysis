@@ -5,7 +5,7 @@
 # Usage: ./load_all.sh username password connect_string [data_folder]
 #
 #   ./load_all.sh dwh mypass XE
-#       -> uses ../../sales_data3/data18_21 automatically
+#       -> uses ../../sales_data5/data19_23 automatically
 #
 #   ./load_all.sh dwh mypass XE /path/to/csv_folder
 #       -> uses the folder you name
@@ -18,7 +18,7 @@ set -u
 U=${1:-}; P=${2:-}; DB=${3:-}
 
 CTL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA=${4:-"$CTL/../../sales_data3/data18_21"}
+DATA=${4:-"$CTL/../../sales_data5/data19_23"}
 
 if [ -z "$DB" ]; then
     echo "Usage: ./load_all.sh username password connect_string [data_folder]"
@@ -42,8 +42,8 @@ echo
 
 cd "$DATA" || exit 1
 
-for T in branch supplier product service branch_utils_category staff customer \
-         branch_expense salary_payment orders order_detail reservation \
+for T in branch supplier product service staff customer branch_utils \
+         salary_payment orders order_detail reservation \
          reservation_detail purchase; do
     echo "Loading $T ..."
     # SQL*Loader only WRITES a .bad when a row is rejected - it never

@@ -21,14 +21,6 @@
 SET SERVEROUTPUT ON
 
 -- ===================================================================
--- SECTION 1: STAGING VIEW - reuses supplier_staging_v from
---   ETL_Process\initial_loading\init_dimension\03_init_supplier_dim.sql
---
--- SECTION 2: SEQUENCE - reuses seq_supplier_key. Each new VERSION
--- consumes a key, exactly like a new record does.
--- ===================================================================
-
--- ===================================================================
 -- SECTION 3: ETL (MAINTAIN SCD TYPE 2)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE maintain_supplier_dim_scd2(

@@ -1,0 +1,7 @@
+st_ID,br_ID,st_first_name,st_last_name,st_position,st_address_line,st_city,st_state,st_postcode,st_DOB,st_gender,st_email,st_phone,st_hire_date,st_status
+314,1,Haziq,bin Rahman,Beauty Therapist,"No. 147, Jalan 15/13",Kuala Lumpur,Wilayah Persekutuan,55100,1993-12-11,Male,haziq.314@glowbeauty.com.my,016-8150134,2025-02-12,Active
+315,2,Kok Wai,Cheah,Beauty Therapist,"No. 75, Jalan 1/16",Petaling Jaya,Selangor,47300,2002-02-03,Male,kok.315@glowbeauty.com.my,019-3282474,2025-08-11,Active
+316,3,Zarina,binti Razak,Beauty Therapist,"No. 22, Jalan 5/4",Johor Bahru,Johor,81100,1991-07-23,Female,zarina.316@glowbeauty.com.my,010-2439273,2025-02-28,Active
+317,6,Rachel,Liew,Beauty Therapist,"No. 121, Jalan 14/14",Shah Alam,Selangor,40100,1997-01-25,Female,rachel.317@glowbeauty.com.my,018-5471250,2025-06-13,Active
+318,16,Kai Xin,Goh,Beauty Therapist,"No. 105, Jalan 14/23",Subang Jaya,Selangor,47500,1997-09-20,Female,kai.318@glowbeauty.com.my,017-8714870,2025-03-15,Active
+319,17,Zarina,binti Hassan,Beauty Therapist,"No. 100, Jalan 20/5",Bukit Jalil,Wilayah Persekutuan,57000,1993-01-29,Female,zarina.319@glowbeauty.com.my,010-1027715,2025-04-11,Active

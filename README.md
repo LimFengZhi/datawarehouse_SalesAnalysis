@@ -1,9 +1,9 @@
 # Glow Beauty — Data Warehouse
 
 **BAIT3003 Data Warehouse Technology** — a full Oracle star-schema warehouse built over a synthetic
-Malaysian beauty-retail business: thirteen branches across Selangor, Kuala Lumpur, Johor, Penang,
-Melaka and Perak selling skincare products and booking facial services, eight years of trading
-(2018–2025), ~1.3 million source rows.
+Malaysian beauty-retail business: seventeen branches across Selangor, Kuala Lumpur, Johor, Penang,
+Melaka, Perak, Negeri Sembilan and Pahang selling skincare products and booking facial services,
+seven years of trading (2019–2025), ~1.7 million source rows.
 
 The project covers the whole pipeline: an operational database, SQL\*Loader ingestion, an initial
 ETL load, and two subsequent (incremental) loads that exercise **Slowly Changing Dimensions
@@ -13,30 +13,36 @@ Type 2** with real price history.
 
 ## The star schema
 
-**8 dimensions** — `date_dim`, `branch_dim`, `staff_dim`, `customer_dim`, `product_dim`,
-`supplier_dim`, `service_dim`, `branch_utils_dim`
+**7 dimensions** — `date_dim`, `branch_dim`, `staff_dim`, `customer_dim`, `product_dim`,
+`supplier_dim`, `service_dim`
 
 **5 fact tables**
 
 | Fact | Grain | Rows (all 3 loads) |
 |---|---|---|
-| `order_fact` | one product line on an order | 670,282 |
-| `reservation_fact` | one service line booked | 159,977 |
-| `purchase_fact` | one restocking line | 41,411 |
-| `salary_payment_fact` | one staff member per pay period | 19,517 |
-| `branch_expense_fact` | one branch per utility per month | 7,074 |
+| `order_fact` | one product per order (duplicate product lines of an order are summed) | 855,935 |
+| `reservation_fact` | one service per therapist per reservation | 167,087 |
+| `purchase_fact` | one restocking line | 54,020 |
+| `salary_payment_fact` | one staff member per pay period | 18,934 |
+| `branch_utils_fact` | one branch per utility per month (`util_name` carried on the row) | 7,128 |
 
-Six of the eight dimensions are **SCD Type 2** — a changed attribute expires the old row and opens
+Six of the seven dimensions (all but `date_dim`) are **SCD Type 2** — a changed attribute expires the old row and opens
 a new version, so history never gets rewritten. The one attribute that drifts for a non-business
-reason (`customer_dim.cus_age_band`, derived from the date of birth) is **Type 1**: overwritten in
+reason (`customer_dim.cus_age_group`, e.g. `'Young Adult (18-24)'`, derived from the date of birth —
+the OLTP keeps no age column) is **Type 1**: overwritten in
 place, because a customer having a birthday is not a business event worth versioning.
 
 The schema follows the two ERDs of the project: `staff` has a single job-title column
 (`st_position`), `order_detail` carries no unit price (the price is the `product_dim` version in
 force on the order date — which is exactly what makes the SCD2 history matter), `reservation` has
 both `booking_date` (when it was booked) and `reservation_date` (the appointment day, which is what
-`reservation_fact.date_key` points at), and every fact's primary key is the composite of its
-dimension keys plus the degenerate OLTP IDs.
+`reservation_fact.date_key` points at), utilities have no dimension of their own (`branch_utils_fact`
+carries `util_name` on the row), and every fact's primary key is the composite of its dimension keys
+plus the degenerate OLTP ID. `order_fact` / `reservation_fact` carry no order-line ID: their grain is
+one row per (order, product) / (reservation, service, therapist), so the staging views sum the OLTP
+lines that share a product inside one order (about 2 % of lines) and the incremental guards key on
+`(order_ID, product_key)` / `(res_ID, service_key, staff_key)`. Every warehouse column outside `date_dim`
+is `NOT NULL`; there are no UNIQUE constraints (the composite PKs cover the grain).
 
 Facts resolve their dimension keys **by effective date**, not by "whichever version is current":
 
@@ -46,7 +52,7 @@ JOIN product_dim p ON p.product_ID = ls.product_ID
                                         AND p.effective_end_date
 ```
 
-so a 2023 order always reports the price that was actually charged in 2023, regardless of how many
+so a 2024 order always reports the price that was actually charged in 2024, regardless of how many
 times the price has moved since or what order the scripts were run in.
 
 ---
@@ -56,36 +62,32 @@ times the price has moved since or what order the scripts were run in.
 ```
 datawarehouse_SalesAnalysis\
 ├── operational_DB\                     THE SOURCE SYSTEM (OLTP)
-│   ├── create_operational_db.sql           14 CREATE TABLEs
-│   └── sqlloader_control_files\            14 .ctl + load_all.bat / .sh
+│   ├── create_operational_db.sql           13 CREATE TABLEs
+│   └── sqlloader_control_files\            13 .ctl + load_all.bat / .sh
 │
-├── sales_data3\                        THE RAW CSVs  (revision 3: one generator, three load folders)
-│   ├── gen_sales_data3.py                  regenerates + self-verifies everything below
-│   ├── data18_21\   2018-2021   12 branches                 (initial load)
-│   ├── data22_23\   2022-2023   + Ipoh + 99_price_increase_2023.sql
-│   └── data24_25\   2024-2025   + 2 suppliers + 99_price_change_2025.sql
+├── sales_data5\                        THE RAW CSVs  (revision 5: one generator, three load folders)
+│   ├── gen_sales_data5.py                  regenerates + self-verifies everything below
+│   ├── data19_23\   2019-2023   13 branches                 (initial load)
+│   ├── data24\      2024        + 4 branches + 99_price_increase_2024.sql
+│   └── data25\      2025        + men's line + supplier 8 + 99_price_change_2025.sql
 │
-├── sales_data2\                        REVISION 2 - same rows and IDs as sales_data3, different
-│                                       amounts (loss-making cost base); reference only, load ONE of the two
-├── sales_data\                         LEGACY CSVs (2019-2025, 5-6 branches) - reference only,
-│                                       not loadable alongside sales_data3 (IDs collide)
 │
 ├── dwh\                                THE WAREHOUSE SCHEMA
-│   ├── create_dwh.sql                      13 tables: 8 dims + 5 facts
+│   ├── create_dwh.sql                      12 tables: 7 dims + 5 facts
 │   └── clear_dwh.sql                       empty it, keep the tables
 │
 ├── ETL_Process\                        THE ETL
-│   ├── initial_loading\                    first build, from data18_21\
+│   ├── initial_loading\                    first build, from data19_23\
 │   │   ├── init_data_dim\   date_dim + gen_holidays.py
-│   │   ├── init_dimension\  01..07  the 7 source-fed dimensions
+│   │   ├── init_dimension\  01..06  the 6 source-fed dimensions
 │   │   ├── init_fact\       01..05  the 5 fact tables
 │   │   └── validate_initial_loading.sql
-│   └── subsequent_loading\                 incremental, from data22_23\ / data24_25\
-│       ├── sub_dimension\   01..08  NEW records only
+│   └── subsequent_loading\                 incremental, from data24\ / data25\
+│       ├── sub_dimension\   01..07  NEW records only
 │       ├── maintain_SCD2\   01..06  CHANGED records -> new versions
 │       ├── sub_fact\        01..05  new rows + refresh changed ones
-│       ├── execute_sub_procedure.sql   RUNS the data22_23 load (2022-23)
-│       ├── execute_sub2.sql            RUNS the data24_25 load (2024-25)
+│       ├── execute_sub_procedure.sql   RUNS the data24 load (2024)
+│       ├── execute_sub2.sql            RUNS the data25 load (2025)
 │       └── validate_subsequent_loading.sql
 │
 ├── analysis\                           reporting queries
@@ -111,9 +113,9 @@ loaded, and the same view serves both the initial and the incremental load.
 
 | Load | Source | What it proves |
 |---|---|---|
-| **Initial** | `sales_data3\data18_21\` (2018–2021) | full build from empty: 12 branches, the COVID years included |
-| **Subsequent 1** | `sales_data3\data22_23\` (2022–2023) | new branch (Ipoh), 50 staff, 5 products, 2 services, 7k customers **+ 7 price rises** become SCD2 history |
-| **Subsequent 2** | `sales_data3\data24_25\` (2024–2025) | new customers, staff and suppliers **+ 8 more product and 6 service price changes** — two products now carry three versions each |
+| **Initial** | `sales_data5\data19_23\` (2019–2023) | full build from empty: 13 branches, the COVID years and the 2022 e-commerce jump included |
+| **Subsequent 1** | `sales_data5\data24\` (2024) | 4 new branches with their teams, 6k customers **+ 8 price rises** become SCD2 history |
+| **Subsequent 2** | `sales_data5\data25\` (2025) | the HIM Essentials men's line (8 products) and its supplier, new customers and staff **+ 8 more product and 6 service price changes** — two products now carry three versions each |
 
 New records and changed records are handled by deliberately separate scripts:
 
@@ -140,15 +142,15 @@ sqlplus dwh/yourpassword@XE
 ```
 ```
 cd operational_DB\sqlloader_control_files
-load_all.bat dwh yourpassword XE                   -- 2. load the CSVs (defaults to data18_21)
+load_all.bat dwh yourpassword XE                   -- 2. load the CSVs (defaults to data19_23)
 ```
 ```sql
 @dwh\create_dwh.sql                                -- 3. warehouse tables
--- 4. date_dim, then gen_holidays.py 2018 2021, then the 7 dimension + 5 fact scripts
+-- 4. date_dim, then gen_holidays.py 2019 2023, then the 6 dimension + 5 fact scripts
 @ETL_Process\initial_loading\validate_initial_loading.sql
 ```
 
-Then Parts B and C of the guide add `data22_23\` and `data24_25\` on top without wiping anything.
+Then Parts B and C of the guide add `data24\` and `data25\` on top without wiping anything.
 
 **Requirements:** Oracle XE 11.2 (identifiers are kept ≤ 30 characters for it), SQL\*Plus,
 SQL\*Loader, and Python 3 for the holiday and data generators.
@@ -172,9 +174,9 @@ Both loads are **idempotent** — run them a second time and every procedure rep
 0 expired, 0 updated.
 
 The CSVs themselves are verified before they leave the generator:
-`python sales_data3\gen_sales_data3.py --verify` re-reads all three folders and checks FKs, ID
-continuity, registration/hire/opening dates, therapist schedules, closed-salon days, price eras and
-tax rules.
+`python sales_data5\gen_sales_data5.py --verify` re-reads all three folders and checks FKs, ID
+continuity, folder routing, registration/hire/opening dates, therapist schedules, closed-salon days,
+price eras, tax rules and the Ipoh supplier rule, and prints a per-branch P&L with the pattern checks.
 
 ---
 
@@ -187,28 +189,33 @@ The dataset is synthetic but deliberately not flat, so there is something to ana
   reduced volume via delivery. The Klang Valley (Selangor + KL) branches take the extra hit of the
   Oct 2020 CMCO and the July 2021 EMCO. Junior staff were let go in both lockdown waves and rehired
   in 2022; pay cuts, halved bonuses and the EPF 11 → 7 → 9 → 11 % employee rate are all in payroll.
-  2022 recovers and overshoots on revenge spending.
+- **2022: the shop went online** — product demand steps up ×1.38, half of all orders are now placed
+  by customers from another city (31 % → 50 %), Petaling Jaya becomes the fulfilment hub, while
+  in-salon reservations grow only modestly.
+- **2025: the men's market** — the HIM Essentials men's line (6 SKUs) and two new face masks launch
+  on 2025-01-01, 35 % of new registrations are male, product demand runs ×1.85.
 - **The Malaysian festive calendar** — Chinese New Year, Hari Raya (which drifts ~11 days earlier
-  every year: June 2018 → March 2025), Deepavali and Christmas drive demand run-ups; 11.11 / 12.12
-  and 3.3 / 9.9 / 10.10 mega-sale days spike on top; `date_dim` carries the real public-holiday
-  flags generated by `gen_holidays.py`. The 2018 GST→SST tax holiday (Jun–Aug 2018) shows as 0 % tax.
-- **Geography** — Petaling Jaya is the #1 branch and Selangor (PJ, Shah Alam, Puchong, Klang,
-  Selayang) the #1 state, followed by Kuala Lumpur (Bukit Bintang, Setapak, Wangsa Maju,
-  Gombak), Johor Bahru, George Town, Melaka and —
-  from March 2023 — Ipoh.
+  every year: June 2019 → March 2025), Deepavali and Christmas drive demand run-ups; Valentine's,
+  Mother's Day and Merdeka week add smaller ones; 11.11 / 12.12 and 3.3 / 6.6 / 9.9 / 10.10 mega-sale
+  days spike on top; national public holidays are a salon half-day; `date_dim` carries the real
+  public-holiday flags generated by `gen_holidays.py`. Quarterly shape: Q4 strongest, Q3 weakest.
+- **Geography** — Petaling Jaya is the #1 branch every year and Selangor (PJ, Shah Alam, Puchong,
+  Klang, Selayang, Subang Jaya) the #1 state, followed by Kuala Lumpur (Bukit Bintang, Setapak,
+  Wangsa Maju, Gombak, Bukit Jalil), Johor Bahru, George Town, Melaka, Ipoh and — from 2024 —
+  Seremban and Kuantan. **Ipoh is the loss-making branch**: it buys everything from an expensive
+  Perak-only supplier, scrapes a small profit until 2023 and goes negative in 2024–25.
 - **Linked volumes** — restocking follows the units each branch actually sold, therapists are never
-  double-booked, salaries follow headcount and hire/leave dates, and ~70 % of customers shop in
-  their own city while regulars keep coming back across all eight years.
+  double-booked, salaries follow headcount and hire/leave dates, and ~54 % of orders are placed in
+  the customer's own city while regulars keep coming back across all seven years.
 - **Payroll and overheads that react** — 20 % then 15 % pay cuts during lockdown, 13th-month and Raya
   bonuses that follow the moving Raya month, landlord rent rebates in the closure months, then a
   steady 3 %/year rise.
-- **A P&L that makes sense** (revision 3) — revenue − stock purchases − payroll − rent/utilities is
-  close to break-even in 2018–19, negative in the MCO years, positive from 2022 and ~10 % by 2024–25;
-  in FY2024 12 of 13 branches are in the black (Ipoh, in its second year, is not). Baskets are bigger
-  in the festive run-ups (2.7 units/line vs 2.4) and biggest on mega-sale days (2.9). `sales_data2\`
-  is the same data with the earlier cost base (every branch loss-making) — kept for comparison.
+- **A P&L that makes sense** — revenue − stock purchases − payroll − rent/utilities is +7.5 % in
+  2019, negative in the MCO years, +21 % from 2022, +17 % in 2024 (four ramping branches) and +25 %
+  in 2025; PJ is #1 by profit every year, Ipoh is negative in 2024–25. Baskets are bigger in the
+  festive run-ups (2.7 units/line vs 2.4) and biggest on mega-sale days (2.9).
 
-Per-dataset detail: [sales_data3/README.md](sales_data3/README.md) ·
-[data18_21](sales_data3/data18_21/README_DATA18_21.md) ·
-[data22_23](sales_data3/data22_23/README_DATA22_23.md) ·
-[data24_25](sales_data3/data24_25/README_DATA24_25.md)
+Per-dataset detail: [sales_data5/README.md](sales_data5/README.md) (row counts, branch table,
+year-by-year P&L, every pattern). Earlier revisions (`sales_data`, `sales_data2`, `sales_data3`) were
+moved to the gitignored `trash\` folder; their IDs also start at 1, so they can never be loaded
+alongside `sales_data5`.

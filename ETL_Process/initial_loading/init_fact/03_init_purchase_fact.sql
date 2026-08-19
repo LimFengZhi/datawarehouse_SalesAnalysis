@@ -5,14 +5,14 @@
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - PK is composite (date, supplier, branch,
---                              product keys); purchase_ID is UNIQUE and
+--                              product keys); purchase_ID is unique by grain (no constraint) and
 --                              drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run
 --
 -- This is the COGS fact. Branch profitability =
 --   order_fact revenue - purchase_fact cost
---   - salary_payment_fact - branch_expense_fact
+--   - salary_payment_fact - branch_utils_fact
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -22,7 +22,7 @@ SET SERVEROUTPUT ON
 -- ===================================================================
 CREATE OR REPLACE VIEW purchase_fact_staging_v AS
 SELECT
-    p.purchase_ID,                                -- degenerate dim / UNIQUE
+    p.purchase_ID,                                -- degenerate dim / one row per ID
 
     -- ---------- NATURAL keys ----------
     p.product_ID,
@@ -64,12 +64,6 @@ WHERE p.purchase_ID   IS NOT NULL
   AND p.sup_ID        IS NOT NULL
   AND p.purchase_date IS NOT NULL;
 
--- ===================================================================
--- SECTION 2: SEQUENCE - NOT REQUIRED
--- The PK is the composite of the four dimension keys; purchase_ID from
--- the source is UNIQUE and is the degenerate dimension the incremental
--- load's NOT EXISTS anti-join uses.
--- ===================================================================
 
 -- ===================================================================
 -- SECTION 3: ETL (INITIAL LOADING)
@@ -147,6 +141,5 @@ END;
 
 -- ===================================================================
 -- SECTION 4: RUN
--- Verification queries live in ..\validate_initial_loading.sql
 -- ===================================================================
 EXEC load_purchase_fact_initial;
