@@ -12,7 +12,7 @@ Usage:
     python gen_holidays.py 2018 2026       -> 2018..2026 inclusive range
     python gen_holidays.py 2019 2023 2026  -> those 3 years exactly
 
-    python gen_holidays.py 2018 2026 > holiday_update.sql
+    python gen_holidays.py 2019 2026 > holiday_update.sql
 
 Then run the generated file against your schema:  @holiday_update.sql
 

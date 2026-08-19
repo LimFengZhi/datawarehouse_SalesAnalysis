@@ -264,5 +264,5 @@ FROM   user_segments;
 --
 -- 7. check it with ETL_Process\initial_loading\validate_initial_loading.sql
 --
--- Then follow LOADING_GUIDE.md Part B for data2 / data3.
+-- Then follow DWH_Setup.md from Step 6 for data24 / data25.
 -- ===================================================================

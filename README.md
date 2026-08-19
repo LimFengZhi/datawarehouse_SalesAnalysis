@@ -86,13 +86,13 @@ datawarehouse_SalesAnalysis\
 │       ├── sub_dimension\   01..07  NEW records only
 │       ├── maintain_SCD2\   01..06  CHANGED records -> new versions
 │       ├── sub_fact\        01..05  new rows + refresh changed ones
-│       ├── execute_sub_procedure.sql   RUNS the data24 load (2024)
-│       ├── execute_sub2.sql            RUNS the data25 load (2025)
+│       ├── exec_sub_proc24.sql       RUNS the data24 load (2024)
+│       ├── exec_sub_proc25.sql       RUNS the data25 load (2025)
 │       └── validate_subsequent_loading.sql
 │
 ├── analysis\                           reporting queries
 ├── drop_all.sql                        destroy every object in the schema
-└── LOADING_GUIDE.md                    step-by-step build instructions
+└── DWH_Setup.md                        step-by-step build instructions
 ```
 
 Each ETL script follows the same four-section shape:
@@ -124,36 +124,92 @@ New records and changed records are handled by deliberately separate scripts:
 
 Run them in that order; reversed, a brand-new product would be "versioned" before it exists.
 
-After all three loads `product_dim` holds **63 rows: 48 current + 15 expired**. That difference is
+After all three loads `product_dim` holds **72 rows: 56 current + 16 expired**. That difference is
 the whole point of Type 2 — `total − current` always equals the number of price changes ever made.
 
 ---
 
-## Getting started
+## Setup — building it from an empty schema
 
-Full instructions are in **[LOADING_GUIDE.md](LOADING_GUIDE.md)**. The short version:
-
-```
-sqlplus dwh/yourpassword@XE
-```
-
-```sql
-@operational_DB\create_operational_db.sql          -- 1. OLTP tables
-```
-```
-cd operational_DB\sqlloader_control_files
-load_all.bat dwh yourpassword XE                   -- 2. load the CSVs (defaults to data19_23)
-```
-```sql
-@dwh\create_dwh.sql                                -- 3. warehouse tables
--- 4. date_dim, then gen_holidays.py 2019 2023, then the 6 dimension + 5 fact scripts
-@ETL_Process\initial_loading\validate_initial_loading.sql
-```
-
-Then Parts B and C of the guide add `data24\` and `data25\` on top without wiping anything.
+The full walk-through, with the expected row count after every step and a troubleshooting table, is
+in **[DWH_Setup.md](DWH_Setup.md)**. The same fourteen steps in short:
 
 **Requirements:** Oracle XE 11.2 (identifiers are kept ≤ 30 characters for it), SQL\*Plus,
-SQL\*Loader, and Python 3 for the holiday and data generators.
+SQL\*Loader, and Python 3 for the holiday and data generators. Give the schema room first —
+`ALTER USER dwh DEFAULT TABLESPACE users QUOTA UNLIMITED ON users;` as SYSDBA — then connect with
+`sqlplus dwh/yourpassword@XE`.
+
+### Part A — first build (2019–2023)
+
+```sql
+@drop_all.sql                                      -- 0. rebuilds only: wipe everything
+@operational_DB\create_operational_db.sql          -- 1. OLTP tables            (13 tables)
+```
+```
+cd operational_DB\sqlloader_control_files          -- 2. load the CSVs
+.\load_all.bat dwh yourpassword XE "<repo>\sales_data5\data19_23"
+```
+```sql
+@dwh\create_dwh.sql                                -- 3. warehouse tables       (12 tables)
+
+-- 4. the calendar, the six dimensions, the five facts - in this order
+@ETL_Process\initial_loading\init_data_dim\initial_load_date_dim.sql          -- 1,827 rows
+@ETL_Process\initial_loading\init_dimension\01..06_init_*.sql                 -- 13/7/18/48/244/26,182
+@ETL_Process\initial_loading\init_fact\01..05_init_*.sql                      -- 480,753/97,740/33,508/12,103/4,680
+
+@ETL_Process\initial_loading\validate_initial_loading.sql                     -- 5. every "must be 0" = 0
+```
+
+### Part B — adding data24 (2024)
+
+```sql
+-- 6. create the 18 subsequent procedures (first time only - these run nothing)
+@ETL_Process\subsequent_loading\sub_dimension\01..07_sub_*.sql
+@ETL_Process\subsequent_loading\maintain_SCD2\01..06_maintain_*.sql
+@ETL_Process\subsequent_loading\sub_fact\01..05_sub_*.sql
+-- 7. validate: SELECT object_name, status FROM user_objects
+--              WHERE object_type='PROCEDURE' AND status <> 'VALID';   -> no rows
+```
+```
+cd operational_DB\sqlloader_control_files          -- 8. load the 2024 CSVs
+.\load_all.bat dwh yourpassword XE "<repo>\sales_data5\data24"
+```
+```sql
+@sales_data5\data24\99_price_increase_2024.sql     -- 9.  the 2024-01-01 price rise
+@ETL_Process\subsequent_loading\exec_sub_proc24.sql -- 10. run the data24 load
+```
+
+### Part C — adding data25 (2025)
+
+```
+cd operational_DB\sqlloader_control_files          -- 11. load the 2025 CSVs
+.\load_all.bat dwh yourpassword XE "<repo>\sales_data5\data25"
+```
+```sql
+@sales_data5\data25\99_price_change_2025.sql       -- 12. products AND services change
+@ETL_Process\subsequent_loading\exec_sub_proc25.sql -- 13. run the data25 load
+@ETL_Process\subsequent_loading\validate_subsequent_loading.sql
+```
+
+### Step 14 — holidays (Python)
+
+`date_dim` loads every day with `holiday_ind = 'N'`; one run covering 2019–2026 flags them all.
+
+```
+python -m venv .venv
+.venv\Scripts\activate
+pip install holidays
+cd ETL_Process\initial_loading\init_data_dim
+python gen_holidays.py 2019 2026 > holiday_update.sql
+```
+```sql
+@ETL_Process\initial_loading\init_data_dim\holiday_update.sql   -- 108 dates, 14 holidays
+```
+
+**End state:** `branch_dim` 17 · `supplier_dim` 8 · `product_dim` 72 (56 current) · `service_dim` 24
+(18 current) · `staff_dim` 319 · `customer_dim` 39,301 · `date_dim` 2,558 · `order_fact` 855,935 ·
+`reservation_fact` 167,087 · `purchase_fact` 54,020 · `salary_payment_fact` 18,934 ·
+`branch_utils_fact` 7,128.
 
 ---
 

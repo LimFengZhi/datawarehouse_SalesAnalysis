@@ -269,7 +269,7 @@ PJ #1 every year, Ipoh ≥ 0 in 2019/2022/2023 and < 0 in 2024/2025**.
 ## Loading it
 
 The ETL, validation scripts, `load_all.bat` default and the docs target **this** dataset: follow
-[LOADING_GUIDE.md](../LOADING_GUIDE.md) (Part A = `data19_23`, Part B = `data24` with
+[DWH_Setup.md](../DWH_Setup.md) (Part A = `data19_23`, Part B = `data24` with
 `99_price_increase_2024.sql`, Part C = `data25` with `99_price_change_2025.sql`). Two things to know first:
 
 1. **Tablespace** — revision 3 fully loaded used ≈ 220 MB in XE's `SYSTEM` with ~21 MB left; this

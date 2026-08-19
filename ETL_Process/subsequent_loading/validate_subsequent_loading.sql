@@ -1,7 +1,7 @@
 -- ===================================================================
 -- validate_subsequent_loading.sql
 -- ALL verification queries for the SUBSEQUENT loads. Run after
--- execute_sub_procedure.sql (data24, 2024) or execute_sub2.sql
+-- exec_sub_proc24.sql (data24, 2024) or exec_sub_proc25.sql
 -- (data25, 2025):
 --
 --   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql

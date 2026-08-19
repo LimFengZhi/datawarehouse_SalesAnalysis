@@ -1,69 +1,41 @@
 -- ===================================================================
--- execute_sub_procedure.sql
--- RUNS the whole subsequent load for DATA24 (2024). Creates nothing.
+-- exec_sub_proc25.sql
+-- RUNS the subsequent load for DATA25 (2025). Creates nothing.
 --
---   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\execute_sub_procedure.sql
+--   @c:\Users\laoli\OneDrive\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\exec_sub_proc25.sql
+--
+-- ===================================================================
+-- HOW THIS DIFFERS FROM exec_sub_proc24.sql
+-- ===================================================================
+--   exec_sub_proc24.sql   the DATA24 run  (2024)
+--       load_date_dim_incremental(2024)
+--       maintain_product_dim_scd2(DATE '2024-01-01')
+--       facts from DATE '2024-01-01'
+--
+--   exec_sub_proc25.sql   THIS FILE, the DATA25 run  (2025)
+--       load_date_dim_incremental(2025)
+--       maintain_product_dim_scd2(DATE '2025-01-01')
+--       maintain_service_dim_scd2(DATE '2025-01-01')   <- new this run
+--       facts from DATE '2025-01-01'
+--
+-- Same 18 procedures, different dates. Nothing is redefined here, so
+-- the two files can live side by side and you re-run whichever year
+-- you are loading.
 --
 -- ===================================================================
 -- BEFORE YOU RUN THIS
 -- ===================================================================
--- Open and run the 18 numbered scripts first, in any order. Each one
--- only does CREATE OR REPLACE PROCEDURE plus its own verification
--- queries - none of them execute anything.
---
---   sub_dimension\   01..07   (7 procedures)
---   maintain_SCD2\   01..06   (6 procedures)
---   sub_fact\        01..05   (5 procedures)
---
--- Then run this file. STEP 0 below checks all 18 exist and are VALID
--- before it calls a single one, so a missed script is caught straight
--- away instead of failing half-way through.
---
--- ===================================================================
--- WHY THE CALLS LIVE HERE
--- ===================================================================
--- Every EXEC, and every argument, sits in this one file. The three
--- values you might want to change are each on a single line:
---
---   EXEC load_date_dim_incremental(2024);                <- the year
---   EXEC maintain_product_dim_scd2(DATE '2024-01-01');   <- price-rise date
---   EXEC load_order_fact_incremental(DATE '2024-01-01'); <- backfill window
---
--- ===================================================================
--- THE THREE LAYERS, AND WHY THIS ORDER
--- ===================================================================
---   sub_dimension  a natural key that does not exist yet -> insert it
---   maintain_SCD2  a natural key that exists and CHANGED -> expire the
---                  old row, insert a new version
---   sub_fact       a fact row that is new -> insert; one already there
---                  whose status or money moved -> update it
---
--- The first two are deliberately orthogonal: sub_dimension never
--- updates, maintain_SCD2 never inserts a brand-new record. Run them
--- the other way round and a new product would be versioned before it
--- exists.
---
--- Facts come last because they point at the dimensions. date_dim must
--- reach 2024 BEFORE they run, or every 2024 transaction fails its
--- date lookup - and that failure is SILENT. The staging views use
--- INNER JOIN, so an unresolved key drops the row with no error at all.
--- Skip the date step and 161,093 order rows vanish with nothing to
--- show for it.
---
--- ===================================================================
--- PREREQUISITES
--- ===================================================================
---   1. the warehouse is already built from sales_data5\data19_23\
---      (see LOADING_GUIDE.md Part A)
---   2. the data24 CSVs are loaded into the OLTP (4 new branches + teams)
+--   1. the 18 numbered scripts have been run at least once, so the
+--      procedures exist  (STEP 0 below checks)
+--   2. the data25 CSVs are loaded into the OLTP
 --        cd operational_DB\sqlloader_control_files
---        load_all.bat dwh <password> XE "...\sales_data5\data24"
---   3. the 2024 price rise is applied to the OLTP
---        @sales_data5\data24\99_price_increase_2024.sql
+--        load_all.bat dwh <password> XE "...\sales_data5\data25"
+--   3. the 2025 price changes are applied to the OLTP
+--        @sales_data5\data25\99_price_change_2025.sql
 --
---   Step 3 must come BEFORE this file. maintain_SCD2 compares the
---   dimension against the OLTP, so the OLTP has to carry the new
---   prices already or there is nothing for it to detect.
+--   Step 3 must come BEFORE this file. The maintain procedures compare
+--   the dimension against the OLTP, so the OLTP has to carry the new
+--   prices already or there is nothing for them to detect.
 --
 -- IDEMPOTENT: run it twice and the second pass reports 0 inserted,
 -- 0 expired, 0 updated everywhere.
@@ -81,8 +53,7 @@ PROMPT ##############################################
 PROMPT #  STEP 0 - checking the 18 procedures
 PROMPT ##############################################
 
--- Anything listed here is missing or broken. INVALID is what produces
--- PLS-00905 when you try to call it.
+-- Anything listed here is broken. INVALID is what produces PLS-00905.
 SELECT object_name, status
 FROM   user_objects
 WHERE  object_type = 'PROCEDURE'
@@ -101,7 +72,7 @@ AND    status <> 'VALID'
 ORDER BY object_name;
 -- NO ROWS = every procedure that exists is valid.
 
--- This one must return 18. Fewer means a numbered script was not run.
+-- This must return 18. Fewer means a numbered script was never run.
 SELECT COUNT(*) AS procedures_found, 18 AS expected
 FROM   user_objects
 WHERE  object_type = 'PROCEDURE'
@@ -117,70 +88,78 @@ AND    object_name IN (
     'LOAD_PURCHASE_FACT_INCREMENTAL','LOAD_SALARY_FACT_INCREMENTAL',
     'LOAD_BR_UTILS_FACT_INCREMENTAL');
 
--- If something is INVALID, this says exactly why - PLS-00905 hides it:
---   SELECT line, text FROM user_errors
---   WHERE name = '<PROCEDURE_NAME>' ORDER BY sequence;
-
 
 -- ###################################################################
 -- STEP 1 of 3 - NEW DIMENSION RECORDS
--- new branch, staff, products, services, customers
--- + extend the calendar
+-- 6,805 customers, 6 staff, 1 supplier, 8 products (the men's line) + extend the calendar to 2025
 -- ###################################################################
 PROMPT
 PROMPT ##############################################
 PROMPT #  STEP 1 of 3 - NEW DIMENSION RECORDS
 PROMPT ##############################################
 
--- CHANGE THE YEAR HERE if you extend past 2024. This must run before
--- the facts, or their date lookups fail silently.
-EXEC load_date_dim_incremental(2024);
+-- 2025 this time. Must run before the facts, or their date lookups
+-- fail SILENTLY - the staging views use INNER JOIN, so an unresolved
+-- key drops the row with no error at all.
+EXEC load_date_dim_incremental(2025);
 
--- The new 2024 days arrive with holiday_ind = 'N'. AFTER this
--- file finishes, regenerate and apply the holiday file:
+-- The new 2025 days arrive with holiday_ind = 'N'. AFTER this file
+-- finishes, regenerate and apply the holiday file:
 --     cd ETL_Process\initial_loading\init_data_dim
---     python gen_holidays.py 2019 2024 > holiday_update.sql
+--     python gen_holidays.py 2019 2025 > holiday_update.sql
 --     @holiday_update.sql
 
+-- expect 1 new (HIM Care Labs)
 EXEC load_supplier_dim_incremental;
+-- expect 8 new (HIM Essentials men's line 49-54 + two face masks 55-56, launched 2025-01-01)
 EXEC load_product_dim_incremental;
+-- expect 6,805 new
+EXEC load_customer_dim_incremental;
+
+-- Nothing new in these two for 2025 - no branch or service was added.
+-- They run anyway and should report 0, which is itself a useful
+-- confirmation.
 EXEC load_branch_dim_incremental;
 EXEC load_service_dim_incremental;
+-- expect 6 new (2025 growth hires)
 EXEC load_staff_dim_incremental;
-EXEC load_customer_dim_incremental;
 
 
 -- ###################################################################
 -- STEP 2 of 3 - CHANGED DIMENSION RECORDS
--- expire old versions, insert new ones
+-- the 2025 price changes become dimension history
 -- ###################################################################
 PROMPT
 PROMPT ##############################################
 PROMPT #  STEP 2 of 3 - CHANGED DIMENSION RECORDS
 PROMPT ##############################################
 
--- p_effective_date is when the change ACTUALLY happened, not when you
--- are loading. Leave it off and the change is dated today.
+-- Both dated 2025-01-01, because that is when the prices in
+-- data25\99_price_change_2025.sql actually changed. The expired
+-- versions end 2024-12-31 and the new ones start 2025-01-01.
 --
--- PRODUCT IS DATED 2024-01-01 on purpose: that is when the eight
--- prices in data24\99_price_increase_2024.sql went up, so the expired
--- version ends 2023-12-31 and the new one starts 2024-01-01. The
--- 2019-2023 lines already in the fact carry the OLD price and stay on
--- the expired version by order date; the 2024 lines carry the new one.
--- Date it today instead and five years of order rows would be
--- attributed to the wrong price version.
-EXEC maintain_product_dim_scd2(DATE '2024-01-01');
+-- PRODUCTS 4 AND 16 GAIN A THIRD VERSION HERE. They already rose in
+-- 2024, so after this run they read:
+--     42 / 120   ending 2023-12-31
+--     48 / 135   2024-01-01 to 2024-12-31
+--     54 / 149   from 2025-01-01
+-- expect 8 expired, 8 new versions
+EXEC maintain_product_dim_scd2(DATE '2025-01-01');
 
+-- FIRST TIME SERVICES HAVE EVER CHANGED - service_dim gets its first
+-- version history.
+-- expect 6 expired, 6 new versions
+EXEC maintain_service_dim_scd2(DATE '2025-01-01');
+
+-- Nothing changed in these for 2025. They should all report 0.
 EXEC maintain_supplier_dim_scd2;
 EXEC maintain_branch_dim_scd2;
-EXEC maintain_service_dim_scd2;
 EXEC maintain_staff_dim_scd2;
 EXEC maintain_customer_dim_scd2;
 
 
 -- ###################################################################
 -- STEP 3 of 3 - FACTS
--- new rows + refresh changed statuses
 -- ###################################################################
 PROMPT
 PROMPT ##############################################
@@ -188,19 +167,19 @@ PROMPT #  STEP 3 of 3 - FACTS
 PROMPT ##############################################
 
 -- Just pass the first date you want - no need to add a day. The
--- procedure filters src_date >= p_load_date - 1, so DATE '2024-01-01'
--- opens the window at 2023-12-31. That one extra day is already in the
--- fact and the NOT EXISTS anti-join skips it.
+-- procedure filters src_date >= p_load_date - 1, so DATE '2025-01-01'
+-- opens the window at 2024-12-31. That one extra day, and every other
+-- 2019-2024 row, is already in the fact and the NOT EXISTS anti-join
+-- skips it - nothing is duplicated.
 --
--- The window has no upper bound, so one call backfills all of data24.
---
--- For a normal DAILY run, drop the argument - the SYSDATE default
--- covers yesterday and today:  EXEC load_order_fact_incremental;
-EXEC load_order_fact_incremental(DATE '2024-01-01');
-EXEC load_res_fact_incremental(DATE '2024-01-01');
-EXEC load_purchase_fact_incremental(DATE '2024-01-01');
-EXEC load_salary_fact_incremental(DATE '2024-01-01');
-EXEC load_br_utils_fact_incremental(DATE '2024-01-01');
+-- The window has no upper bound, so one call loads all of data25.
+-- The 2025 lines resolve to the 2025 price versions by date; the 2024
+-- rows already in the fact keep the versions they were loaded with.
+EXEC load_order_fact_incremental(DATE '2025-01-01');
+EXEC load_res_fact_incremental(DATE '2025-01-01');
+EXEC load_purchase_fact_incremental(DATE '2025-01-01');
+EXEC load_salary_fact_incremental(DATE '2025-01-01');
+EXEC load_br_utils_fact_incremental(DATE '2025-01-01');
 
 
 -- ###################################################################
@@ -218,26 +197,38 @@ SELECT 'branch_dim' AS dimension,
        17 AS expected FROM dual
 UNION ALL SELECT 'supplier_dim',
        (SELECT COUNT(*) FROM supplier_dim WHERE is_current_flag='Y'),
-       (SELECT COUNT(*) FROM supplier), 7                          FROM dual
+       (SELECT COUNT(*) FROM supplier), 8                          FROM dual
 UNION ALL SELECT 'service_dim',
        (SELECT COUNT(*) FROM service_dim WHERE is_current_flag='Y'),
        (SELECT COUNT(*) FROM service), 18                          FROM dual
 UNION ALL SELECT 'product_dim',
        (SELECT COUNT(*) FROM product_dim WHERE is_current_flag='Y'),
-       (SELECT COUNT(*) FROM product), 48                          FROM dual
+       (SELECT COUNT(*) FROM product), 56                          FROM dual
 UNION ALL SELECT 'staff_dim',
        (SELECT COUNT(*) FROM staff_dim WHERE is_current_flag='Y'),
-       (SELECT COUNT(*) FROM staff), 313                           FROM dual
+       (SELECT COUNT(*) FROM staff), 319                           FROM dual
 UNION ALL SELECT 'customer_dim',
        (SELECT COUNT(*) FROM customer_dim WHERE is_current_flag='Y'),
-       (SELECT COUNT(*) FROM customer), 32496                      FROM dual
+       (SELECT COUNT(*) FROM customer), 39301                      FROM dual
 ORDER BY 1;
 -- current_rows must equal source_rows on every line.
--- product_dim TOTAL will be 56, not 48 - the 8 extra are the expired
--- pre-2024 price versions, which is exactly what SCD2 is for.
 
-SELECT COUNT(*) AS date_dim_rows FROM date_dim;
--- expect 2193 for 2019-2024 (2,192 days + the Unknown member)
+SELECT COUNT(*) AS date_dim_rows, 2558 AS expected FROM date_dim;
+-- 2,557 days for 2019-2025 + the Unknown member
+
+PROMPT
+PROMPT ##############################################
+PROMPT #  VERSION HISTORY - totals include expired rows
+PROMPT ##############################################
+
+SELECT 'product_dim' AS dimension, COUNT(*) AS total_rows,
+       SUM(CASE WHEN is_current_flag='Y' THEN 1 ELSE 0 END) AS current_rows,
+       72 AS expected_total FROM product_dim
+UNION ALL
+SELECT 'service_dim', COUNT(*),
+       SUM(CASE WHEN is_current_flag='Y' THEN 1 ELSE 0 END), 24 FROM service_dim;
+-- product_dim 72 = 56 current + 8 expired in 2024 + 8 expired in 2025
+-- service_dim 24 = 18 current + 6 expired in 2025
 
 
 PROMPT
@@ -248,29 +239,29 @@ PROMPT ##############################################
 -- order_fact is one row per (order, product) and reservation_fact one
 -- row per (reservation, service, therapist), so the source side counts
 -- the DISTINCT groups, not the OLTP detail lines (order_detail has
--- 655,056 lines here; 13,210 of them repeat a product inside an order).
+-- 873,490 lines here; 17,555 of them repeat a product inside an order).
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM (SELECT DISTINCT order_ID, product_ID FROM order_detail)) AS source_rows,
-       641846 AS expected FROM dual
+       855935 AS expected FROM dual
 UNION ALL SELECT 'reservation_fact',
        (SELECT COUNT(*) FROM reservation_fact),
-       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 129874 FROM dual
+       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 167087 FROM dual
 UNION ALL SELECT 'purchase_fact',
        (SELECT COUNT(*) FROM purchase_fact),
-       (SELECT COUNT(*) FROM purchase), 42820            FROM dual
+       (SELECT COUNT(*) FROM purchase), 54020            FROM dual
 UNION ALL SELECT 'salary_payment_fact',
        (SELECT COUNT(*) FROM salary_payment_fact),
-       (SELECT COUNT(*) FROM salary_payment), 15474      FROM dual
+       (SELECT COUNT(*) FROM salary_payment), 18934      FROM dual
 UNION ALL SELECT 'branch_utils_fact',
        (SELECT COUNT(*) FROM branch_utils_fact),
-       (SELECT COUNT(*) FROM branch_utils), 5904         FROM dual
+       (SELECT COUNT(*) FROM branch_utils), 7128         FROM dual
 ORDER BY 1;
 
 
 PROMPT
 PROMPT ##############################################
-PROMPT #  SIX YEARS OF REVENUE  2019-2024
+PROMPT #  SEVEN YEARS OF REVENUE  2019-2025
 PROMPT ##############################################
 
 SELECT yr,
@@ -293,30 +284,48 @@ FROM (
 )
 GROUP BY yr
 ORDER BY yr;
--- 2019 baseline, 2020-2021 dip (lockdowns), 2022 jumps (online), 2023-24 grow on.
--- Six rows. Fewer means date_dim did not reach far enough.
+-- SEVEN rows. Fewer means date_dim did not reach far enough.
+-- 2019 baseline, 2020-2021 dip (lockdowns), 2022 jumps (online), 2025 jumps (men's line).
 -- revenue = total - tax (qty * price - discount, tax excluded); the
 -- facts store no unit price, the dimension version does.
 
 
 PROMPT
 PROMPT ##############################################
-PROMPT #  THE SCD2 PAYOFF - one product, two prices
+PROMPT #  THE SCD2 PAYOFF - one product, THREE prices
 PROMPT ##############################################
 
-SELECT p.product_name, p.product_unit_price, p.is_current_flag,
+SELECT p.product_unit_price, p.is_current_flag,
+       p.effective_start_date, p.effective_end_date,
        MIN(d.cal_date) AS first_sold, MAX(d.cal_date) AS last_sold,
        COUNT(*)        AS order_lines
 FROM   order_fact  f
 JOIN   product_dim p ON p.product_key = f.product_key
 JOIN   date_dim    d ON d.date_key    = f.date_key
-WHERE  p.product_ID = 16          -- Peptide Firming Serum, 120 -> 135
-GROUP  BY p.product_name, p.product_unit_price, p.is_current_flag
+WHERE  p.product_ID = 16          -- Peptide Firming Serum
+GROUP  BY p.product_unit_price, p.is_current_flag,
+          p.effective_start_date, p.effective_end_date
 ORDER  BY first_sold;
--- Expect two rows: the 120.00 version stopping at 2023-12-31 and the
--- 135.00 version starting 2024-01-01. That is the whole argument for
--- Type 2 - with Type 1 the price would have been overwritten and five
--- years of history would silently revalue.
+-- Expect THREE rows:
+--   120.00  'N'  first sold 2019-01-xx, last 2023-12-xx
+--   135.00  'N'  first sold 2024-01-xx, last 2024-12-xx
+--   149.00  'Y'  first sold 2025-01-xx
+-- Each price sits against exactly the order lines that paid it. With
+-- Type 1 there would be one row at 149.00 and six years of history
+-- would silently revalue.
+
+PROMPT
+PROMPT ##############################################
+PROMPT #  SERVICE_DIM's FIRST version history
+PROMPT ##############################################
+
+SELECT serv_ID, serv_name, serv_price, is_current_flag,
+       effective_start_date, effective_end_date
+FROM   service_dim
+WHERE  serv_ID IN (5, 6, 7, 10, 12, 17)
+ORDER  BY serv_ID, service_key;
+-- 12 rows: 6 flagged 'N' ending 2024-12-31, 6 flagged 'Y' from
+-- 2025-01-01
 
 
 -- ===================================================================
