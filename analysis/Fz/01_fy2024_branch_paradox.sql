@@ -6,7 +6,7 @@
 --   company per year (money + customers) -> SLICE the focus year ->
 --   the average branch per STATE -> every branch under its state ->
 --   ONE branch (default Ipoh, the loss-maker) vs the average branch:
---   its customers -> WHY (staffing, cost ratios, what-ifs).
+--   its customers -> WHY (staffing, purchasing, cost ratios, what-ifs).
 --   The companion 01b_focus_branch_sales_mix.sql (same prompts) drills
 --   the same branch into its product / service mix, loyalty tiers and
 --   customer home cities.
@@ -29,7 +29,7 @@
 --      COGS, payroll and rent as a share of what each branch sells)
 --   3. Is the focus year a one-off, or the standing order of things?
 --      (profit rank and margin rank of every branch in every year
---      2018-2025)
+--      2019-2025)
 --   4. Where inside the year does the money go for the top-revenue
 --      branch and for the least-profitable one?  (quarters, expense
 --      categories)
@@ -40,11 +40,11 @@
 --               reservation_fact       service revenue
 --               purchase_fact          cost of goods bought (COGS)
 --               salary_payment_fact    payroll
---               branch_expense_fact    rent, utilities and upkeep
+--               branch_utils_fact      rent, utilities and upkeep
 --   dims      date_dim.cal_year / cal_quarter        -> the drill path
 --             branch_dim.br_state / br_ID / br_city  -> the rows
 --             customer_dim cus_ID / cus_state         -> who buys, from where
---             branch_utils_dim.util_name             -> expense split
+--             branch_utils_fact.util_name            -> expense split (rent)
 --   measures  see MEASURE DEFINITIONS
 --
 -- MEASURE DEFINITIONS
@@ -95,23 +95,21 @@
 --     cost of the units actually sold. Gross profit is therefore a
 --     "restocking-adjusted" figure; a branch that stocked up in
 --     December looks worse than one that ran its shelves down.
---   - Which data revision is loaded matters. With sales_data3 (revision
---     3, the current dataset) the P+L is sane: about break-even in
---     2018-19, MCO losses in 2020-21, profitable from 2022, ~10 % margin
---     in 2024. With sales_data2 (revision 2) payroll alone is 80-130 %
---     of revenue and EVERY branch shows a net loss in every year - read
---     the RANKS, MARGINS and cost RATIOS there, not the sign of the RM
---     figure. Row counts and IDs are identical in both revisions.
---   - Ipoh opened 2023-03-01: blank before 2023 in the year pivot, and
---     a part year in 2023 (staff paid from February, doors open March).
+--   - Written for sales_data5 (revision 5: 2019-2025, 17 branches).
+--     Seremban, Kuantan, Subang Jaya and Bukit Jalil open 2024-01-01,
+--     so they are blank before 2024 and ramp through their first year -
+--     expect them in the red in FY2024 and positive in FY2025.
+--   - Ipoh trades from 2019-01-15 but buys ALL its stock from an
+--     Ipoh-only supplier (Perak Beauty Supplies) that charges 46-54 % of
+--     the shelf price (33-43 % everywhere else) and 62-72 % from 2024 -
+--     so its purchase cost % of sales is the number to watch.
 --   - 2020 and 2021 carry MCO / FMCO closure months (salons shut, pay
 --     cuts, rent rebates) - ranks in those years are distorted.
 --
--- DIMENSIONS USED  (five)
+-- DIMENSIONS USED  (four; util_name is a text attribute on branch_utils_fact)
 --   date_dim          cal_year, cal_date
 --   branch_dim        br_ID, br_city, br_state
 --   customer_dim      cus_ID, cus_state                (sections 1-4)
---   branch_utils_dim  util_name                        (section 5, rent)
 --   staff_dim         st_ID                            (section 5, heads)
 --
 -- REPORT SECTIONS  (each one is ONE OLAP operation)
@@ -126,7 +124,7 @@
 --                                                   costs, profit, cost %,
 --                                                   avg customers, new %,
 --                                                   local %, sales/customer
---   3  FOCUS YEAR: EVERY BRANCH          SLICE      all 13 branches under
+--   3  FOCUS YEAR: EVERY BRANCH          SLICE      all 17 branches under
 --                                                   their state: money +
 --                                                   customers, AVERAGE
 --                                                   branch as the last row
@@ -141,64 +139,57 @@
 --   The best-earning branch used as the yardstick in section 5 is NOT
 --   hard-coded: the script looks it up for the focus year.
 --
--- WHAT TO LOOK FOR  (FY2024, revision 3 = sales_data3, from the spool
---   of the full 2018-2025 load)
---   - Section 1: total sales RM 9.63 M (2018) -> 16.33 M (2024) ->
---     17.72 M (2025); earning % -3.8 (2018), -1.9 (2019), -16.3 / -29.2
---     in the MCO years, +5.3 (2022), +8.1 (2023), +9.8 (2024), +11.5
---     (2025). Salary paid ~44 % of sales, purchase cost ~36 %, branch
---     expense ~10 % in 2024. Customers 5,305 (2018) -> 16,168 (2024)
---     -> 17,958 (2025); the new-customer share falls from 43 % (2019)
---     to 19 % (2025) as the base matures; ~RM 1,000 per customer.
+-- WHAT TO LOOK FOR  (FY2024, revision 5 = sales_data5, from the spool
+--   of the full 2019-2025 load: 17 branches)
+--   - Section 1: total sales RM 13.48 M (2019) -> 24.01 M (2024) ->
+--     31.40 M (2025); earning % +7.5 (2019), -5.7 / -14.5 in the MCO
+--     years, +21.2 (2022, the year the shop went online: sales +120 %),
+--     +21.3 (2023), +16.6 (2024 - four new branches ramping up), +24.7
+--     (2025, the men's line). Purchase cost ~39 % of sales, salary ~36 %,
+--     branch expense ~8-9 % in 2024. Customers 8,383 (2019) -> 21,236
+--     (2024) -> 26,002 (2025); 2019 shows NEW 100 % because it is the
+--     first year of history; ~RM 1,100-1,300 per customer from 2022.
 --   - Section 2: Johor (Johor Bahru alone) has the highest average
---     sales per branch (RM 1.46 M), then Selangor (5 branches, RM 1.39 M
---     avg) with the best earning % (+13.1) and Wilayah Persekutuan (4).
---     Klang Valley branches serve ~2,000 customers each, 96-97 % local,
---     the single-branch states ~50 % local. Perak (Ipoh alone, second
---     year) is the only state in the red: 831 customers, 27 % local,
---     31 % new - but RM 1,071 per customer vs RM 670 company-wide.
---     Company average branch: RM 1.26 M sales, 1,873 customers,
---     RM 124 k net profit, +9.8 %.
---   - Section 3: Selangor and Wilayah Persekutuan carry the big
---     branches - Petaling Jaya (RM 2.20 M, +17.8 %, 3,355 customers),
---     Kuala Lumpur (RM 2.01 M, +14.2 %, 2,994); Melaka is the thinnest
---     positive branch (RM 814 k, +0.6 %); Ipoh (Perak) the only loss
---     (-12.7 %) and by far the fewest customers (831 vs 1,172-3,355
---     everywhere else) while its sales per customer is the highest
---     (RM 1,071 vs RM 630-695). Sales per customer is flat across the
---     other 12 branches - they differ in HOW MANY customers they have,
---     not in what each spends. The AVERAGE BRANCH row (RM 1.26 M,
---     1,873 customers, +8.4 % mean earning) is the yardstick section 4
---     measures Ipoh against.
---   - Section 4 - THE WHY: Ipoh served 831 customers in FY2024 against
---     1,873 at the average branch (-56 %); 31 % of them were NEW (19 %
---     at the average branch - it is still building its base). Its
---     customers are loyal and spend MORE each - RM 1,071 and 4.3
---     transactions per customer vs RM 670 and 2.7 - but there are not
---     enough of them. (01b shows the rest: the same product / service
---     mix as the company but 23-40 % less of every category to about
---     half the buyers; only 224 local Perak customers, giving 68 % of
---     the sales.)
---   - Section 5 - the cost side of the same story: Ipoh sells 29 % less
---     than the average branch with the same headcount (18 vs 17.8), so
---     sales per head is RM 49 k vs 70 k while salary per head is normal
---     (RM 31.7 k vs 30.7 k); salary takes 64 % of sales vs 44 %
---     (+20 pts), purchasing is on par, premises +2.6 pts. What-ifs: at
---     the average salary ratio Ipoh would earn RM +68 k (+7.7 %); at
---     the average sales per head it needs 12.6 heads, not 18; it must
---     sell RM 1.07 M (+20 %) to break even - or, per section 4, win roughly
---     170 more customers like the ones it has. Verdict: PAYROLL sized
---     for a mature branch, customer base of a new one.
---   - Run it with branch = Melaka to see the other thin one (salary
---     51 % of sales, rent 9.2 %), or with year 2023 for Ipoh's opening
---     year, or with a nonsense branch name to land on the least
+--     sales per branch (RM 1.86 M), then Selangor (6 branches, RM 1.72 M
+--     avg, best earning % +22.7) and Wilayah Persekutuan (5). Klang
+--     Valley branches serve ~2,700-3,200 customers each, 76-80 % local;
+--     the single-branch states 34-37 % local (online orders are fulfilled
+--     by any branch since 2022). Three states are in the red: Negeri
+--     Sembilan and Pahang (Seremban / Kuantan, opened 2024-01-01 and still
+--     ramping: salary 57-58 % of sales, 42-46 % new customers) and Perak -
+--     Ipoh, in its sixth year, with purchase cost 64.9 % of sales.
+--     Company average branch: RM 1.41 M sales, 2,674 customers,
+--     RM 235 k net profit, +16.6 %.
+--   - Section 3: Petaling Jaya leads by every yardstick (RM 3.34 M,
+--     +33.2 %, 5,960 customers), Kuala Lumpur second (RM 2.43 M, +21.4 %,
+--     4,664) - the "top-revenue branch is the least profitable" paradox
+--     is FALSE in this data. The four 2024 openings are the thin ones
+--     (Subang Jaya +3.6 %, Bukit Jalil -7.3 %, Seremban -9.7 %, Kuantan
+--     -11.7 %), and Ipoh (-8.7 %) is the only ESTABLISHED branch in the
+--     red: 1,695 customers (vs 2,674 average) spending RM 458 each (vs
+--     528). Sales per customer is flat across the other branches - they
+--     differ in HOW MANY customers they have, not in what each spends.
+--   - Section 4 - Ipoh's customers: 1,695 vs 2,674 at the average branch
+--     (-37 %), 29.9 % of them new (28.9 % average), 1.85 transactions
+--     each (2.05). Fewer customers who buy a little less - that explains
+--     the smaller top line, not the loss. (01b shows the same product /
+--     service mix as the company at ~half the average branch's volume.)
+--   - Section 5 - THE WHY is PURCHASING: Ipoh's purchase cost is 64.9 %
+--     of sales against 39.1 % at the average branch (+25.8 pts) - it
+--     buys everything from its Ipoh-only supplier (Perak Beauty
+--     Supplies) at 62-72 % of shelf price since 2024 (46-54 % before,
+--     33-43 % everywhere else). Payroll and premises are on par (salary
+--     36.0 % vs 35.8 %, expense 7.8 % vs 8.5 %, 8 heads with the highest
+--     sales per head after PJ). What-ifs: at the average salary ratio it
+--     saves almost nothing (RM 1 k); at the average PURCHASE ratio it
+--     would earn RM +133 k (+17 %); it must sell RM 968 k (+25 %) to break
+--     even on the current cost structure. Verdict: PURCHASING.
+--   - Run it with year 2023 to see Ipoh in the black (+15.9 %, purchase
+--     cost 51 %), with year 2025 to see the new branches turn positive
+--     while Ipoh stays red (-2.6 %), with branch = Kuantan for the
+--     opening-year story (PAYROLL sized for a mature branch, customer base
+--     of a new one), or with a nonsense branch name to land on the least
 --     profitable branch automatically.
---
---   Against revision 2 (sales_data2 - the same rows and customers with
---   the old cost base) every branch is loss-making in every year
---   (payroll ~91 % of sales), so the top-revenue branch also posts one
---   of the biggest RM losses while keeping the best margin: read the
---   ranks, margins and ratios there, not the sign of the RM figure.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -285,7 +276,7 @@ WITH pnl AS (
         UNION ALL
         SELECT b.br_ID, b.br_city, b.br_state,
                0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
+        FROM   branch_utils_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
@@ -322,7 +313,7 @@ SPOOL fy2024_branch_paradox_output.txt
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. COMPANY P+L AND CUSTOMERS PER YEAR' SKIP 1 -
-       CENTER 'ALL BRANCHES, 2018 - 2025 (ROLL-UP)' SKIP 1 -
+       CENTER 'ALL BRANCHES, 2019 - 2025 (ROLL-UP)' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -385,7 +376,7 @@ WITH pnl AS (
         UNION ALL
         SELECT b.br_ID, d.cal_year,
                0, 0, 0, 0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
+        FROM   branch_utils_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         GROUP  BY b.br_ID, d.cal_year
@@ -519,7 +510,7 @@ WITH pnl AS (
         UNION ALL
         SELECT b.br_ID, b.br_state,
                0, 0, 0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
+        FROM   branch_utils_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
@@ -667,7 +658,7 @@ WITH pnl AS (
         UNION ALL
         SELECT b.br_ID, b.br_city, b.br_state,
                0, 0, 0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
+        FROM   branch_utils_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year
@@ -823,7 +814,7 @@ TTITLE CENTER '+==========================================================+' SKI
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN metric_name  HEADING 'METRIC'                    FORMAT A34
+COLUMN metric_name  HEADING 'METRIC'                    FORMAT A37
 COLUMN v_focus      HEADING '&focus_city'                FORMAT A16 JUSTIFY RIGHT
 COLUMN v_avg        HEADING 'AVERAGE|BRANCH'             FORMAT A16 JUSTIFY RIGHT
 COLUMN v_best       HEADING '&best_city'                 FORMAT A16 JUSTIFY RIGHT
@@ -871,11 +862,10 @@ WITH pnl AS (
         -- expenses carry the third dimension: rent is split out here
         SELECT b.br_ID, b.br_city,
                0, 0, 0, SUM(f.payment_amount),
-               SUM(CASE WHEN u.util_name = 'Rent' THEN f.payment_amount ELSE 0 END)
-        FROM   branch_expense_fact f
+               SUM(CASE WHEN f.util_name = 'Rent' THEN f.payment_amount ELSE 0 END)
+        FROM   branch_utils_fact f
         JOIN   date_dim         d ON d.date_key         = f.date_key
         JOIN   branch_dim       b ON b.branch_key       = f.branch_key
-        JOIN   branch_utils_dim u ON u.branch_utils_key = f.branch_utils_key
         WHERE  d.cal_year = &focus_year
         GROUP  BY b.br_ID, b.br_city
     )
@@ -972,17 +962,25 @@ UNION ALL SELECT 'Payroll at the average % of sales',
 UNION ALL SELECT '   -> net profit would be',
        'RM ' || TRIM(TO_CHAR(f_net + f_sal - f_rev * a_sal / NULLIF(a_rev, 0), 'S99,999,990')), ' ', ' ',
        TRIM(TO_CHAR((f_net + f_sal - f_rev * a_sal / NULLIF(a_rev, 0)) / NULLIF(f_rev, 0) * 100, 'S990.0')) || '% earning', 13 FROM x
--- what-if 2: heads the branch would need at the average sales per head
+-- what-if 2: same sales, but stock bought at the AVERAGE branch's % of sales
+-- (the lever for a branch whose supplier is dear - Ipoh)
+UNION ALL SELECT 'Purchasing at the average % of sales',
+       'RM ' || TRIM(TO_CHAR(f_rev * a_cogs / NULLIF(a_rev, 0), '99,999,990')), ' ', ' ',
+       'saves ' || TRIM(TO_CHAR(f_cogs - f_rev * a_cogs / NULLIF(a_rev, 0), 'S99,999,990')), 14 FROM x
+UNION ALL SELECT '   -> net profit would be',
+       'RM ' || TRIM(TO_CHAR(f_net + f_cogs - f_rev * a_cogs / NULLIF(a_rev, 0), 'S99,999,990')), ' ', ' ',
+       TRIM(TO_CHAR((f_net + f_cogs - f_rev * a_cogs / NULLIF(a_rev, 0)) / NULLIF(f_rev, 0) * 100, 'S990.0')) || '% earning', 15 FROM x
+-- what-if 3: heads the branch would need at the average sales per head
 UNION ALL SELECT 'Heads at average sales per head',
        TRIM(TO_CHAR(f_rev / NULLIF(a_rev / NULLIF(a_heads, 0), 0), '990.0')) || ' heads', ' ', ' ',
-       'has ' || TRIM(TO_CHAR(f_heads, '990')), 14 FROM x
--- what-if 3: sales needed to break even on the current payroll + expenses
+       'has ' || TRIM(TO_CHAR(f_heads, '990')), 16 FROM x
+-- what-if 4: sales needed to break even on the current payroll + expenses
 -- (purchase cost scales with sales at the branch's own ratio)
 UNION ALL SELECT 'Break-even sales at current costs',
        'RM ' || TRIM(TO_CHAR((f_sal + f_exp) / NULLIF(1 - f_cogs / NULLIF(f_rev, 0), 0), '99,999,990')), ' ', ' ',
        TRIM(TO_CHAR(((f_sal + f_exp) / NULLIF(1 - f_cogs / NULLIF(f_rev, 0), 0) - f_rev)
-                    / NULLIF(f_rev, 0) * 100, 'S990.0')) || '% vs actual', 15 FROM x
-UNION ALL SELECT '-- verdict ----------------------', ' ', ' ', ' ', ' ', 16 FROM dual
+                    / NULLIF(f_rev, 0) * 100, 'S990.0')) || '% vs actual', 17 FROM x
+UNION ALL SELECT '-- verdict ----------------------', ' ', ' ', ' ', ' ', 18 FROM dual
 UNION ALL SELECT 'WHY',
        CASE WHEN f_net >= 0 THEN 'in the black'
             WHEN (f_sal / NULLIF(f_rev, 0) - a_sal / NULLIF(a_rev, 0))
@@ -995,7 +993,7 @@ UNION ALL SELECT 'WHY',
             ELSE 'PURCHASING' END,
        ' ', ' ',
        CASE WHEN f_net >= 0 THEN 'no gap to close'
-            ELSE 'largest gap vs avg' END, 17 FROM x
+            ELSE 'largest gap vs avg' END, 19 FROM x
 )
 ORDER  BY sort_key;
 

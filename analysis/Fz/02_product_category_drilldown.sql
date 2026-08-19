@@ -13,7 +13,7 @@
 -- PARAMETERS (the year range at the start; the rest ONE AT A TIME,
 -- each after the table it refers to has printed, so the choice is
 -- made from what is on screen)
---   start year, end year   at the start   defaults 2018 and 2025 -
+--   start year, end year   at the start   defaults 2019 and 2025 -
 --                          frame sections 1-3 (year columns outside the
 --                          range are hidden, totals / share / growth
 --                          are computed on the range)
@@ -73,37 +73,43 @@
 --   5  BY PRODUCT    DRILL-DOWN  category -> product, quarters across,
 --                                price then vs now
 --
--- WHAT TO LOOK FOR  (defaults: 2018-2025 > Selangor > Petaling Jaya >
---   2025 > Serum, revision-3 data)
---   - Section 1: Selangor is the biggest state every year (44 % of
---     product sales 2018-2025), Wilayah Persekutuan second (32 %),
---     every state dips in 2020-21 (MCO) and jumps 70-80 % in 2022,
---     Perak appears in 2023 (Ipoh); every established state has grown
---     65-75 % from 2018 to 2025 (Melaka +298 % because it opened in
---     August 2018).
---   - Section 2 (Selangor): Petaling Jaya carries 32 % of the state,
---     then Shah Alam 20 %, Puchong 19 %, Klang 17 %, Selayang 13 % -
---     the same order every year, all growing 65-74 %.
---   - Section 3 (Petaling Jaya): Q4 is the best quarter in every year
---     but 2018 (festive run-ups + 11.11 / 12.12, 28-31 % of the year,
---     40 % in 2021 when the FMCO emptied Q3); Q3 is the weakest; 2020
---     Q2 (MCO 1.0) and 2021 Q3 (FMCO) are the lockdown holes; 2022 is
---     +74 % on 2021.
---   - Section 4 (PJ 2025): Serum #1 (19 %) and Moisturizer #2 (14 %),
---     then Face Mask, Sunscreen, Cleanser ...; in 2025 every category
---     peaks in Q4 (festive gifting), Exfoliator and Face Mask the most
---     seasonal (PEAK/LOW 1.5-1.6), Moisturizer the flattest (1.28),
---     realised price runs from RM 98 (Serum) to RM 20 (Spot Treatment).
---     Run it with year 2024 to see Sunscreen peak in Q2 instead.
---   - Section 5 (Serum 2025): Peptide Firming Serum (22 %) and Retinol
---     Renewal Serum (19 %) lead, both peaking in Q1 (the January price
---     rise pulled buying forward - Q1 > Q4 only in these two); PRICE
---     THEN = PRICE NOW in 2025 because 2025 is the current price era -
---     run it with year 2024 to see 135 -> 149 on Peptide Firming Serum
---     (SCD2). REALISED below PRICE THEN is the loyalty / promo discount.
---   - Try: Perak > Ipoh > 2023 to see an opening year (Q1 = March
---     only), or Melaka > Melaka > 2021 for the FMCO hole in Q3; a
---     nonsense name at any prompt lands on the biggest member.
+-- WHAT TO LOOK FOR  (defaults: 2019-2025 > Selangor > Petaling Jaya >
+--   2025 > Serum, revision-5 data = sales_data5)
+--   - Section 1: Selangor is the biggest state every year (43 % of
+--     product sales 2019-2025), Wilayah Persekutuan second (30 %),
+--     every state dips in 2020-21 (MCO) and roughly doubles in 2022
+--     (the shop went online: +116 % company-wide), Negeri Sembilan and
+--     Pahang appear in 2024 (Seremban, Kuantan); the established states
+--     have grown 85-140 % from 2019 to 2025 - except Perak (+40 %): Ipoh
+--     loses footfall to the web shop from 2024 (617 k vs 844 k in 2023).
+--   - Section 2 (Selangor): Petaling Jaya carries 33 % of the state,
+--     then Shah Alam 17 %, Puchong 17 %, Klang 16 %, Selayang 11 %,
+--     Subang Jaya (2024) 6 % - the same order every year; PJ grows
+--     +138 %, the rest +82-100 %.
+--   - Section 3 (Petaling Jaya): Q4 is the best quarter in EVERY year
+--     (festive run-ups + 11.11 / 12.12, 28-32 % of the year, 38 % in
+--     2021 when the FMCO emptied Q3); Q3 is the weakest; 2020 Q2
+--     (MCO 1.0) and 2021 Q3 (FMCO) are the lockdown holes; 2022 is
+--     +160 % on 2021; 2025 +24 % on 2024 (the men's line).
+--   - Section 4 (PJ 2025): Face Mask #1 (19 %) and Serum #2 (17 %),
+--     then Face Cream, Sunscreen, Facial Cleanser ...; every category
+--     peaks in Q4 except Sunscreen and Eye Cream (Q1 - the hot months
+--     start in March and the January price rise pulled buying forward);
+--     Sunscreen and Essential Oil the most seasonal (PEAK/LOW 1.52),
+--     Lip Care and Facial Cleanser the flattest (1.31-1.32); realised
+--     price runs from RM 99 (Serum) to RM 21 (Lip Care).
+--   - Section 5 (Serum 2025): Peptide Firming Serum (20 %) and Azelaic
+--     Acid Clarifying Serum (17 %) lead; PRICE THEN = PRICE NOW in 2025
+--     because 2025 is the current price era - run it with year 2024 to
+--     see 135 -> 149 on Peptide Firming Serum and 48 -> 54 on Salicylic
+--     Acid Acne Cleanser (the products with THREE versions: 2019-23,
+--     2024, 2025 - SCD2). REALISED below PRICE THEN is the loyalty /
+--     promo discount.
+--   - Try: Perak > Ipoh > 2024 for the branch that shrinks while the
+--     company grows, Negeri Sembilan > Seremban > 2024 for an opening
+--     year (ramping quarter by quarter), or Melaka > Melaka > 2021 for
+--     the FMCO hole in Q3; a nonsense name at any prompt lands on the
+--     biggest member.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -124,7 +130,7 @@ SET TRIMSPOOL ON
 -- SQL*Plus caps an ACCEPT prompt at 99 characters - keep it short.
 -- The year range frames sections 1-3 (year columns outside it are
 -- hidden, totals / share / growth are computed on the range only).
-ACCEPT p_from NUMBER DEFAULT 2018 PROMPT 'Start year (default 2018): '
+ACCEPT p_from NUMBER DEFAULT 2019 PROMPT 'Start year (default 2019): '
 ACCEPT p_to   NUMBER DEFAULT 2025 PROMPT 'End year   (default 2025): '
 
 -- ---- values reused in every title ---------------------------------
@@ -134,16 +140,15 @@ SET TERMOUT OFF
 COLUMN run_dt  NEW_VALUE run_dt  NOPRINT
 SELECT TO_CHAR(SYSDATE, 'DD-MON-YYYY') AS run_dt FROM dual;
 
--- clamp the range to the data (2018-2025) and put it the right way round
+-- clamp the range to the data (2019-2025) and put it the right way round
 COLUMN f_from NEW_VALUE f_from NOPRINT
 COLUMN f_to   NEW_VALUE f_to   NOPRINT
-SELECT TO_CHAR(GREATEST(2018, LEAST(&p_from, &p_to)))  AS f_from,
+SELECT TO_CHAR(GREATEST(2019, LEAST(&p_from, &p_to)))  AS f_from,
        TO_CHAR(LEAST(2025, GREATEST(&p_from, &p_to)))  AS f_to
 FROM   dual;
 
 -- one PRINT / NOPRINT switch per year column, so the pivots in
 -- sections 1-2 only show the years inside the range
-COLUMN v2018 NEW_VALUE v2018 NOPRINT
 COLUMN v2019 NEW_VALUE v2019 NOPRINT
 COLUMN v2020 NEW_VALUE v2020 NOPRINT
 COLUMN v2021 NEW_VALUE v2021 NOPRINT
@@ -151,8 +156,7 @@ COLUMN v2022 NEW_VALUE v2022 NOPRINT
 COLUMN v2023 NEW_VALUE v2023 NOPRINT
 COLUMN v2024 NEW_VALUE v2024 NOPRINT
 COLUMN v2025 NEW_VALUE v2025 NOPRINT
-SELECT CASE WHEN 2018 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2018,
-       CASE WHEN 2019 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2019,
+SELECT CASE WHEN 2019 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2019,
        CASE WHEN 2020 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2020,
        CASE WHEN 2021 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2021,
        CASE WHEN 2022 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2022,
@@ -180,7 +184,6 @@ TTITLE CENTER '+==========================================================+' SKI
 
 COLUMN br_state   HEADING 'STATE'      FORMAT A19
 COLUMN branches   HEADING 'BR'         FORMAT 99
-COLUMN y2018      HEADING '2018'       FORMAT 99,999,990 &v2018
 COLUMN y2019      HEADING '2019'       FORMAT 99,999,990 &v2019
 COLUMN y2020      HEADING '2020'       FORMAT 99,999,990 &v2020
 COLUMN y2021      HEADING '2021'       FORMAT 99,999,990 &v2021
@@ -193,7 +196,7 @@ COLUMN share_pct  HEADING 'SHARE|%'    FORMAT 990.0
 COLUMN growth_pct HEADING 'GROWTH %|1ST->&f_to' FORMAT S9,990.0
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 total ON REPORT
+COMPUTE SUM LABEL 'ALL' OF y2019 y2020 y2021 y2022 y2023 y2024 y2025 total ON REPORT
 
 WITH sales AS (
     SELECT b.br_state, b.br_ID, d.cal_year,
@@ -208,7 +211,6 @@ WITH sales AS (
 SELECT br_state,
        COUNT(DISTINCT br_ID)                          AS branches,
        -- no ELSE, so a year the state did not trade prints blank
-       SUM(CASE WHEN cal_year = 2018 THEN amt END)    AS y2018,
        SUM(CASE WHEN cal_year = 2019 THEN amt END)    AS y2019,
        SUM(CASE WHEN cal_year = 2020 THEN amt END)    AS y2020,
        SUM(CASE WHEN cal_year = 2021 THEN amt END)    AS y2021,
@@ -261,21 +263,20 @@ TTITLE CENTER '+==========================================================+' SKI
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN br_city    HEADING 'BRANCH'     FORMAT A15
-COLUMN y2018      HEADING '2018'       FORMAT 9,999,990 &v2018
-COLUMN y2019      HEADING '2019'       FORMAT 9,999,990 &v2019
-COLUMN y2020      HEADING '2020'       FORMAT 9,999,990 &v2020
-COLUMN y2021      HEADING '2021'       FORMAT 9,999,990 &v2021
-COLUMN y2022      HEADING '2022'       FORMAT 9,999,990 &v2022
-COLUMN y2023      HEADING '2023'       FORMAT 9,999,990 &v2023
-COLUMN y2024      HEADING '2024'       FORMAT 9,999,990 &v2024
-COLUMN y2025      HEADING '2025'       FORMAT 9,999,990 &v2025
+COLUMN y2019      HEADING '2019'       FORMAT 99,999,990 &v2019
+COLUMN y2020      HEADING '2020'       FORMAT 99,999,990 &v2020
+COLUMN y2021      HEADING '2021'       FORMAT 99,999,990 &v2021
+COLUMN y2022      HEADING '2022'       FORMAT 99,999,990 &v2022
+COLUMN y2023      HEADING '2023'       FORMAT 99,999,990 &v2023
+COLUMN y2024      HEADING '2024'       FORMAT 99,999,990 &v2024
+COLUMN y2025      HEADING '2025'       FORMAT 99,999,990 &v2025
 COLUMN total      HEADING 'TOTAL|&f_from-&f_to' FORMAT 99,999,990
 COLUMN share_pct  HEADING 'SHARE OF|STATE %' FORMAT 990.0
 COLUMN growth_pct HEADING 'GROWTH %|1ST->&f_to' FORMAT S9,990.0
 COLUMN br_ID      NOPRINT
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'STATE' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 total ON REPORT
+COMPUTE SUM LABEL 'STATE' OF y2019 y2020 y2021 y2022 y2023 y2024 y2025 total ON REPORT
 
 WITH sales AS (
     SELECT b.br_ID, b.br_city, d.cal_year,
@@ -289,7 +290,6 @@ WITH sales AS (
     GROUP  BY b.br_ID, b.br_city, d.cal_year
 )
 SELECT br_city,
-       SUM(CASE WHEN cal_year = 2018 THEN amt END)    AS y2018,
        SUM(CASE WHEN cal_year = 2019 THEN amt END)    AS y2019,
        SUM(CASE WHEN cal_year = 2020 THEN amt END)    AS y2020,
        SUM(CASE WHEN cal_year = 2021 THEN amt END)    AS y2021,
@@ -423,10 +423,10 @@ TTITLE CENTER '+==========================================================+' SKI
 
 COLUMN rnk        HEADING 'RANK'       FORMAT 99
 COLUMN product_category HEADING 'CATEGORY' FORMAT A19
-COLUMN q1         HEADING 'Q1 (RM)'    FORMAT 999,990.00
-COLUMN q2         HEADING 'Q2 (RM)'    FORMAT 999,990.00
-COLUMN q3         HEADING 'Q3 (RM)'    FORMAT 999,990.00
-COLUMN q4         HEADING 'Q4 (RM)'    FORMAT 999,990.00
+COLUMN q1         HEADING 'Q1 (RM)'    FORMAT 9,999,990.00
+COLUMN q2         HEADING 'Q2 (RM)'    FORMAT 9,999,990.00
+COLUMN q3         HEADING 'Q3 (RM)'    FORMAT 9,999,990.00
+COLUMN q4         HEADING 'Q4 (RM)'    FORMAT 9,999,990.00
 COLUMN total      HEADING 'YEAR|TOTAL (RM)' FORMAT 9,999,990.00
 COLUMN share_pct  HEADING 'SHARE|%'    FORMAT 990.0
 COLUMN units      HEADING 'UNITS'      FORMAT 99,990
@@ -517,10 +517,10 @@ COLUMN rnk          HEADING 'RANK'      FORMAT 99
 COLUMN product_name HEADING 'PRODUCT'   FORMAT A32
 -- one digit wider than a single product needs: the ALL row is the
 -- whole category (six figures a quarter at the big branches)
-COLUMN q1           HEADING 'Q1 (RM)'   FORMAT 999,990.00
-COLUMN q2           HEADING 'Q2 (RM)'   FORMAT 999,990.00
-COLUMN q3           HEADING 'Q3 (RM)'   FORMAT 999,990.00
-COLUMN q4           HEADING 'Q4 (RM)'   FORMAT 999,990.00
+COLUMN q1           HEADING 'Q1 (RM)'   FORMAT 9,999,990.00
+COLUMN q2           HEADING 'Q2 (RM)'   FORMAT 9,999,990.00
+COLUMN q3           HEADING 'Q3 (RM)'   FORMAT 9,999,990.00
+COLUMN q4           HEADING 'Q4 (RM)'   FORMAT 9,999,990.00
 COLUMN sales        HEADING 'YEAR|SALES (RM)' FORMAT 9,999,990.00
 COLUMN share_pct    HEADING 'SHARE OF|CATEGORY %' FORMAT 990.0
 COLUMN units        HEADING 'UNITS'     FORMAT 99,990
@@ -592,7 +592,6 @@ UNDEFINE p_from
 UNDEFINE p_to
 UNDEFINE f_from
 UNDEFINE f_to
-UNDEFINE v2018
 UNDEFINE v2019
 UNDEFINE v2020
 UNDEFINE v2021

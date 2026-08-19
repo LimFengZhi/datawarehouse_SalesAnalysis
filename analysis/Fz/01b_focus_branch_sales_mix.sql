@@ -47,22 +47,31 @@
 --   4  CUSTOMERS BY LOYALTY TIER      DICE   who provides the sales
 --   5  CUSTOMERS BY HOME CITY         DICE   local vs visitors
 --
--- WHAT TO LOOK FOR  (FY2024, Ipoh, revision-3 data)
+-- WHAT TO LOOK FOR  (FY2024, Ipoh, revision-5 data = sales_data5)
 --   - Section 1: the SAME mix as the company - every category's share
---     is within a point of the company mix (Serum 18 %, Moisturizer
---     14 %, Face Mask 13 % ...) - but 23-33 % LESS of every category
---     than the average branch (RM 718 k vs 1.02 M), sold to about half
---     as many buyers (258 Serum buyers vs 569, 336 Cleanser buyers vs
---     718 ...). Realised prices are normal.
---   - Section 2: services 22-41 % below the average branch in every
---     category (RM 172 k vs 239 k); Anti Aging 38 % of its service sales.
+--     is within a point of the company mix (Serum 19.5 %, Face Cream
+--     14 %, Face Mask 13 %, Sunscreen 11 %, Facial Cleanser 9 % ...) -
+--     but 44-51 % LESS of every category than the average branch
+--     (RM 617 k vs 1.19 M), sold to about half as many buyers (409 Serum
+--     buyers vs 727, 488 Cleanser buyers vs 905 ...). Realised prices
+--     are normal - Ipoh does not discount its way into trouble.
+--   - Section 2: services 22-30 % below the average branch in every
+--     category (RM 159 k vs 218 k); Anti Aging 34 % of its service sales,
+--     like everywhere else.
 --   - Section 3: its top-10 products are the company's top-10 (rank
---     here vs company 1/2, 2/1, 3/5 ...) - a normal shelf.
---   - Section 4: Silver + Bronze regulars provide 76 % of its sales;
---     tier mix close to the company's (Bronze 44 % vs 52 %).
---   - Section 5: only 224 LOCAL (Perak) customers, giving 68 % of the
---     sales at RM 2,692 each; 607 visitors from other cities give the
---     other 32 % (RM 470 each). The local customer base is the constraint.
+--     here vs company 1/1, 2/4, 3/6, 4/2 ...) - a normal shelf, no
+--     price versions in 2024 (the 2024 rise was on 2024-01-01).
+--   - Section 4: Silver + Bronze regulars provide 73 % of its sales;
+--     tier mix close to the company's (Bronze 46 % vs 53 %).
+--   - Section 5: 634 LOCAL (Perak) customers give 52 % of the sales at
+--     RM 642 each; 1,061 visitors from 16 other cities give the other
+--     48 % (RM 350 each) - online orders since 2022 are fulfilled by any
+--     branch, so every branch has a long tail of visitors. Ipoh sells a
+--     normal mix at normal prices to fewer people; what makes it the
+--     loss-maker is what it PAYS for the stock (01 section 5).
+--   - Run it with branch = Kuantan or Seremban for an opening-year mix
+--     (42-46 % new customers, 14 % local), or with year 2025 to see the
+--     HIM Essentials men's line appear in section 3.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -149,7 +158,7 @@ WITH pnl AS (
         UNION ALL
         SELECT b.br_ID, b.br_city, b.br_state,
                0, SUM(f.payment_amount)
-        FROM   branch_expense_fact f
+        FROM   branch_utils_fact f
         JOIN   date_dim   d ON d.date_key   = f.date_key
         JOIN   branch_dim b ON b.branch_key = f.branch_key
         WHERE  d.cal_year = &focus_year

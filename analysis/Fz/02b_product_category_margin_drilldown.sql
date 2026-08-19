@@ -14,7 +14,7 @@
 --
 -- PARAMETERS (the year range at the start; the rest ONE AT A TIME,
 -- each after the table it refers to has printed)
---   start year, end year   at the start   defaults 2018 and 2025
+--   start year, end year   at the start   defaults 2019 and 2025
 --   state      after section 1   default Selangor
 --   branch     after section 2   default Petaling Jaya
 --   year       after section 3   default = end year
@@ -85,35 +85,42 @@
 --                                margin, GP per quarter across, units sold
 --                                / bought, price vs cost
 --
--- WHAT TO LOOK FOR  (defaults: 2018-2025 > Selangor > Petaling Jaya >
---   2025 > Serum, revision-3 data)
---   - Section 1: gross margin is a flat 60-61 % in every state over the
+-- WHAT TO LOOK FOR  (defaults: 2019-2025 > Selangor > Petaling Jaya >
+--   2025 > Serum, revision-5 data = sales_data5)
+--   - Section 1: gross margin is a flat 60 % in every state over the
 --     range (supplier cost is 33-43 % of shelf price for every product,
---     less the loyalty / promo discounts on the selling side), so the
---     ranking by gross profit is the ranking by sales: Selangor ~44 % of
---     company GP, Wilayah Persekutuan ~32 %. BUY/SOLD 1.14-1.15
---     everywhere: the branches buy ~14 % more units than they sell
---     (safety stock, opening stock, launch stock) - it no longer
---     touches the margin, it only shows as stock.
---   - Section 2 (Selangor): the five branches sit within a point of
---     each other; PJ ~32 % of the state's GP.
---   - Section 3 (PJ): margin ~60 % every year, 2018 included (the
---     opening-stock effect is gone); Q4 has the biggest gross profit
---     every year (festive quarter), Q3 the smallest; 2020-21 dip with
---     sales.
+--     less the loyalty / promo discounts on the selling side) - EXCEPT
+--     Perak at 42 %: Ipoh buys everything from its Ipoh-only supplier at
+--     46-54 % of shelf price (2019-23) and 62-72 % from 2024, so its
+--     gross profit collapses from RM 400 k (2023) to 185 k (2024) on
+--     only 27 % less sales. Ranking by gross profit = ranking by sales
+--     everywhere else: Selangor ~44 % of company GP, Wilayah Persekutuan
+--     ~30 %. BUY/SOLD 1.13-1.17: the branches buy 13-17 % more units
+--     than they sell (safety stock, opening stock, launch stock) - it
+--     does not touch the margin, it only shows as stock.
+--   - Section 2 (Selangor): the six branches sit within a point of
+--     each other (60.0-60.3 %); PJ ~34 % of the state's GP; Subang Jaya
+--     (opened 2024) already 5.6 %.
+--   - Section 3 (PJ): margin ~60 % every year, 2019 included; Q4 has
+--     the biggest gross profit every year (festive quarter), Q3 the
+--     smallest; 2020-21 dip with sales; BUY/SOLD 1.18 in 2019 (first
+--     year of history = opening stock in the warehouse) settling to 1.10.
 --   - Section 4 (PJ 2025): ranking by gross profit = ranking by sales
---     (Serum, Moisturizer, Face Mask, Sunscreen ...) because margin is
---     ~59-62 % and MARKUP ~2.5-2.6 x for every category - there is no
+--     (Face Mask, Serum, Face Cream, Sunscreen ...) because margin is
+--     ~59-61 % and MARKUP ~2.5 x for every category - there is no
 --     high-margin / low-margin category in this business, only bigger
 --     and smaller ones. Realised price / unit cost is where the markup
---     shows: Serum ~RM 98 sold vs ~RM 39 cost.
---   - Section 5 (Serum): the seven serums earn ~58-63 %; differences
+--     shows: Serum ~RM 99 sold vs ~RM 40 cost.
+--   - Section 5 (Serum): the seven serums earn ~59-62 %; differences
 --     are supplier-cost noise rather than pricing; UNITS BOUGHT runs a
 --     few % above UNITS SOLD; PRICE NOW vs REALISED is the loyalty /
 --     promo discount.
---   - Try: Perak > Ipoh > 2023 - the opening year: BUY/SOLD well above
---     1 in the first year (opening stock) while the margin stays ~60 %,
---     which is exactly what costing the units SOLD is for.
+--   - Try: Perak > Ipoh > 2024 - the dear-supplier year: margin ~30 %
+--     against 60 % everywhere else, same sales mix, same prices - the
+--     whole gap is on the COST side; or Negeri Sembilan > Seremban >
+--     2024 for an opening year: BUY/SOLD well above 1 (opening stock)
+--     while the margin stays ~60 %, which is exactly what costing the
+--     units SOLD is for.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -134,7 +141,7 @@ SET TRIMSPOOL ON
 -- SQL*Plus caps an ACCEPT prompt at 99 characters - keep it short.
 -- The year range frames sections 1-3 (year columns outside it are
 -- hidden, totals / share / growth are computed on the range only).
-ACCEPT p_from NUMBER DEFAULT 2018 PROMPT 'Start year (default 2018): '
+ACCEPT p_from NUMBER DEFAULT 2019 PROMPT 'Start year (default 2019): '
 ACCEPT p_to   NUMBER DEFAULT 2025 PROMPT 'End year   (default 2025): '
 
 -- ---- values reused in every title ---------------------------------
@@ -144,16 +151,15 @@ SET TERMOUT OFF
 COLUMN run_dt  NEW_VALUE run_dt  NOPRINT
 SELECT TO_CHAR(SYSDATE, 'DD-MON-YYYY') AS run_dt FROM dual;
 
--- clamp the range to the data (2018-2025) and put it the right way round
+-- clamp the range to the data (2019-2025) and put it the right way round
 COLUMN f_from NEW_VALUE f_from NOPRINT
 COLUMN f_to   NEW_VALUE f_to   NOPRINT
-SELECT TO_CHAR(GREATEST(2018, LEAST(&p_from, &p_to)))  AS f_from,
+SELECT TO_CHAR(GREATEST(2019, LEAST(&p_from, &p_to)))  AS f_from,
        TO_CHAR(LEAST(2025, GREATEST(&p_from, &p_to)))  AS f_to
 FROM   dual;
 
 -- one PRINT / NOPRINT switch per year column, so the pivots in
 -- sections 1-2 only show the years inside the range
-COLUMN v2018 NEW_VALUE v2018 NOPRINT
 COLUMN v2019 NEW_VALUE v2019 NOPRINT
 COLUMN v2020 NEW_VALUE v2020 NOPRINT
 COLUMN v2021 NEW_VALUE v2021 NOPRINT
@@ -161,8 +167,7 @@ COLUMN v2022 NEW_VALUE v2022 NOPRINT
 COLUMN v2023 NEW_VALUE v2023 NOPRINT
 COLUMN v2024 NEW_VALUE v2024 NOPRINT
 COLUMN v2025 NEW_VALUE v2025 NOPRINT
-SELECT CASE WHEN 2018 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2018,
-       CASE WHEN 2019 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2019,
+SELECT CASE WHEN 2019 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2019,
        CASE WHEN 2020 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2020,
        CASE WHEN 2021 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2021,
        CASE WHEN 2022 BETWEEN &f_from AND &f_to THEN 'PRINT' ELSE 'NOPRINT' END AS v2022,
@@ -191,14 +196,13 @@ TTITLE CENTER '+==========================================================+' SKI
 
 COLUMN br_state   HEADING 'STATE'      FORMAT A19
 COLUMN branches   HEADING 'BR'         FORMAT 99
-COLUMN y2018      HEADING 'GP 2018'    FORMAT 9,999,990 &v2018
-COLUMN y2019      HEADING 'GP 2019'    FORMAT 9,999,990 &v2019
-COLUMN y2020      HEADING 'GP 2020'    FORMAT 9,999,990 &v2020
-COLUMN y2021      HEADING 'GP 2021'    FORMAT 9,999,990 &v2021
-COLUMN y2022      HEADING 'GP 2022'    FORMAT 9,999,990 &v2022
-COLUMN y2023      HEADING 'GP 2023'    FORMAT 9,999,990 &v2023
-COLUMN y2024      HEADING 'GP 2024'    FORMAT 9,999,990 &v2024
-COLUMN y2025      HEADING 'GP 2025'    FORMAT 9,999,990 &v2025
+COLUMN y2019      HEADING 'GP 2019'    FORMAT 99,999,990 &v2019
+COLUMN y2020      HEADING 'GP 2020'    FORMAT 99,999,990 &v2020
+COLUMN y2021      HEADING 'GP 2021'    FORMAT 99,999,990 &v2021
+COLUMN y2022      HEADING 'GP 2022'    FORMAT 99,999,990 &v2022
+COLUMN y2023      HEADING 'GP 2023'    FORMAT 99,999,990 &v2023
+COLUMN y2024      HEADING 'GP 2024'    FORMAT 99,999,990 &v2024
+COLUMN y2025      HEADING 'GP 2025'    FORMAT 99,999,990 &v2025
 COLUMN sales      HEADING 'SALES|&f_from-&f_to' FORMAT 999,999,990
 COLUMN cogs       HEADING 'COGS'       FORMAT 99,999,990
 COLUMN gp         HEADING 'GROSS|PROFIT'   FORMAT 99,999,990
@@ -207,7 +211,7 @@ COLUMN share_pct  HEADING 'SHARE OF|GP %' FORMAT 990.0
 COLUMN buy_sold   HEADING 'BUY/|SOLD'  FORMAT 90.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cogs gp ON REPORT
+COMPUTE SUM LABEL 'ALL' OF y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cogs gp ON REPORT
 
 WITH sold AS (
     -- what was sold, at product grain (Completed lines, tax excluded)
@@ -261,7 +265,6 @@ bought AS (
 SELECT m.br_state,
        COUNT(DISTINCT m.br_ID)                                    AS branches,
        -- no ELSE, so a year the state did not trade prints blank
-       SUM(CASE WHEN m.cal_year = 2018 THEN m.amt - m.cogs END)   AS y2018,
        SUM(CASE WHEN m.cal_year = 2019 THEN m.amt - m.cogs END)   AS y2019,
        SUM(CASE WHEN m.cal_year = 2020 THEN m.amt - m.cogs END)   AS y2020,
        SUM(CASE WHEN m.cal_year = 2021 THEN m.amt - m.cogs END)   AS y2021,
@@ -318,14 +321,13 @@ TTITLE CENTER '+==========================================================+' SKI
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN br_city    HEADING 'BRANCH'     FORMAT A15
-COLUMN y2018      HEADING 'GP 2018'    FORMAT 9,999,990 &v2018
-COLUMN y2019      HEADING 'GP 2019'    FORMAT 9,999,990 &v2019
-COLUMN y2020      HEADING 'GP 2020'    FORMAT 9,999,990 &v2020
-COLUMN y2021      HEADING 'GP 2021'    FORMAT 9,999,990 &v2021
-COLUMN y2022      HEADING 'GP 2022'    FORMAT 9,999,990 &v2022
-COLUMN y2023      HEADING 'GP 2023'    FORMAT 9,999,990 &v2023
-COLUMN y2024      HEADING 'GP 2024'    FORMAT 9,999,990 &v2024
-COLUMN y2025      HEADING 'GP 2025'    FORMAT 9,999,990 &v2025
+COLUMN y2019      HEADING 'GP 2019'    FORMAT 99,999,990 &v2019
+COLUMN y2020      HEADING 'GP 2020'    FORMAT 99,999,990 &v2020
+COLUMN y2021      HEADING 'GP 2021'    FORMAT 99,999,990 &v2021
+COLUMN y2022      HEADING 'GP 2022'    FORMAT 99,999,990 &v2022
+COLUMN y2023      HEADING 'GP 2023'    FORMAT 99,999,990 &v2023
+COLUMN y2024      HEADING 'GP 2024'    FORMAT 99,999,990 &v2024
+COLUMN y2025      HEADING 'GP 2025'    FORMAT 99,999,990 &v2025
 COLUMN sales      HEADING 'SALES|&f_from-&f_to' FORMAT 99,999,990
 COLUMN cogs       HEADING 'COGS'       FORMAT 99,999,990
 COLUMN gp         HEADING 'GROSS|PROFIT'   FORMAT 99,999,990
@@ -335,7 +337,7 @@ COLUMN buy_sold   HEADING 'BUY/|SOLD'  FORMAT 90.00
 COLUMN br_ID      NOPRINT
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'STATE' OF y2018 y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cogs gp ON REPORT
+COMPUTE SUM LABEL 'STATE' OF y2019 y2020 y2021 y2022 y2023 y2024 y2025 sales cogs gp ON REPORT
 
 WITH sold AS (
     -- what was sold, at product grain (Completed lines, tax excluded)
@@ -389,7 +391,6 @@ bought AS (
     GROUP  BY b.br_ID
 )
 SELECT m.br_city,
-       SUM(CASE WHEN m.cal_year = 2018 THEN m.amt - m.cogs END)   AS y2018,
        SUM(CASE WHEN m.cal_year = 2019 THEN m.amt - m.cogs END)   AS y2019,
        SUM(CASE WHEN m.cal_year = 2020 THEN m.amt - m.cogs END)   AS y2020,
        SUM(CASE WHEN m.cal_year = 2021 THEN m.amt - m.cogs END)   AS y2021,
@@ -577,7 +578,7 @@ TTITLE CENTER '+==========================================================+' SKI
 COLUMN rnk        HEADING 'RANK'       FORMAT 99
 COLUMN product_category HEADING 'CATEGORY' FORMAT A19
 COLUMN sales      HEADING 'SALES (RM)' FORMAT 9,999,990.00
-COLUMN cogs       HEADING 'COGS (RM)'  FORMAT 999,990.00
+COLUMN cogs       HEADING 'COGS (RM)'  FORMAT 9,999,990.00
 COLUMN gp         HEADING 'GROSS|PROFIT (RM)' FORMAT 9,999,990.00
 COLUMN margin_pct HEADING 'MARGIN|%'   FORMAT 990.0
 COLUMN share_pct  HEADING 'SHARE OF|GP %' FORMAT 990.0
@@ -712,9 +713,9 @@ TTITLE CENTER '+==========================================================+' SKI
 
 COLUMN rnk          HEADING 'RANK'      FORMAT 99
 COLUMN product_name HEADING 'PRODUCT'   FORMAT A32
-COLUMN sales        HEADING 'SALES (RM)' FORMAT 999,990.00
-COLUMN cogs         HEADING 'COGS (RM)' FORMAT 999,990.00
-COLUMN gp           HEADING 'GROSS|PROFIT (RM)' FORMAT 999,990.00
+COLUMN sales        HEADING 'SALES (RM)' FORMAT 9,999,990.00
+COLUMN cogs         HEADING 'COGS (RM)' FORMAT 9,999,990.00
+COLUMN gp           HEADING 'GROSS|PROFIT (RM)' FORMAT 9,999,990.00
 COLUMN margin_pct   HEADING 'MARGIN|%'  FORMAT 990.0
 COLUMN share_pct    HEADING 'SHARE OF|CAT GP %' FORMAT 990.0
 COLUMN q1           HEADING 'GP Q1'     FORMAT 999,990
@@ -830,7 +831,6 @@ UNDEFINE p_from
 UNDEFINE p_to
 UNDEFINE f_from
 UNDEFINE f_to
-UNDEFINE v2018
 UNDEFINE v2019
 UNDEFINE v2020
 UNDEFINE v2021
