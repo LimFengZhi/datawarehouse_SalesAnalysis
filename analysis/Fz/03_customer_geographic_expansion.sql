@@ -148,7 +148,7 @@
 --     holds its own neighbourhood. Subang Jaya's year row shows why -
 --     RM 255 k to RM 358 k while it had NO branch, then RM 1,527,081 in
 --     2024 when one opened, +777.8 % growth. Run the same section for
---     Wilayah Persekutuan over 2024-2025 for the same shape: Kuala
+--     Federal Territory of Kuala Lumpur over 2024-2025 for the same shape: Kuala
 --     Lumpur keeps 62.0 % at home, Gombak only 39.6 %.
 --   - Section 5 (Selangor branches): every shop takes 54-57 % from its
 --     OWN CITY, about 30 % from the rest of the state and only 10-14 %
@@ -182,11 +182,11 @@
 --                    residents, same story
 --     At the other end Johor Bahru (20.9 %), George Town (26.5 %) and
 --     Petaling Jaya (28.8 %) are the well-served cities.
---   - Try: 2019-2023 for the back-test above, Wilayah Persekutuan for
+--   - Try: 2019-2023 for the back-test above, Federal Territory of Kuala Lumpur for
 --     the five-branch state where Gombak still leaks 60 %, Perak for
 --     the single branch going backwards, a reversed range (2025 then
 --     2019 - it is clamped, not an error), a partial name like
---     'Wilayah', or a nonsense name to land on the biggest state.
+--     'Federal', or a nonsense name to land on the biggest state.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -353,7 +353,7 @@ TTITLE CENTER '+==========================================================+' SKI
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN g_state    HEADING 'STATE'                    FORMAT A20
+COLUMN g_state    HEADING 'STATE'                    FORMAT A33
 COLUMN g_city     HEADING 'CITY WITH NO BRANCH'      FORMAT A34
 COLUMN residents  HEADING 'RESI|DENTS'               FORMAT 999,990
 COLUMN total      HEADING 'THEIR SPEND|&f_from-&f_to (RM)' FORMAT 99,999,990
@@ -439,7 +439,7 @@ TTITLE CENTER '+==========================================================+' SKI
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN cus_state  HEADING 'CUSTOMER HOME STATE' FORMAT A20
+COLUMN cus_state  HEADING 'CUSTOMER HOME STATE' FORMAT A33
 COLUMN branches   HEADING 'BR|&f_to'     FORMAT 90
 COLUMN y2019      HEADING '2019'         FORMAT 99,999,990 &v2019
 COLUMN y2020      HEADING '2020'         FORMAT 99,999,990 &v2020
@@ -747,7 +747,7 @@ TTITLE CENTER '+==========================================================+' SKI
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN cus_city   HEADING 'CUSTOMER|HOME CITY' FORMAT A15
-COLUMN cus_state  HEADING 'STATE'         FORMAT A20
+COLUMN cus_state  HEADING 'STATE'         FORMAT A33
 COLUMN has_branch HEADING 'BRANCH|IN &f_to' FORMAT A9
 COLUMN customers  HEADING 'RESI|DENTS'    FORMAT 999,990
 COLUMN total      HEADING 'RESIDENT|SPEND (RM)' FORMAT 999,999,990

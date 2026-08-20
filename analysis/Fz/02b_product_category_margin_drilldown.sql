@@ -86,6 +86,10 @@
 --                                / bought, price vs cost
 --
 -- WHAT TO LOOK FOR  (defaults: 2019-2025 > Selangor > Petaling Jaya >
+--   NOTE: the figures in this block were calibrated BEFORE the dataset
+--   was regenerated with satellite towns and the Federal Territory
+--   rename (Gombak moved to Selangor). The shapes hold; the exact
+--   ringgit and percentages need a re-run to refresh.
 --   2025 > Serum, revision-5 data = sales_data5)
 --   - Section 1: gross margin is a flat 60 % in every state over the
 --     range (supplier cost is 33-43 % of shelf price for every product,
@@ -94,7 +98,7 @@
 --     46-54 % of shelf price (2019-23) and 62-72 % from 2024, so its
 --     gross profit collapses from RM 400 k (2023) to 185 k (2024) on
 --     only 27 % less sales. Ranking by gross profit = ranking by sales
---     everywhere else: Selangor ~44 % of company GP, Wilayah Persekutuan
+--     everywhere else: Selangor ~44 % of company GP, Federal Territory of Kuala Lumpur
 --     ~30 %. BUY/SOLD 1.13-1.17: the branches buy 13-17 % more units
 --     than they sell (safety stock, opening stock, launch stock) - it
 --     does not touch the margin, it only shows as stock.

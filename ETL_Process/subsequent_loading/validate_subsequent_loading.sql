@@ -249,8 +249,8 @@ PROMPT ##############################################
 -- row per (order, product) and reservation_fact one row per
 -- (reservation, service, therapist), so the source side counts the
 -- DISTINCT groups, not the OLTP detail lines.
--- After data24: 641,846 / 129,874 / 42,820 / 15,474 / 5,904
--- After data25: 855,935 / 167,087 / 54,020 / 18,934 / 7,128
+-- After data24: 642,619 / 129,736 / 42,734 / 15,474 / 5,904
+-- After data25: 857,664 / 166,658 / 53,933 / 18,934 / 7,128
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM (SELECT DISTINCT order_ID, product_ID FROM order_detail)) AS source_rows FROM dual

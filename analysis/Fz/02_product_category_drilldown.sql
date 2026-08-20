@@ -74,9 +74,13 @@
 --                                price then vs now
 --
 -- WHAT TO LOOK FOR  (defaults: 2019-2025 > Selangor > Petaling Jaya >
+--   NOTE: the figures in this block were calibrated BEFORE the dataset
+--   was regenerated with satellite towns and the Federal Territory
+--   rename (Gombak moved to Selangor). The shapes hold; the exact
+--   ringgit and percentages need a re-run to refresh.
 --   2025 > Serum, revision-5 data = sales_data5)
 --   - Section 1: Selangor is the biggest state every year (43 % of
---     product sales 2019-2025), Wilayah Persekutuan second (30 %),
+--     product sales 2019-2025), Federal Territory of Kuala Lumpur second (30 %),
 --     every state dips in 2020-21 (MCO) and roughly doubles in 2022
 --     (the shop went online: +116 % company-wide), Negeri Sembilan and
 --     Pahang appear in 2024 (Seremban, Kuantan); the established states

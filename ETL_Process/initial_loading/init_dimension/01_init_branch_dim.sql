@@ -39,12 +39,16 @@ SELECT
         ELSE INITCAP(TRIM(b.br_city))
     END                                            AS clean_br_city,
 
-    -- State: same idea. Source uses 'Wilayah Persekutuan' for KL.
+    -- State: the Federal Territory is the canonical spelling; every
+    -- legacy variant (the old 'Wilayah Persekutuan' included) folds
+    -- into it, so reloading older CSVs still lands on one value.
     CASE
         WHEN UPPER(TRIM(b.br_state)) IN ('WILAYAH PERSEKUTUAN','WP','W.P.',
                                          'WP KUALA LUMPUR','KUALA LUMPUR',
-                                         'KL','FEDERAL TERRITORY')
-            THEN 'Wilayah Persekutuan'
+                                         'KL','FEDERAL TERRITORY',
+                                         'FEDERAL TERRITORY OF KUALA LUMPUR',
+                                         'FT','FT KUALA LUMPUR')
+            THEN 'Federal Territory of Kuala Lumpur'
         WHEN UPPER(TRIM(b.br_state)) IN ('SELANGOR','SGR','SEL')
             THEN 'Selangor'
         WHEN UPPER(TRIM(b.br_state)) IN ('JOHOR','JOHORE','JHR',

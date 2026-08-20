@@ -1,5 +1,5 @@
 br_ID,br_name,br_address_line,br_city,br_state,br_postcode,br_phone,br_email,br_open_date
-1,Glow Beauty Kuala Lumpur,"Lot 3-12, Jalan Bukit Bintang",Kuala Lumpur,Wilayah Persekutuan,55100,03-21445566,kl@glowbeauty.com.my,2016-03-15
+1,Glow Beauty Kuala Lumpur,"Lot 3-12, Jalan Bukit Bintang",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,03-21445566,kl@glowbeauty.com.my,2016-03-15
 2,Glow Beauty Petaling Jaya,"G-08, Jalan SS2/24",Petaling Jaya,Selangor,47300,03-78765432,pj@glowbeauty.com.my,2016-09-01
 3,Glow Beauty Johor Bahru,"No. 22, Jalan Molek 1/29",Johor Bahru,Johor,81100,07-3559988,jb@glowbeauty.com.my,2017-06-20
 4,Glow Beauty George Town,"45, Lebuh Campbell",George Town,Pulau Pinang,10100,04-2618899,penang@glowbeauty.com.my,2018-01-10
@@ -8,7 +8,7 @@ br_ID,br_name,br_address_line,br_city,br_state,br_postcode,br_phone,br_email,br_
 7,Glow Beauty Klang,"Lot G-21, Jalan Langat, Bandar Bukit Tinggi 2",Klang,Selangor,41200,03-33262277,klang@glowbeauty.com.my,2017-03-18
 8,Glow Beauty Puchong,"No. 8, Jalan Puteri 1/2, Bandar Puteri Puchong",Puchong,Selangor,47100,03-80605511,puchong@glowbeauty.com.my,2016-06-25
 9,Glow Beauty Selayang,"No. 33, Jalan Selayang Utama, Selayang Baru",Selayang,Selangor,68100,03-61364433,selayang@glowbeauty.com.my,2017-05-20
-10,Glow Beauty Setapak,"No. 27, Jalan Genting Klang, Setapak",Setapak,Wilayah Persekutuan,53300,03-40214477,setapak@glowbeauty.com.my,2016-08-14
-11,Glow Beauty Wangsa Maju,"Lot 2-18, Jalan Wangsa Delima 5, Wangsa Maju",Wangsa Maju,Wilayah Persekutuan,53300,03-41429988,wangsamaju@glowbeauty.com.my,2017-01-21
-12,Glow Beauty Gombak,"No. 15, Jalan Gombak, Batu 5",Gombak,Wilayah Persekutuan,53100,03-40235566,gombak@glowbeauty.com.my,2017-07-08
+10,Glow Beauty Setapak,"No. 27, Jalan Genting Klang, Setapak",Setapak,Federal Territory of Kuala Lumpur,53300,03-40214477,setapak@glowbeauty.com.my,2016-08-14
+11,Glow Beauty Wangsa Maju,"Lot 2-18, Jalan Wangsa Delima 5, Wangsa Maju",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,03-41429988,wangsamaju@glowbeauty.com.my,2017-01-21
+12,Glow Beauty Gombak,"No. 15, Jalan Gombak, Batu 5",Gombak,Selangor,53100,03-40235566,gombak@glowbeauty.com.my,2017-07-08
 13,Glow Beauty Ipoh,"88, Jalan Sultan Idris Shah",Ipoh,Perak,30000,05-2419900,ipoh@glowbeauty.com.my,2019-01-15

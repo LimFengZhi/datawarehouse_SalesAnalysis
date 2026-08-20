@@ -140,6 +140,10 @@
 --   hard-coded: the script looks it up for the focus year.
 --
 -- WHAT TO LOOK FOR  (FY2024, revision 5 = sales_data5, from the spool
+--   NOTE: the figures in this block were calibrated BEFORE the dataset
+--   was regenerated with satellite towns and the Federal Territory
+--   rename (Gombak moved to Selangor). The shapes hold; the exact
+--   ringgit and percentages need a re-run to refresh.
 --   of the full 2019-2025 load: 17 branches)
 --   - Section 1: total sales RM 13.48 M (2019) -> 24.01 M (2024) ->
 --     31.40 M (2025); earning % +7.5 (2019), -5.7 / -14.5 in the MCO
@@ -151,7 +155,7 @@
 --     first year of history; ~RM 1,100-1,300 per customer from 2022.
 --   - Section 2: Johor (Johor Bahru alone) has the highest average
 --     sales per branch (RM 1.86 M), then Selangor (6 branches, RM 1.72 M
---     avg, best earning % +22.7) and Wilayah Persekutuan (5). Klang
+--     avg, best earning % +22.7) and Federal Territory of Kuala Lumpur (5). Klang
 --     Valley branches serve ~2,700-3,200 customers each, 76-80 % local;
 --     the single-branch states 34-37 % local (online orders are fulfilled
 --     by any branch since 2022). Three states are in the red: Negeri

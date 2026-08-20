@@ -1,6 +1,6 @@
 -- ===================================================================
 -- 06_init_customer_dim.sql      CUSTOMER_DIM  (SCD Type 2)
--- Source: CUSTOMER (OLTP, 26,182 rows in data19_23) - the largest dimension
+-- Source: CUSTOMER (OLTP, 25,866 rows in data19_23) - the largest dimension
 -- NOTE: cus_name is DERIVED (first + last).
 --       cus_age_group is DERIVED from cus_DOB against SYSDATE; a NULL,
 --       future or absurd birth date gives 'Unknown'.
@@ -87,12 +87,16 @@ SELECT
         ELSE INITCAP(TRIM(c.cus_city))
     END                                            AS clean_cus_city,
 
-    -- State: source uses 'Wilayah Persekutuan' for KL
+    -- State: the Federal Territory is the canonical spelling; every
+    -- legacy variant (the old 'Wilayah Persekutuan' included) folds
+    -- into it, so reloading older CSVs still lands on one value.
     CASE
         WHEN UPPER(TRIM(c.cus_state)) IN ('WILAYAH PERSEKUTUAN','WP','W.P.',
                                           'WP KUALA LUMPUR','KUALA LUMPUR',
-                                          'KL','FEDERAL TERRITORY')
-            THEN 'Wilayah Persekutuan'
+                                          'KL','FEDERAL TERRITORY',
+                                          'FEDERAL TERRITORY OF KUALA LUMPUR',
+                                          'FT','FT KUALA LUMPUR')
+            THEN 'Federal Territory of Kuala Lumpur'
         WHEN UPPER(TRIM(c.cus_state)) IN ('SELANGOR','SGR','SEL')
             THEN 'Selangor'
         WHEN UPPER(TRIM(c.cus_state)) IN ('JOHOR','JOHORE','JHR',

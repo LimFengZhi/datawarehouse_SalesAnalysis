@@ -8,9 +8,9 @@ its own IDs starting at 1: never load `sales_data5` and an older revision into t
 
 | Folder | Period | Load | What is new in it |
 |---|---|---|---|
-| [data19_23/](data19_23/) | 2019-01-01 .. 2023-12-31 | **initial load** | 13 branches (Ipoh from 2019-01-15), 7 suppliers, 48 products, 18 services (17–18 bookable from 2021-04-01), 244 staff, 26,182 customers |
-| [data24/](data24/) | 2024 | subsequent load 1 | **4 new branches** (Seremban, Kuantan, Subang Jaya, Bukit Jalil) + their 4 teams (69 staff), 6,314 customers, **8 product price rises on 2024-01-01** ([99_price_increase_2024.sql](data24/99_price_increase_2024.sql)) |
-| [data25/](data25/) | 2025 | subsequent load 2 | **men's market push**: HIM Essentials 6-SKU men's line + 2 face masks launched 2025-01-01, supplier 8 (HIM Care Labs), 6 staff, 6,805 customers, **8 product + 6 service price changes on 2025-01-01** ([99_price_change_2025.sql](data25/99_price_change_2025.sql)) |
+| [data19_23/](data19_23/) | 2019-01-01 .. 2023-12-31 | **initial load** | 13 branches (Ipoh from 2019-01-15), 7 suppliers, 48 products, 18 services (17–18 bookable from 2021-04-01), 244 staff, 25,866 customers |
+| [data24/](data24/) | 2024 | subsequent load 1 | **4 new branches** (Seremban, Kuantan, Subang Jaya, Bukit Jalil) + their 4 teams (69 staff), 6,485 customers, **8 product price rises on 2024-01-01** ([99_price_increase_2024.sql](data24/99_price_increase_2024.sql)) |
+| [data25/](data25/) | 2025 | subsequent load 2 | **men's market push**: HIM Essentials 6-SKU men's line + 2 face masks launched 2025-01-01, supplier 8 (HIM Care Labs), 6 staff, 6,824 customers, **8 product + 6 service price changes on 2025-01-01** ([99_price_change_2025.sql](data25/99_price_change_2025.sql)) |
 
 ```
 python sales_data5\gen_sales_data5.py            # regenerate all three folders (~2 min), then verify
@@ -34,19 +34,19 @@ If you change anything in it, re-run it and re-copy the numbers here.
 | product | 48 | 0 | 8 | **56** |
 | service | 18 | 0 | 0 | **18** |
 | staff | 244 | 69 | 6 | **319** |
-| customer | 26,182 | 6,314 | 6,805 | **39,301** |
-| orders | 222,246 | 74,214 | 98,966 | **395,426** |
-| order_detail | 490,685 | 164,371 | 218,434 | **873,490** |
-| reservation | 74,021 | 24,348 | 28,121 | **126,490** |
-| reservation_detail | 97,740 | 32,134 | 37,213 | **167,087** |
-| purchase | 33,508 | 9,312 | 11,200 | **54,020** |
+| customer | 25,866 | 6,485 | 6,824 | **39,175** |
+| orders | 222,296 | 74,496 | 99,187 | **395,426** |
+| order_detail | 491,657 | 164,354 | 219,508 | **873,490** |
+| reservation | 73,859 | 24,396 | 28,078 | **126,490** |
+| reservation_detail | 97,596 | 32,140 | 36,922 | **166,658** |
+| purchase | 33,430 | 9,304 | 11,199 | **53,933** |
 | salary_payment | 12,103 | 3,371 | 3,460 | **18,934** |
 | branch_utils (util_name on the row) | 4,680 | 1,224 | 1,224 | **7,128** |
 
 `order_fact` is one row per (order, product), so its expected counts are the **distinct (order, product)
-pairs**, not the `order_detail` lines: **480,753 / 161,093 / 214,089** per folder
-(= 480,753 → 641,846 → 855,935 cumulative). `reservation_fact` = `reservation_detail` rows
-(97,740 → 129,874 → 167,087). Header-only files (0 rows, correct): `supplier`, `product`, `service`
+pairs**, not the `order_detail` lines: **481,611 / 161,093 / 214,089** per folder
+(= 481,611 → 642,619 → 857,664 cumulative). `reservation_fact` = `reservation_detail` rows
+(97,596 → 129,736 → 166,658). Header-only files (0 rows, correct): `supplier`, `product`, `service`
 in data24; `branch`, `service` in data25.
 
 ---
@@ -55,26 +55,30 @@ in data24; `branch`, `service` in data25.
 
 | id | city | state | opened | weight | orders 2019–25 | reservations | revenue (RM m) |
 |---:|---|---|---|---:|---:|---:|---:|
-| 2 | **Petaling Jaya** | Selangor | 2016-09-01 | 1.00 + online hub ×1.25 from 2022 | 57,310 | 15,926 | **17.83** |
-| 1 | Kuala Lumpur | Wilayah Persekutuan | 2016-03-15 | 0.90 | 44,133 | 14,372 | 14.06 |
-| 3 | Johor Bahru | Johor | 2017-06-20 | 0.68 | 33,268 | 10,916 | 10.56 |
-| 6 | Shah Alam | Selangor | 2016-11-12 | 0.62 | 29,943 | 9,848 | 9.54 |
-| 8 | Puchong | Selangor | 2016-06-25 | 0.58 | 28,420 | 9,281 | 9.02 |
-| 7 | Klang | Selangor | 2017-03-18 | 0.55 | 26,552 | 8,767 | 8.48 |
-| 10 | Setapak | Wilayah Persekutuan | 2016-08-14 | 0.50 | 24,432 | 7,839 | 7.68 |
-| 4 | George Town | Pulau Pinang | 2018-01-10 | 0.50 | 24,129 | 8,025 | 7.66 |
-| 11 | Wangsa Maju | Wilayah Persekutuan | 2017-01-21 | 0.48 | 23,540 | 7,523 | 7.48 |
-| 9 | Selayang | Selangor | 2017-05-20 | 0.40 | 19,588 | 6,338 | 6.23 |
-| 12 | Gombak | Wilayah Persekutuan | 2017-07-08 | 0.38 | 18,425 | 6,243 | 5.85 |
-| 5 | Melaka | Melaka | 2018-08-05 | 0.37 | 18,069 | 5,896 | 5.74 |
-| 13 | **Ipoh** | Perak | 2019-01-15 | 0.38 (×0.70 from 2024) | 16,319 | 5,828 | 5.29 |
-| 16 | Subang Jaya | Selangor | 2024-01-01 | 0.58 (ramp) | 9,298 | 2,911 | 3.01 |
-| 17 | Bukit Jalil | Wilayah Persekutuan | 2024-01-01 | 0.52 (ramp) | 8,224 | 2,561 | 2.65 |
-| 14 | Seremban | Negeri Sembilan | 2024-01-01 | 0.45 (ramp) | 7,137 | 2,123 | 2.28 |
-| 15 | Kuantan | Pahang | 2024-01-01 | 0.42 (ramp) | 6,639 | 2,093 | 2.14 |
+| 2 | **Petaling Jaya** | Selangor | 2016-09-01 | 1.00 + online hub ×1.25 from 2022 | 57,282 | 15,928 | **17.49** |
+| 1 | Kuala Lumpur | Federal Territory of Kuala Lumpur | 2016-03-15 | 0.90 | 43,979 | 14,328 | 13.74 |
+| 3 | Johor Bahru | Johor | 2017-06-20 | 0.68 | 33,308 | 10,748 | 10.39 |
+| 6 | Shah Alam | Selangor | 2016-11-12 | 0.62 | 30,404 | 9,978 | 9.56 |
+| 8 | Puchong | Selangor | 2016-06-25 | 0.58 | 28,315 | 9,102 | 8.85 |
+| 7 | Klang | Selangor | 2017-03-18 | 0.55 | 26,743 | 8,672 | 8.39 |
+| 4 | George Town | Pulau Pinang | 2018-01-10 | 0.50 | 24,603 | 8,070 | 7.69 |
+| 10 | Setapak | Federal Territory of Kuala Lumpur | 2016-08-14 | 0.50 | 24,467 | 8,004 | 7.62 |
+| 11 | Wangsa Maju | Federal Territory of Kuala Lumpur | 2017-01-21 | 0.48 | 23,055 | 7,689 | 7.29 |
+| 9 | Selayang | Selangor | 2017-05-20 | 0.40 | 19,524 | 6,374 | 6.13 |
+| 12 | Gombak | Selangor | 2017-07-08 | 0.38 | 18,432 | 6,109 | 5.79 |
+| 5 | Melaka | Melaka | 2018-08-05 | 0.37 | 17,878 | 5,972 | 5.59 |
+| 13 | **Ipoh** | Perak | 2019-01-15 | 0.38 (×0.70 from 2024) | 16,317 | 5,967 | 5.23 |
+| 16 | Subang Jaya | Selangor | 2024-01-01 | 0.58 (ramp) | 9,337 | 2,710 | 2.93 |
+| 17 | Bukit Jalil | Federal Territory of Kuala Lumpur | 2024-01-01 | 0.52 (ramp) | 8,403 | 2,503 | 2.61 |
+| 14 | Seremban | Negeri Sembilan | 2024-01-01 | 0.45 (ramp) | 7,286 | 2,156 | 2.33 |
+| 15 | Kuantan | Pahang | 2024-01-01 | 0.42 (ramp) | 6,646 | 2,023 | 2.08 |
 
-Orders by state: Selangor 171,111 · Wilayah Persekutuan 118,754 · Johor 33,268 · Pulau Pinang 24,129 ·
-Melaka 18,069 · Perak 16,319 · Negeri Sembilan 7,137 · Pahang 6,639.
+**Gombak is a Selangor branch**, not a Federal Territory one - the real Gombak district is in
+Selangor - so Selangor has **7** branches and the Federal Territory **4**.
+
+Orders by state: Selangor 190,037 · Federal Territory of Kuala Lumpur 99,904 · Johor 33,308 ·
+Pulau Pinang 24,603 · Melaka 17,878 · Perak 16,317 · Negeri Sembilan 7,286 · Pahang 6,646.
+
 A new branch opens with a 12-month ramp (`weight × min(1, 0.35 + 0.055·months)`); Ipoh starts at 0.82.
 
 ---
@@ -83,13 +87,13 @@ A new branch opens with a 12-month ramp (`weight × min(1, 0.35 + 0.055·months)
 
 | year | orders | reservations | product rev | service rev | total rev | net profit | margin | the story |
 |---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 2019 | 41,431 | 17,108 | 11.04 m | 2.43 m | 13.48 m | +1.01 m | 7.5 % | normal trading, 13 branches, Ipoh's first year |
-| 2020 | 31,782 | 10,747 | 8.43 m | 1.53 m | 9.96 m | −0.57 m | −5.7 % | MCO 1.0 (salons shut 18 Mar–3 May), CMCO, RMCO, CMCO 2nd wave |
-| 2021 | 27,486 | 7,525 | 7.27 m | 1.13 m | 8.40 m | −1.22 m | −14.5 % | MCO 2.0, MCO 3.0, FMCO (salons shut Jun–Aug), phased reopening |
-| 2022 | 58,905 | 18,298 | 15.69 m | 2.77 m | 18.46 m | +3.90 m | 21.2 % | **we went online** — demand ×1.38, cross-city orders 31 % → 50 %, PJ becomes the fulfilment hub |
-| 2023 | 62,642 | 20,343 | 16.69 m | 3.08 m | 19.77 m | +4.21 m | 21.3 % | endemic, steady growth |
-| 2024 | 74,214 | 24,348 | 20.30 m | 3.70 m | 24.01 m | +4.00 m | 16.6 % | 4 new branches (ramping, 3 of 4 loss-making in year 1), 2024-01-01 price rise, Ipoh turns red |
-| 2025 | 98,966 | 28,121 | 26.95 m | 4.45 m | 31.40 m | +7.77 m | 24.7 % | **men's market** — HIM Essentials line, 35 % of new customers male, demand ×1.85, 2025-01-01 price changes |
+| 2019 | 41,247 | 17,223 | 10.79 m | 2.45 m | 13.24 m | +0.85 m | 6.4 % | normal trading, 13 branches, Ipoh's first year |
+| 2020 | 31,939 | 10,886 | 8.35 m | 1.54 m | 9.89 m | −0.61 m | −6.2 % | MCO 1.0 (salons shut 18 Mar–3 May), CMCO, RMCO, CMCO 2nd wave |
+| 2021 | 27,604 | 7,514 | 7.14 m | 1.12 m | 8.26 m | −1.31 m | −15.8 % | MCO 2.0, MCO 3.0, FMCO (salons shut Jun–Aug), phased reopening |
+| 2022 | 59,123 | 18,220 | 15.47 m | 2.78 m | 18.24 m | +3.77 m | 20.7 % | **we went online** — demand ×1.38, cross-city orders 42 % → 59 %, PJ becomes the fulfilment hub |
+| 2023 | 62,383 | 20,016 | 16.28 m | 3.03 m | 19.31 m | +3.94 m | 20.4 % | endemic, steady growth |
+| 2024 | 74,496 | 24,396 | 19.90 m | 3.70 m | 23.59 m | +3.70 m | 15.7 % | 4 new branches (ramping, 3 of 4 loss-making in year 1), 2024-01-01 price rise, Ipoh turns red |
+| 2025 | 99,187 | 28,078 | 26.73 m | 4.43 m | 31.17 m | +7.66 m | 24.6 % | **men's market** — HIM Essentials line, 35 % of new customers male, demand ×1.85, 2025-01-01 price changes |
 
 Revenue = completed lines, gross − discount, excluding the 6 % SST. Net profit = revenue − purchases −
 payroll (base + bonus) − branch utilities (rent, electricity, water, internet, maintenance, waste), i.e.
@@ -99,35 +103,35 @@ exactly what the five facts let you compute.
 
 | year | revenue | purchases | payroll | utilities | profit | margin |
 |---:|---:|---:|---:|---:|---:|---:|
-| 2019 | 13,476 | 5,561 | 5,543 | 1,364 | 1,008 | 7.5 % |
-| 2020 | 9,963 | 4,017 | 5,194 | 1,322 | −570 | −5.7 % |
-| 2021 | 8,398 | 3,349 | 4,942 | 1,328 | −1,221 | −14.5 % |
-| 2022 | 18,458 | 7,096 | 5,963 | 1,494 | 3,904 | 21.2 % |
-| 2023 | 19,769 | 7,649 | 6,369 | 1,537 | 4,214 | 21.3 % |
-| 2024 | 24,007 | 9,381 | 8,601 | 2,029 | 3,996 | 16.6 % |
-| 2025 | 31,405 | 12,395 | 9,149 | 2,092 | 7,768 | 24.7 % |
+| 2019 | 13,240 | 5,486 | 5,542 | 1,366 | 846 | 6.4 % |
+| 2020 | 9,889 | 3,987 | 5,194 | 1,320 | −612 | −6.2 % |
+| 2021 | 8,263 | 3,301 | 4,943 | 1,326 | −1,307 | −15.8 % |
+| 2022 | 18,242 | 7,015 | 5,962 | 1,492 | 3,772 | 20.7 % |
+| 2023 | 19,313 | 7,469 | 6,368 | 1,540 | 3,936 | 20.4 % |
+| 2024 | 23,591 | 9,255 | 8,601 | 2,033 | 3,703 | 15.7 % |
+| 2025 | 31,166 | 12,264 | 9,150 | 2,093 | 7,658 | 24.6 % |
 
 ### Profit by branch and year (RM '000)
 
 | branch | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 1 Kuala Lumpur | 237 | 3 | −90 | 509 | 570 | 520 | 806 |
-| 2 **Petaling Jaya** | **313** | **76** | **23** | **1,044** | **1,053** | **1,106** | **1,471** |
-| 3 Johor Bahru | 132 | −29 | −118 | 335 | 362 | 391 | 532 |
-| 4 George Town | 7 | −91 | −154 | 184 | 189 | 211 | 349 |
-| 5 Melaka | −55 | −72 | −135 | 94 | 111 | 123 | 214 |
-| 6 Shah Alam | 98 | −47 | −121 | 341 | 349 | 336 | 493 |
-| 7 Klang | 87 | −51 | −84 | 255 | 277 | 276 | 431 |
-| 8 Puchong | 105 | −43 | −62 | 289 | 350 | 363 | 537 |
-| 9 Selayang | 7 | −44 | −56 | 175 | 200 | 221 | 350 |
-| 10 Setapak | 12 | −126 | −175 | 142 | 201 | 210 | 357 |
-| 11 Wangsa Maju | 51 | −34 | −43 | 252 | 246 | 278 | 434 |
-| 12 Gombak | −5 | −75 | −133 | 137 | 146 | 223 | 297 |
-| 13 **Ipoh** | **19** | −37 | −74 | **147** | **159** | **−67** | **−25** |
-| 14 Seremban | – | – | – | – | – | −79 | 306 |
-| 15 Kuantan | – | – | – | – | – | −88 | 291 |
-| 16 Subang Jaya | – | – | – | – | – | 38 | 539 |
-| 17 Bukit Jalil | – | – | – | – | – | −67 | 386 |
+| 1 Kuala Lumpur | 204 | −21 | −100 | 479 | 503 | 501 | 811 |
+| 2 **Petaling Jaya** | **288** | **65** | **10** | **1,026** | **974** | **1,074** | **1,475** |
+| 3 Johor Bahru | 102 | −43 | −138 | 303 | 368 | 354 | 542 |
+| 4 George Town | 13 | −90 | −139 | 172 | 197 | 220 | 334 |
+| 5 Melaka | −87 | −103 | −136 | 99 | 98 | 95 | 211 |
+| 6 Shah Alam | 94 | −27 | −93 | 310 | 297 | 346 | 518 |
+| 7 Klang | 81 | −32 | −101 | 227 | 267 | 255 | 461 |
+| 8 Puchong | 92 | −25 | −83 | 279 | 324 | 343 | 498 |
+| 9 Selayang | 18 | −49 | −63 | 179 | 185 | 192 | 329 |
+| 10 Setapak | −1 | −131 | −189 | 172 | 192 | 219 | 321 |
+| 11 Wangsa Maju | 51 | −48 | −54 | 247 | 240 | 255 | 386 |
+| 12 Gombak | −20 | −86 | −127 | 145 | 147 | 168 | 300 |
+| 13 **Ipoh** | **12** | −22 | −93 | **133** | **146** | **−55** | **−28** |
+| 14 Seremban | – | – | – | – | – | −74 | 339 |
+| 15 Kuantan | – | – | – | – | – | −121 | 296 |
+| 16 Subang Jaya | – | – | – | – | – | 2 | 510 |
+| 17 Bukit Jalil | – | – | – | – | – | −73 | 354 |
 
 PJ is #1 by revenue **and** profit every year (KL second); 2020–21 are negative for every branch.
 
@@ -140,13 +144,13 @@ footfall to the web shop and a new Perak competitor (demand ×0.70):
 
 | year | revenue | purchases | cost/revenue | payroll | utilities | profit | margin |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 2019 | 649 | 368 | 57 % | 209 | 53 | +19 | +2.9 % |
-| 2020 | 522 | 274 | 52 % | 234 | 51 | −37 | −7.1 % |
-| 2021 | 444 | 234 | 53 % | 233 | 51 | −74 | −16.7 % |
-| 2022 | 938 | 471 | 50 % | 263 | 57 | +147 | +15.7 % |
-| 2023 | 997 | 509 | 51 % | 271 | 59 | +159 | +15.9 % |
-| 2024 | 776 | 504 | **65 %** | 279 | 61 | **−67** | −8.7 % |
-| 2025 | 963 | 634 | **66 %** | 290 | 63 | **−25** | −2.6 % |
+| 2019 | 623 | 349 | 56 % | 209 | 53 | +12 | +1.9 % |
+| 2020 | 551 | 289 | 52 % | 234 | 51 | −22 | −4.0 % |
+| 2021 | 410 | 218 | 53 % | 234 | 51 | −93 | −22.7 % |
+| 2022 | 937 | 483 | 52 % | 263 | 57 | +133 | +14.2 % |
+| 2023 | 965 | 489 | 51 % | 271 | 60 | +146 | +15.1 % |
+| 2024 | 787 | 502 | **64 %** | 279 | 61 | **−55** | −6.9 % |
+| 2025 | 954 | 628 | **66 %** | 291 | 63 | **−28** | −2.9 %
 
 (RM '000. 2019 includes the opening stock and a ramp year; 2020–21 are COVID years for everyone.)
 `purchase_fact.purchase_unit_cost / product_dim.product_unit_price` is the ratio to look at.
@@ -171,7 +175,7 @@ festival run-ups tilt to serums / eye cream / masks / eye masks / essential oils
 orders ×0.85 (unless the day is already a festival dip). Mega-sale days carry a flat 15 % promo; other
 days a 5 % promo on 12 % of orders (20 % once online).
 
-### COVID-19 (Malaysian timeline; Klang Valley = Selangor + WP)
+### COVID-19 (Malaysian timeline; Klang Valley = Selangor + the Federal Territory)
 
 | window | phase | product demand | in-salon services |
 |---|---|---:|---:|
@@ -192,10 +196,40 @@ cut to 80 % in Apr–May 2020 and 85 % in Jun–Aug 2021, December bonus halved 
 in 2020–21, EPF employee rate 11 → 7 % (Apr–Dec 2020) → 9 % (Jan 2021–Jun 2022) → 11 %, rent rebate
 30 % in the closure months, electricity/water/maintenance scaled down while closed, a 2022 rehiring wave.
 
+### Satellite towns — customers where there is no branch
+
+13 real towns carry customers but **no shop of their own**. Everyone living in one still belongs to
+(and buys from) the branch listed beside it, so in the warehouse these towns read as demand nobody
+serves locally — which is exactly what a "where should the next branch go?" report has to find.
+Selangor is deliberately the heaviest: **20 %** of a Selangor branch's customers live in one of its
+satellites, **10 %** elsewhere.
+
+| satellite town | state | served today by |
+|---|---|---|
+| Kajang | Selangor | Puchong, Subang Jaya, Bukit Jalil |
+| Bangi | Selangor | Puchong |
+| Cyberjaya | Selangor | Puchong, Subang Jaya |
+| Rawang | Selangor | Selayang, Gombak |
+| Ampang | Selangor | Gombak |
+| Sungai Buloh | Selangor | Petaling Jaya, Shah Alam, Klang, Selayang |
+| Kepong | Federal Territory of Kuala Lumpur | Kuala Lumpur, Setapak, Wangsa Maju |
+| Kulai | Johor | Johor Bahru |
+| Butterworth | Pulau Pinang | George Town |
+| Alor Gajah | Melaka | Melaka |
+| Taiping | Perak | Ipoh |
+| Nilai | Negeri Sembilan | Seremban |
+| Temerloh | Pahang | Kuantan |
+
+So the customer base spans **30 cities** against 17 branch cities. The assignment runs as a separate
+pass on its own `random.Random(SEED + 7)` in `place_satellite_customers()`, deliberately: drawing from
+the main seeded stream would shift every later draw and move every row count in the repo. Only the
+customer's city / state / postcode changes — the same people, the same orders, now living somewhere
+the chain has no shop.
+
 ### 2022 — the e-commerce launch
 
-From 2022-01-01 product demand steps up ×1.38 (orders 27k → 59k), **cross-city orders jump from 31 % to
-50 %** and cross-state from 11 % to 25 % (online orders are fulfilled by any branch; before 2022 only
+From 2022-01-01 product demand steps up ×1.38 (orders 27k → 59k), **cross-city orders jump from 42 % to
+59 %** and cross-state from 10 % to 24 % (online orders are fulfilled by any branch; before 2022 only
 15 % of a branch's orders came from same-state neighbours), Petaling Jaya gets a ×1.25 hub multiplier,
 registrations run +40 %, promos are more frequent. In-salon reservations grow only modestly
 (×1.08 in 2022, ×1.28 by 2025) — people still book locally (15 % same-state cross picks, as before).
@@ -237,10 +271,11 @@ runs ×1.85 (orders 74k → 99k, revenue +31 %).
   Beauty Therapist, Sales Assistant, Receptionist, Cashier), ~60 % therapists; 2019 salary bands,
   +3 %/yr (0 % in 2021, +4 % in 2025); paid on the 25th, December bonus 1× and Raya-month bonus 0.35×,
   EPF deduction. The four 2024 teams are hired 26–31 Dec 2023 and ship in data24 with their branch.
-- Customers 39,301 (registrations from 2016; 2019: 3,909, 2020–21 dip, 2022+: 5.4–6.8k/yr); 86 %
+- Customers 39,175 (registrations from 2016; 2019: 3,909, 2020–21 dip, 2022+: 5.4–6.8k/yr); 86 %
   female (65 % in 2025); tiers Bronze 55 / Silver 27 / Gold 13 / Platinum 5 % with 0 / 3 / 7 / 12 %
-  discount and higher activity; 55 % loyal for life, the rest churn after 90 d + Exp(720 d); 54 % of
-  orders are placed in the customer's own city, 78 % in the own state.
+  discount and higher activity; 55 % loyal for life, the rest churn after 90 d + Exp(720 d); 46 % of
+  orders are placed in the customer's own city, 79 % in the own state — lower than it looks because
+  13 satellite towns have no branch at all (see below).
 - Reservations: 10:00–20:00, one main service (+ an add-on 36 % of the time), therapist chosen from
   the branch's free ones (only 9 bookings in 7 years dropped for lack of a therapist), `booking_date`
   0–14 days before `reservation_date`, weekday-morning 5 % discount; statuses Completed 90.7 % /
@@ -280,7 +315,7 @@ The ETL, validation scripts, `load_all.bat` default and the docs target **this**
 Expected counts (also in the validation / execute scripts): `date_dim` 1,827 → 2,193 → 2,558;
 `branch_dim` 13 → 17; `supplier_dim` 7 → 7 → 8; `product_dim` 48 current → 56 rows (8 expired) →
 72 rows (56 current + 16 expired); `service_dim` 18 → 24 rows (6 expired) after 2025; `staff_dim`
-244 → 313 → 319; `customer_dim` 26,182 → 32,496 → 39,301; `order_fact` 480,753 → 641,846 → 855,935
-(distinct (order, product) pairs); `reservation_fact` 97,740 → 129,874 → 167,087; `purchase_fact`
-33,508 → 42,820 → 54,020; `salary_payment_fact` 12,103 → 15,474 → 18,934; `branch_utils_fact` 4,680 →
+244 → 313 → 319; `customer_dim` 25,866 → 32,496 → 39,175; `order_fact` 481,611 → 642,619 → 857,664
+(distinct (order, product) pairs); `reservation_fact` 97,596 → 129,736 → 166,658; `purchase_fact`
+33,430 → 42,734 → 53,933; `salary_payment_fact` 12,103 → 15,474 → 18,934; `branch_utils_fact` 4,680 →
 5,904 → 7,128. Analysis scripts that hard-code 13 branches / 2018–2025 year columns need widening.

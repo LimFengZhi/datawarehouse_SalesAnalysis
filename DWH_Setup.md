@@ -62,7 +62,7 @@ as `<table>_data19_23.log`; a `.bad` file appearing means *this* run rejected ro
 SELECT 'customer' t, COUNT(*) n FROM customer
 UNION ALL SELECT 'orders',       COUNT(*) FROM orders
 UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail;
--- expect 26182 / 222246 / 490685
+-- expect 25866 / 222296 / 491657
 ```
 
 ## Step 3 — Create the warehouse
@@ -104,10 +104,10 @@ cd C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\ETL_Process\initial_loading
 | | rows |
 |---|---:|
 | `date_dim` | **1,827** (1,826 days 2019-01-01..2023-12-31 + the Unknown member) |
-| dimensions | **13 / 7 / 18 / 48 / 244 / 26,182** (branch, supplier, service, product, staff, customer) |
-| facts | **480,753 / 97,740 / 33,508 / 12,103 / 4,680** |
+| dimensions | **13 / 7 / 18 / 48 / 244 / 25,866** (branch, supplier, service, product, staff, customer) |
+| facts | **481,611 / 97,596 / 33,430 / 12,103 / 4,680** |
 
-`order_fact` is one row per **(order, product)**: `order_detail` has 490,685 lines, but 9,932 repeat
+`order_fact` is one row per **(order, product)**: `order_detail` has 491,657 lines, but 9,932 repeat
 a product already on the same order and the staging view sums those into one row. It is the slow
 one — give it a few minutes.
 
@@ -178,7 +178,7 @@ cd C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_co
 
 Same control files, different folder — every `.ctl` uses `APPEND`, so rows are added and IDs
 continue where `data19_23` stopped. `supplier`, `product` and `service` log **0 rows**: those files
-are header-only because 2024 adds no new ones (it adds 4 branches, 69 staff, 6,314 customers).
+are header-only because 2024 adds no new ones (it adds 4 branches, 69 staff, 6,485 customers).
 
 ✅ `branch` 17 · `staff` 313 · `customer` 32,496 · `orders` 296,460 · `order_detail` 655,056
 
@@ -203,8 +203,8 @@ One file, in the only safe order: **STEP 0** checks all 18 procedures · **STEP 
 calendar to 2024 then inserts new records · **STEP 2** `maintain_product_dim_scd2(DATE '2024-01-01')`
 · **STEP 3** the five facts from `DATE '2024-01-01'`.
 
-✅ 366 new days · 4 branches · 69 staff · 6,314 customers · **8 expired / 8 new** product versions ·
-facts now **641,846 / 129,874 / 42,820 / 15,474 / 5,904**
+✅ 366 new days · 4 branches · 69 staff · 6,485 customers · **8 expired / 8 new** product versions ·
+facts now **642,619 / 129,736 / 42,734 / 15,474 / 5,904**
 
 **Why the calendar comes first:** every fact staging view uses `INNER JOIN`. An unresolved key does
 not raise an error — the row is silently **dropped**. If `date_dim` stopped at 2023-12-31, all
@@ -222,7 +222,7 @@ not raise an error — the row is silently **dropped**. If `date_dim` stopped at
 cd C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\operational_DB\sqlloader_control_files
 .\load_all.bat dwh abcxyz XE "C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\sales_data5\data25"
 ```
-✅ `supplier` 8 · `product` 56 · `staff` 319 · `customer` 39,301 (`branch` and `service` are
+✅ `supplier` 8 · `product` 56 · `staff` 319 · `customer` 39,175 (`branch` and `service` are
 header-only here)
 
 ## Step 12 — Apply the 2025 price changes
@@ -240,19 +240,19 @@ time, so they end up with three versions each.
 @C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\exec_sub_proc25.sql
 ```
 
-✅ 365 new days · 1 supplier (HIM Care Labs) · 8 products (the men's line) · 6 staff · 6,805
+✅ 365 new days · 1 supplier (HIM Care Labs) · 8 products (the men's line) · 6 staff · 6,824
 customers · **8+8 product and 6+6 service versions**
 
 **End state, all three loads:**
 
 | | rows |
 |---|---:|
-| `branch_dim` / `supplier_dim` / `staff_dim` / `customer_dim` | 17 / 8 / 319 / 39,301 |
+| `branch_dim` / `supplier_dim` / `staff_dim` / `customer_dim` | 17 / 8 / 319 / 39,175 |
 | `product_dim` | **72 = 56 current + 16 expired** (products 4 and 16 carry three versions) |
 | `service_dim` | 24 = 18 current + 6 expired |
 | `date_dim` | 2,558 = 2,557 days 2019–2025 + Unknown |
-| `order_fact` / `reservation_fact` | 855,935 / 167,087 |
-| `purchase_fact` / `salary_payment_fact` / `branch_utils_fact` | 54,020 / 18,934 / 7,128 |
+| `order_fact` / `reservation_fact` | 857,664 / 166,658 |
+| `purchase_fact` / `salary_payment_fact` / `branch_utils_fact` | 53,933 / 18,934 / 7,128 |
 
 Then validate again:
 

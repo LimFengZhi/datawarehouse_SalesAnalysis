@@ -76,7 +76,7 @@ UNION ALL SELECT 'staff_dim',
        (SELECT COUNT(*) FROM staff), 244                FROM dual
 UNION ALL SELECT 'customer_dim',
        (SELECT COUNT(*) FROM customer_dim),
-       (SELECT COUNT(*) FROM customer), 26182           FROM dual
+       (SELECT COUNT(*) FROM customer), 25866           FROM dual
 ORDER BY 1;
 
 
@@ -197,7 +197,7 @@ FROM   customer_dim GROUP BY cus_age_group ORDER BY MIN(cus_age_group);
 -- 5. FACT ROW COUNTS  (fact must equal source)
 -- order_fact is one row per (order, product) and reservation_fact one
 -- row per (reservation, service, therapist), so the source side counts
--- DISTINCT groups, not OLTP detail lines: order_detail has 490,685
+-- DISTINCT groups, not OLTP detail lines: order_detail has 491,657
 -- lines, 9,932 of which repeat a product inside the same order.
 -- ###################################################################
 PROMPT
@@ -208,13 +208,13 @@ PROMPT ##############################################
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM (SELECT DISTINCT order_ID, product_ID FROM order_detail)) AS source_rows,
-       480753 AS expected FROM dual
+       481611 AS expected FROM dual
 UNION ALL SELECT 'reservation_fact',
        (SELECT COUNT(*) FROM reservation_fact),
-       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 97740 FROM dual
+       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 97596 FROM dual
 UNION ALL SELECT 'purchase_fact',
        (SELECT COUNT(*) FROM purchase_fact),
-       (SELECT COUNT(*) FROM purchase), 33508           FROM dual
+       (SELECT COUNT(*) FROM purchase), 33430           FROM dual
 UNION ALL SELECT 'salary_payment_fact',
        (SELECT COUNT(*) FROM salary_payment_fact),
        (SELECT COUNT(*) FROM salary_payment), 12103    FROM dual

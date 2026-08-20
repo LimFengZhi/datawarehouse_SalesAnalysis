@@ -1,31 +1,31 @@
 st_ID,br_ID,st_first_name,st_last_name,st_position,st_address_line,st_city,st_state,st_postcode,st_DOB,st_gender,st_email,st_phone,st_hire_date,st_status
-1,1,Divya,a/p Krishnan,Branch Manager,"No. 214, Jalan 4/9",Kuala Lumpur,Wilayah Persekutuan,55100,1970-04-05,Female,divya.1@glowbeauty.com.my,017-7455481,2016-02-13,Active
-2,1,Alia,binti Hassan,Sales Assistant,"No. 169, Jalan 16/18",Kuala Lumpur,Wilayah Persekutuan,55100,1980-12-26,Female,alia.2@glowbeauty.com.my,016-5138710,2016-03-24,Active
-3,1,Chong Wei,Goh,Beauty Therapist,"No. 21, Jalan 6/15",Kuala Lumpur,Wilayah Persekutuan,55100,1984-11-28,Male,chong.3@glowbeauty.com.my,017-2209026,2016-04-09,Active
-4,1,Amelia,binti Zainal,Beauty Therapist,"No. 48, Jalan 16/28",Kuala Lumpur,Wilayah Persekutuan,55100,1989-01-11,Female,amelia.4@glowbeauty.com.my,011-9631319,2016-04-11,Active
-5,1,Balqis,binti Ahmad,Beauty Therapist,"No. 138, Jalan 9/7",Kuala Lumpur,Wilayah Persekutuan,55100,1977-10-18,Female,balqis.5@glowbeauty.com.my,014-1163802,2016-05-03,Active
-6,1,Hannah,binti Ismail,Sales Assistant,"No. 169, Jalan 12/4",Kuala Lumpur,Wilayah Persekutuan,55100,1991-09-08,Female,hannah.6@glowbeauty.com.my,010-7358246,2016-05-05,Active
-7,1,Emily,Teoh,Senior Therapist,"No. 133, Jalan 9/24",Kuala Lumpur,Wilayah Persekutuan,55100,1974-07-12,Female,emily.7@glowbeauty.com.my,017-5181361,2016-05-08,Active
-8,1,Zulkifli,bin Ahmad,Beauty Therapist,"No. 65, Jalan 17/21",Kuala Lumpur,Wilayah Persekutuan,55100,1974-11-22,Male,zulkifli.8@glowbeauty.com.my,014-4504996,2016-05-11,Active
-9,1,Anisa,binti Hamid,Beauty Therapist,"No. 185, Jalan 7/19",Kuala Lumpur,Wilayah Persekutuan,55100,1990-10-05,Female,anisa.9@glowbeauty.com.my,016-4239703,2016-05-16,Active
-10,1,Zarina,binti Hassan,Sales Assistant,"No. 179, Jalan 3/4",Kuala Lumpur,Wilayah Persekutuan,55100,1987-08-17,Female,zarina.10@glowbeauty.com.my,012-1946846,2016-05-16,Active
-11,1,Anisa,binti Hamid,Senior Therapist,"No. 84, Jalan 3/2",Kuala Lumpur,Wilayah Persekutuan,55100,1991-11-15,Female,anisa.11@glowbeauty.com.my,017-9717589,2016-05-26,Active
-12,1,Siti,binti Hamid,Beauty Therapist,"No. 223, Jalan 1/8",Kuala Lumpur,Wilayah Persekutuan,55100,1988-02-22,Female,siti.12@glowbeauty.com.my,019-7551344,2016-05-29,Active
-13,1,Suhaila,binti Rahman,Senior Therapist,"No. 78, Jalan 3/26",Kuala Lumpur,Wilayah Persekutuan,55100,1980-11-19,Female,suhaila.13@glowbeauty.com.my,018-5658205,2016-06-01,Active
-14,1,Izzati,binti Abdullah,Receptionist,"No. 248, Jalan 9/25",Kuala Lumpur,Wilayah Persekutuan,55100,1989-06-17,Female,izzati.14@glowbeauty.com.my,017-9656828,2016-12-01,Active
-15,1,Yong Sheng,Chin,Beauty Therapist,"No. 49, Jalan 18/10",Kuala Lumpur,Wilayah Persekutuan,55100,1984-03-28,Male,yong.15@glowbeauty.com.my,019-6629932,2017-01-13,Active
-16,1,Izzati,binti Zainal,Beauty Therapist,"No. 87, Jalan 16/16",Kuala Lumpur,Wilayah Persekutuan,55100,1983-09-05,Female,izzati.16@glowbeauty.com.my,016-8798256,2017-03-05,Active
-17,1,Balqis,binti Hamid,Cashier,"No. 241, Jalan 12/1",Kuala Lumpur,Wilayah Persekutuan,55100,1983-02-18,Female,balqis.17@glowbeauty.com.my,019-7138085,2017-03-11,Resigned
-18,1,Aina,binti Razak,Cashier,"No. 185, Jalan 3/4",Kuala Lumpur,Wilayah Persekutuan,55100,1994-02-11,Female,aina.18@glowbeauty.com.my,017-2464315,2017-05-03,Resigned
-19,1,Kumar,a/l Ramasamy,Beauty Therapist,"No. 167, Jalan 9/24",Kuala Lumpur,Wilayah Persekutuan,55100,1989-06-19,Male,kumar.19@glowbeauty.com.my,013-1866444,2017-09-26,Active
-20,1,Anjali,a/p Subramaniam,Sales Assistant,"No. 167, Jalan 19/12",Kuala Lumpur,Wilayah Persekutuan,55100,1993-05-23,Female,anjali.20@glowbeauty.com.my,011-2943123,2018-04-01,Active
-21,1,Thivya,a/p Subramaniam,Beauty Therapist,"No. 72, Jalan 11/6",Kuala Lumpur,Wilayah Persekutuan,55100,1987-03-02,Female,thivya.21@glowbeauty.com.my,013-6358280,2019-03-15,Active
-22,1,Zarina,binti Yusof,Receptionist,"No. 158, Jalan 1/7",Kuala Lumpur,Wilayah Persekutuan,55100,1997-08-27,Female,zarina.22@glowbeauty.com.my,012-5034708,2019-05-10,Active
-23,1,Sze Min,Ng,Sales Assistant,"No. 12, Jalan 10/9",Kuala Lumpur,Wilayah Persekutuan,55100,1988-04-22,Female,sze.23@glowbeauty.com.my,014-4012090,2019-07-30,Active
-24,1,Suhaila,binti Yusof,Beauty Therapist,"No. 113, Jalan 16/25",Kuala Lumpur,Wilayah Persekutuan,55100,1988-05-26,Female,suhaila.24@glowbeauty.com.my,017-3499488,2022-01-22,Active
-25,1,Zulkifli,bin Hassan,Sales Assistant,"No. 218, Jalan 11/12",Kuala Lumpur,Wilayah Persekutuan,55100,1995-10-29,Male,zulkifli.25@glowbeauty.com.my,015-3656780,2022-02-19,Active
-26,1,Rachel,Khoo,Cashier,"No. 107, Jalan 13/23",Kuala Lumpur,Wilayah Persekutuan,55100,2000-03-16,Female,rachel.26@glowbeauty.com.my,016-4940191,2022-05-12,Active
-27,1,Danial,bin Hassan,Beauty Therapist,"No. 73, Jalan 14/1",Kuala Lumpur,Wilayah Persekutuan,55100,1987-10-15,Male,danial.27@glowbeauty.com.my,011-3177376,2023-06-22,Active
+1,1,Divya,a/p Krishnan,Branch Manager,"No. 214, Jalan 4/9",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1970-04-05,Female,divya.1@glowbeauty.com.my,017-7455481,2016-02-13,Active
+2,1,Alia,binti Hassan,Sales Assistant,"No. 169, Jalan 16/18",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1980-12-26,Female,alia.2@glowbeauty.com.my,016-5138710,2016-03-24,Active
+3,1,Chong Wei,Goh,Beauty Therapist,"No. 21, Jalan 6/15",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1984-11-28,Male,chong.3@glowbeauty.com.my,017-2209026,2016-04-09,Active
+4,1,Amelia,binti Zainal,Beauty Therapist,"No. 48, Jalan 16/28",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1989-01-11,Female,amelia.4@glowbeauty.com.my,011-9631319,2016-04-11,Active
+5,1,Balqis,binti Ahmad,Beauty Therapist,"No. 138, Jalan 9/7",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1977-10-18,Female,balqis.5@glowbeauty.com.my,014-1163802,2016-05-03,Active
+6,1,Hannah,binti Ismail,Sales Assistant,"No. 169, Jalan 12/4",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1991-09-08,Female,hannah.6@glowbeauty.com.my,010-7358246,2016-05-05,Active
+7,1,Emily,Teoh,Senior Therapist,"No. 133, Jalan 9/24",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1974-07-12,Female,emily.7@glowbeauty.com.my,017-5181361,2016-05-08,Active
+8,1,Zulkifli,bin Ahmad,Beauty Therapist,"No. 65, Jalan 17/21",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1974-11-22,Male,zulkifli.8@glowbeauty.com.my,014-4504996,2016-05-11,Active
+9,1,Anisa,binti Hamid,Beauty Therapist,"No. 185, Jalan 7/19",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1990-10-05,Female,anisa.9@glowbeauty.com.my,016-4239703,2016-05-16,Active
+10,1,Zarina,binti Hassan,Sales Assistant,"No. 179, Jalan 3/4",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1987-08-17,Female,zarina.10@glowbeauty.com.my,012-1946846,2016-05-16,Active
+11,1,Anisa,binti Hamid,Senior Therapist,"No. 84, Jalan 3/2",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1991-11-15,Female,anisa.11@glowbeauty.com.my,017-9717589,2016-05-26,Active
+12,1,Siti,binti Hamid,Beauty Therapist,"No. 223, Jalan 1/8",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1988-02-22,Female,siti.12@glowbeauty.com.my,019-7551344,2016-05-29,Active
+13,1,Suhaila,binti Rahman,Senior Therapist,"No. 78, Jalan 3/26",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1980-11-19,Female,suhaila.13@glowbeauty.com.my,018-5658205,2016-06-01,Active
+14,1,Izzati,binti Abdullah,Receptionist,"No. 248, Jalan 9/25",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1989-06-17,Female,izzati.14@glowbeauty.com.my,017-9656828,2016-12-01,Active
+15,1,Yong Sheng,Chin,Beauty Therapist,"No. 49, Jalan 18/10",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1984-03-28,Male,yong.15@glowbeauty.com.my,019-6629932,2017-01-13,Active
+16,1,Izzati,binti Zainal,Beauty Therapist,"No. 87, Jalan 16/16",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1983-09-05,Female,izzati.16@glowbeauty.com.my,016-8798256,2017-03-05,Active
+17,1,Balqis,binti Hamid,Cashier,"No. 241, Jalan 12/1",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1983-02-18,Female,balqis.17@glowbeauty.com.my,019-7138085,2017-03-11,Resigned
+18,1,Aina,binti Razak,Cashier,"No. 185, Jalan 3/4",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1994-02-11,Female,aina.18@glowbeauty.com.my,017-2464315,2017-05-03,Resigned
+19,1,Kumar,a/l Ramasamy,Beauty Therapist,"No. 167, Jalan 9/24",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1989-06-19,Male,kumar.19@glowbeauty.com.my,013-1866444,2017-09-26,Active
+20,1,Anjali,a/p Subramaniam,Sales Assistant,"No. 167, Jalan 19/12",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1993-05-23,Female,anjali.20@glowbeauty.com.my,011-2943123,2018-04-01,Active
+21,1,Thivya,a/p Subramaniam,Beauty Therapist,"No. 72, Jalan 11/6",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1987-03-02,Female,thivya.21@glowbeauty.com.my,013-6358280,2019-03-15,Active
+22,1,Zarina,binti Yusof,Receptionist,"No. 158, Jalan 1/7",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1997-08-27,Female,zarina.22@glowbeauty.com.my,012-5034708,2019-05-10,Active
+23,1,Sze Min,Ng,Sales Assistant,"No. 12, Jalan 10/9",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1988-04-22,Female,sze.23@glowbeauty.com.my,014-4012090,2019-07-30,Active
+24,1,Suhaila,binti Yusof,Beauty Therapist,"No. 113, Jalan 16/25",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1988-05-26,Female,suhaila.24@glowbeauty.com.my,017-3499488,2022-01-22,Active
+25,1,Zulkifli,bin Hassan,Sales Assistant,"No. 218, Jalan 11/12",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1995-10-29,Male,zulkifli.25@glowbeauty.com.my,015-3656780,2022-02-19,Active
+26,1,Rachel,Khoo,Cashier,"No. 107, Jalan 13/23",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,2000-03-16,Female,rachel.26@glowbeauty.com.my,016-4940191,2022-05-12,Active
+27,1,Danial,bin Hassan,Beauty Therapist,"No. 73, Jalan 14/1",Kuala Lumpur,Federal Territory of Kuala Lumpur,55100,1987-10-15,Male,danial.27@glowbeauty.com.my,011-3177376,2023-06-22,Active
 28,2,Amirul,bin Ahmad,Branch Manager,"No. 4, Jalan 20/8",Petaling Jaya,Selangor,47300,1969-03-09,Male,amirul.28@glowbeauty.com.my,016-1023242,2016-08-06,Active
 29,2,Thivya,a/p Subramaniam,Sales Assistant,"No. 128, Jalan 15/22",Petaling Jaya,Selangor,47300,1987-12-10,Female,thivya.29@glowbeauty.com.my,018-1099994,2016-08-19,Resigned
 30,2,Izzati,binti Abdullah,Senior Therapist,"No. 82, Jalan 19/10",Petaling Jaya,Selangor,47300,1980-11-11,Female,izzati.30@glowbeauty.com.my,017-2605039,2016-08-21,Active
@@ -189,52 +189,52 @@ st_ID,br_ID,st_first_name,st_last_name,st_position,st_address_line,st_city,st_st
 188,9,Hafiz,bin Hamid,Cashier,"No. 85, Jalan 10/29",Selayang,Selangor,68100,1993-09-19,Male,hafiz.188@glowbeauty.com.my,013-3700038,2022-02-13,Active
 189,9,Jasmine,Tan,Cashier,"No. 187, Jalan 1/6",Selayang,Selangor,68100,1987-10-27,Female,jasmine.189@glowbeauty.com.my,013-9482677,2022-03-25,Active
 190,9,Sze Min,Ong,Cashier,"No. 213, Jalan 14/25",Selayang,Selangor,68100,2002-01-26,Female,sze.190@glowbeauty.com.my,016-8269271,2022-06-16,Active
-191,10,Sze Min,Teoh,Branch Manager,"No. 17, Jalan 15/9",Setapak,Wilayah Persekutuan,53300,1975-07-23,Female,sze.191@glowbeauty.com.my,010-6106779,2016-07-06,Active
-192,10,Wan Ying,Chin,Receptionist,"No. 249, Jalan 7/22",Setapak,Wilayah Persekutuan,53300,1995-03-20,Female,wan.192@glowbeauty.com.my,015-6592885,2016-08-11,Active
-193,10,Suhaila,binti Zainal,Beauty Therapist,"No. 44, Jalan 6/10",Setapak,Wilayah Persekutuan,53300,1988-01-16,Female,suhaila.193@glowbeauty.com.my,018-7200715,2016-08-26,Active
-194,10,Wei Hong,Loh,Senior Therapist,"No. 179, Jalan 1/14",Setapak,Wilayah Persekutuan,53300,1981-06-25,Male,wei.194@glowbeauty.com.my,010-7179262,2016-08-30,Active
-195,10,Nurul Huda,binti Rahman,Senior Therapist,"No. 76, Jalan 14/25",Setapak,Wilayah Persekutuan,53300,1990-05-17,Female,nurul.195@glowbeauty.com.my,010-7986039,2016-09-07,Active
-196,10,Sharmila,a/p Ramasamy,Beauty Therapist,"No. 95, Jalan 4/2",Setapak,Wilayah Persekutuan,53300,1991-03-20,Female,sharmila.196@glowbeauty.com.my,018-6966266,2016-09-08,Active
-197,10,Alia,binti Osman,Sales Assistant,"No. 130, Jalan 5/29",Setapak,Wilayah Persekutuan,53300,1984-07-06,Female,alia.197@glowbeauty.com.my,016-3971757,2016-09-16,Active
-198,10,Grace,Ong,Beauty Therapist,"No. 236, Jalan 2/18",Setapak,Wilayah Persekutuan,53300,1981-07-29,Female,grace.198@glowbeauty.com.my,019-2408602,2016-09-18,Active
-199,10,Aiman,bin Razak,Sales Assistant,"No. 245, Jalan 6/4",Setapak,Wilayah Persekutuan,53300,1991-07-18,Male,aiman.199@glowbeauty.com.my,017-4907503,2016-09-25,Active
-200,10,Anisa,binti Razak,Cashier,"No. 111, Jalan 9/1",Setapak,Wilayah Persekutuan,53300,1986-08-11,Female,anisa.200@glowbeauty.com.my,010-3703438,2016-10-08,Active
-201,10,Nurul Huda,binti Hamid,Beauty Therapist,"No. 228, Jalan 2/1",Setapak,Wilayah Persekutuan,53300,1975-09-14,Female,nurul.201@glowbeauty.com.my,010-4669005,2016-10-15,Active
-202,10,Farah,binti Ahmad,Receptionist,"No. 184, Jalan 14/22",Setapak,Wilayah Persekutuan,53300,1983-01-31,Female,farah.202@glowbeauty.com.my,016-4299382,2016-10-26,Active
-203,10,Nurin,binti Yusof,Beauty Therapist,"No. 186, Jalan 1/6",Setapak,Wilayah Persekutuan,53300,1992-04-18,Female,nurin.203@glowbeauty.com.my,011-4086763,2016-11-26,Active
-204,10,Lakshmi,a/p Ramasamy,Beauty Therapist,"No. 220, Jalan 7/3",Setapak,Wilayah Persekutuan,53300,1992-06-16,Female,lakshmi.204@glowbeauty.com.my,014-7194960,2017-07-29,Active
-205,10,Nur Aina,binti Ismail,Beauty Therapist,"No. 48, Jalan 2/2",Setapak,Wilayah Persekutuan,53300,1983-09-07,Female,nur.205@glowbeauty.com.my,016-3374936,2019-04-20,Active
-206,10,Faizal,bin Hamid,Sales Assistant,"No. 16, Jalan 4/22",Setapak,Wilayah Persekutuan,53300,1999-11-29,Male,faizal.206@glowbeauty.com.my,011-8631901,2019-08-13,Active
-207,11,Divya,a/p Maniam,Branch Manager,"No. 205, Jalan 13/7",Wangsa Maju,Wilayah Persekutuan,53300,1975-08-13,Female,divya.207@glowbeauty.com.my,012-5743841,2016-12-27,Active
-208,11,Zulkifli,bin Razak,Beauty Therapist,"No. 156, Jalan 11/8",Wangsa Maju,Wilayah Persekutuan,53300,1992-08-09,Male,zulkifli.208@glowbeauty.com.my,016-4697894,2017-01-18,Resigned
-209,11,Hannah,binti Osman,Sales Assistant,"No. 14, Jalan 8/27",Wangsa Maju,Wilayah Persekutuan,53300,1981-04-16,Female,hannah.209@glowbeauty.com.my,016-5198798,2017-02-09,Active
-210,11,Kavitha,a/p Rajan,Receptionist,"No. 14, Jalan 9/22",Wangsa Maju,Wilayah Persekutuan,53300,1982-09-08,Female,kavitha.210@glowbeauty.com.my,013-7617472,2017-02-23,Active
-211,11,Danial,bin Razak,Beauty Therapist,"No. 3, Jalan 3/17",Wangsa Maju,Wilayah Persekutuan,53300,1992-07-29,Male,danial.211@glowbeauty.com.my,017-4982070,2017-02-27,Active
-212,11,Amelia,binti Razak,Cashier,"No. 192, Jalan 9/5",Wangsa Maju,Wilayah Persekutuan,53300,1989-04-07,Female,amelia.212@glowbeauty.com.my,018-5083717,2017-03-07,Resigned
-213,11,Anisa,binti Ismail,Beauty Therapist,"No. 72, Jalan 1/13",Wangsa Maju,Wilayah Persekutuan,53300,1987-12-01,Female,anisa.213@glowbeauty.com.my,019-2728446,2017-04-07,Resigned
-214,11,Rajesh,a/l Maniam,Beauty Therapist,"No. 240, Jalan 9/22",Wangsa Maju,Wilayah Persekutuan,53300,1987-02-13,Male,rajesh.214@glowbeauty.com.my,017-2833935,2017-04-07,Active
-215,11,Jasmine,Ng,Senior Therapist,"No. 42, Jalan 2/14",Wangsa Maju,Wilayah Persekutuan,53300,1991-04-23,Female,jasmine.215@glowbeauty.com.my,011-8753539,2017-04-22,Active
-216,11,Kumar,a/l Krishnan,Senior Therapist,"No. 234, Jalan 11/6",Wangsa Maju,Wilayah Persekutuan,53300,1975-10-26,Male,kumar.216@glowbeauty.com.my,014-8274884,2017-04-26,Active
-217,11,Wan Ying,Sim,Beauty Therapist,"No. 223, Jalan 9/4",Wangsa Maju,Wilayah Persekutuan,53300,1982-12-11,Female,wan.217@glowbeauty.com.my,019-4112768,2017-04-27,Active
-218,11,Anjali,a/p Maniam,Sales Assistant,"No. 122, Jalan 12/4",Wangsa Maju,Wilayah Persekutuan,53300,1993-05-04,Female,anjali.218@glowbeauty.com.my,010-7569665,2017-05-05,Active
-219,11,Nabila,binti Hassan,Receptionist,"No. 88, Jalan 13/3",Wangsa Maju,Wilayah Persekutuan,53300,1991-11-29,Female,nabila.219@glowbeauty.com.my,012-2909429,2017-05-11,Active
-220,11,Suhaila,binti Razak,Beauty Therapist,"No. 56, Jalan 10/11",Wangsa Maju,Wilayah Persekutuan,53300,1990-12-02,Female,suhaila.220@glowbeauty.com.my,014-7028055,2019-03-01,Resigned
-221,11,Sze Min,Lim,Cashier,"No. 29, Jalan 14/3",Wangsa Maju,Wilayah Persekutuan,53300,1994-07-17,Female,sze.221@glowbeauty.com.my,013-4892555,2022-01-29,Active
-222,11,Syafiq,bin Yusof,Sales Assistant,"No. 236, Jalan 7/17",Wangsa Maju,Wilayah Persekutuan,53300,2000-11-02,Male,syafiq.222@glowbeauty.com.my,018-3842372,2022-04-26,Active
-223,11,Grace,Liew,Beauty Therapist,"No. 32, Jalan 8/1",Wangsa Maju,Wilayah Persekutuan,53300,2002-10-03,Female,grace.223@glowbeauty.com.my,013-2472397,2022-06-09,Active
-224,11,Suhaila,binti Ahmad,Cashier,"No. 243, Jalan 3/3",Wangsa Maju,Wilayah Persekutuan,53300,1991-10-09,Female,suhaila.224@glowbeauty.com.my,017-9897295,2022-06-21,Active
-225,12,Xin Yi,Teoh,Branch Manager,"No. 82, Jalan 18/8",Gombak,Wilayah Persekutuan,53100,1979-09-28,Female,xin.225@glowbeauty.com.my,015-8244076,2017-06-12,Active
-226,12,Jia Yi,Yap,Beauty Therapist,"No. 127, Jalan 11/20",Gombak,Wilayah Persekutuan,53100,1991-04-14,Female,jia.226@glowbeauty.com.my,012-4549205,2017-06-25,Active
-227,12,Zarina,binti Abdullah,Receptionist,"No. 75, Jalan 8/22",Gombak,Wilayah Persekutuan,53100,1993-07-25,Female,zarina.227@glowbeauty.com.my,015-8642442,2017-07-22,Active
-228,12,Danial,bin Zainal,Senior Therapist,"No. 201, Jalan 5/24",Gombak,Wilayah Persekutuan,53100,1981-05-22,Male,danial.228@glowbeauty.com.my,010-6606795,2017-07-27,Active
-229,12,Yong Sheng,Ong,Beauty Therapist,"No. 4, Jalan 14/28",Gombak,Wilayah Persekutuan,53100,1985-01-11,Male,yong.229@glowbeauty.com.my,017-6013778,2017-08-21,Active
-230,12,Divya,a/p Rajan,Sales Assistant,"No. 87, Jalan 11/6",Gombak,Wilayah Persekutuan,53100,1989-01-01,Female,divya.230@glowbeauty.com.my,012-9362078,2017-09-01,Active
-231,12,Li Wen,Chan,Beauty Therapist,"No. 146, Jalan 18/18",Gombak,Wilayah Persekutuan,53100,1984-10-27,Female,li.231@glowbeauty.com.my,017-7029558,2017-09-24,Active
-232,12,Yee Ling,Chong,Cashier,"No. 116, Jalan 17/16",Gombak,Wilayah Persekutuan,53100,1988-04-24,Female,yee.232@glowbeauty.com.my,012-2826503,2017-09-25,Active
-233,12,Thivya,a/p Ramasamy,Beauty Therapist,"No. 47, Jalan 18/15",Gombak,Wilayah Persekutuan,53100,1983-10-17,Female,thivya.233@glowbeauty.com.my,016-4044367,2017-09-26,Active
-234,12,Nurin,binti Yusof,Beauty Therapist,"No. 98, Jalan 13/29",Gombak,Wilayah Persekutuan,53100,1978-04-13,Female,nurin.234@glowbeauty.com.my,011-3547301,2017-10-21,Active
-235,12,Rachel,Lee,Beauty Therapist,"No. 60, Jalan 6/26",Gombak,Wilayah Persekutuan,53100,1995-08-15,Female,rachel.235@glowbeauty.com.my,019-7967901,2017-10-28,Active
-236,12,Nurin,binti Osman,Sales Assistant,"No. 122, Jalan 19/8",Gombak,Wilayah Persekutuan,53100,1984-08-28,Female,nurin.236@glowbeauty.com.my,019-3079987,2018-12-31,Active
+191,10,Sze Min,Teoh,Branch Manager,"No. 17, Jalan 15/9",Setapak,Federal Territory of Kuala Lumpur,53300,1975-07-23,Female,sze.191@glowbeauty.com.my,010-6106779,2016-07-06,Active
+192,10,Wan Ying,Chin,Receptionist,"No. 249, Jalan 7/22",Setapak,Federal Territory of Kuala Lumpur,53300,1995-03-20,Female,wan.192@glowbeauty.com.my,015-6592885,2016-08-11,Active
+193,10,Suhaila,binti Zainal,Beauty Therapist,"No. 44, Jalan 6/10",Setapak,Federal Territory of Kuala Lumpur,53300,1988-01-16,Female,suhaila.193@glowbeauty.com.my,018-7200715,2016-08-26,Active
+194,10,Wei Hong,Loh,Senior Therapist,"No. 179, Jalan 1/14",Setapak,Federal Territory of Kuala Lumpur,53300,1981-06-25,Male,wei.194@glowbeauty.com.my,010-7179262,2016-08-30,Active
+195,10,Nurul Huda,binti Rahman,Senior Therapist,"No. 76, Jalan 14/25",Setapak,Federal Territory of Kuala Lumpur,53300,1990-05-17,Female,nurul.195@glowbeauty.com.my,010-7986039,2016-09-07,Active
+196,10,Sharmila,a/p Ramasamy,Beauty Therapist,"No. 95, Jalan 4/2",Setapak,Federal Territory of Kuala Lumpur,53300,1991-03-20,Female,sharmila.196@glowbeauty.com.my,018-6966266,2016-09-08,Active
+197,10,Alia,binti Osman,Sales Assistant,"No. 130, Jalan 5/29",Setapak,Federal Territory of Kuala Lumpur,53300,1984-07-06,Female,alia.197@glowbeauty.com.my,016-3971757,2016-09-16,Active
+198,10,Grace,Ong,Beauty Therapist,"No. 236, Jalan 2/18",Setapak,Federal Territory of Kuala Lumpur,53300,1981-07-29,Female,grace.198@glowbeauty.com.my,019-2408602,2016-09-18,Active
+199,10,Aiman,bin Razak,Sales Assistant,"No. 245, Jalan 6/4",Setapak,Federal Territory of Kuala Lumpur,53300,1991-07-18,Male,aiman.199@glowbeauty.com.my,017-4907503,2016-09-25,Active
+200,10,Anisa,binti Razak,Cashier,"No. 111, Jalan 9/1",Setapak,Federal Territory of Kuala Lumpur,53300,1986-08-11,Female,anisa.200@glowbeauty.com.my,010-3703438,2016-10-08,Active
+201,10,Nurul Huda,binti Hamid,Beauty Therapist,"No. 228, Jalan 2/1",Setapak,Federal Territory of Kuala Lumpur,53300,1975-09-14,Female,nurul.201@glowbeauty.com.my,010-4669005,2016-10-15,Active
+202,10,Farah,binti Ahmad,Receptionist,"No. 184, Jalan 14/22",Setapak,Federal Territory of Kuala Lumpur,53300,1983-01-31,Female,farah.202@glowbeauty.com.my,016-4299382,2016-10-26,Active
+203,10,Nurin,binti Yusof,Beauty Therapist,"No. 186, Jalan 1/6",Setapak,Federal Territory of Kuala Lumpur,53300,1992-04-18,Female,nurin.203@glowbeauty.com.my,011-4086763,2016-11-26,Active
+204,10,Lakshmi,a/p Ramasamy,Beauty Therapist,"No. 220, Jalan 7/3",Setapak,Federal Territory of Kuala Lumpur,53300,1992-06-16,Female,lakshmi.204@glowbeauty.com.my,014-7194960,2017-07-29,Active
+205,10,Nur Aina,binti Ismail,Beauty Therapist,"No. 48, Jalan 2/2",Setapak,Federal Territory of Kuala Lumpur,53300,1983-09-07,Female,nur.205@glowbeauty.com.my,016-3374936,2019-04-20,Active
+206,10,Faizal,bin Hamid,Sales Assistant,"No. 16, Jalan 4/22",Setapak,Federal Territory of Kuala Lumpur,53300,1999-11-29,Male,faizal.206@glowbeauty.com.my,011-8631901,2019-08-13,Active
+207,11,Divya,a/p Maniam,Branch Manager,"No. 205, Jalan 13/7",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1975-08-13,Female,divya.207@glowbeauty.com.my,012-5743841,2016-12-27,Active
+208,11,Zulkifli,bin Razak,Beauty Therapist,"No. 156, Jalan 11/8",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1992-08-09,Male,zulkifli.208@glowbeauty.com.my,016-4697894,2017-01-18,Resigned
+209,11,Hannah,binti Osman,Sales Assistant,"No. 14, Jalan 8/27",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1981-04-16,Female,hannah.209@glowbeauty.com.my,016-5198798,2017-02-09,Active
+210,11,Kavitha,a/p Rajan,Receptionist,"No. 14, Jalan 9/22",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1982-09-08,Female,kavitha.210@glowbeauty.com.my,013-7617472,2017-02-23,Active
+211,11,Danial,bin Razak,Beauty Therapist,"No. 3, Jalan 3/17",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1992-07-29,Male,danial.211@glowbeauty.com.my,017-4982070,2017-02-27,Active
+212,11,Amelia,binti Razak,Cashier,"No. 192, Jalan 9/5",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1989-04-07,Female,amelia.212@glowbeauty.com.my,018-5083717,2017-03-07,Resigned
+213,11,Anisa,binti Ismail,Beauty Therapist,"No. 72, Jalan 1/13",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1987-12-01,Female,anisa.213@glowbeauty.com.my,019-2728446,2017-04-07,Resigned
+214,11,Rajesh,a/l Maniam,Beauty Therapist,"No. 240, Jalan 9/22",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1987-02-13,Male,rajesh.214@glowbeauty.com.my,017-2833935,2017-04-07,Active
+215,11,Jasmine,Ng,Senior Therapist,"No. 42, Jalan 2/14",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1991-04-23,Female,jasmine.215@glowbeauty.com.my,011-8753539,2017-04-22,Active
+216,11,Kumar,a/l Krishnan,Senior Therapist,"No. 234, Jalan 11/6",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1975-10-26,Male,kumar.216@glowbeauty.com.my,014-8274884,2017-04-26,Active
+217,11,Wan Ying,Sim,Beauty Therapist,"No. 223, Jalan 9/4",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1982-12-11,Female,wan.217@glowbeauty.com.my,019-4112768,2017-04-27,Active
+218,11,Anjali,a/p Maniam,Sales Assistant,"No. 122, Jalan 12/4",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1993-05-04,Female,anjali.218@glowbeauty.com.my,010-7569665,2017-05-05,Active
+219,11,Nabila,binti Hassan,Receptionist,"No. 88, Jalan 13/3",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1991-11-29,Female,nabila.219@glowbeauty.com.my,012-2909429,2017-05-11,Active
+220,11,Suhaila,binti Razak,Beauty Therapist,"No. 56, Jalan 10/11",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1990-12-02,Female,suhaila.220@glowbeauty.com.my,014-7028055,2019-03-01,Resigned
+221,11,Sze Min,Lim,Cashier,"No. 29, Jalan 14/3",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1994-07-17,Female,sze.221@glowbeauty.com.my,013-4892555,2022-01-29,Active
+222,11,Syafiq,bin Yusof,Sales Assistant,"No. 236, Jalan 7/17",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,2000-11-02,Male,syafiq.222@glowbeauty.com.my,018-3842372,2022-04-26,Active
+223,11,Grace,Liew,Beauty Therapist,"No. 32, Jalan 8/1",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,2002-10-03,Female,grace.223@glowbeauty.com.my,013-2472397,2022-06-09,Active
+224,11,Suhaila,binti Ahmad,Cashier,"No. 243, Jalan 3/3",Wangsa Maju,Federal Territory of Kuala Lumpur,53300,1991-10-09,Female,suhaila.224@glowbeauty.com.my,017-9897295,2022-06-21,Active
+225,12,Xin Yi,Teoh,Branch Manager,"No. 82, Jalan 18/8",Gombak,Selangor,53100,1979-09-28,Female,xin.225@glowbeauty.com.my,015-8244076,2017-06-12,Active
+226,12,Jia Yi,Yap,Beauty Therapist,"No. 127, Jalan 11/20",Gombak,Selangor,53100,1991-04-14,Female,jia.226@glowbeauty.com.my,012-4549205,2017-06-25,Active
+227,12,Zarina,binti Abdullah,Receptionist,"No. 75, Jalan 8/22",Gombak,Selangor,53100,1993-07-25,Female,zarina.227@glowbeauty.com.my,015-8642442,2017-07-22,Active
+228,12,Danial,bin Zainal,Senior Therapist,"No. 201, Jalan 5/24",Gombak,Selangor,53100,1981-05-22,Male,danial.228@glowbeauty.com.my,010-6606795,2017-07-27,Active
+229,12,Yong Sheng,Ong,Beauty Therapist,"No. 4, Jalan 14/28",Gombak,Selangor,53100,1985-01-11,Male,yong.229@glowbeauty.com.my,017-6013778,2017-08-21,Active
+230,12,Divya,a/p Rajan,Sales Assistant,"No. 87, Jalan 11/6",Gombak,Selangor,53100,1989-01-01,Female,divya.230@glowbeauty.com.my,012-9362078,2017-09-01,Active
+231,12,Li Wen,Chan,Beauty Therapist,"No. 146, Jalan 18/18",Gombak,Selangor,53100,1984-10-27,Female,li.231@glowbeauty.com.my,017-7029558,2017-09-24,Active
+232,12,Yee Ling,Chong,Cashier,"No. 116, Jalan 17/16",Gombak,Selangor,53100,1988-04-24,Female,yee.232@glowbeauty.com.my,012-2826503,2017-09-25,Active
+233,12,Thivya,a/p Ramasamy,Beauty Therapist,"No. 47, Jalan 18/15",Gombak,Selangor,53100,1983-10-17,Female,thivya.233@glowbeauty.com.my,016-4044367,2017-09-26,Active
+234,12,Nurin,binti Yusof,Beauty Therapist,"No. 98, Jalan 13/29",Gombak,Selangor,53100,1978-04-13,Female,nurin.234@glowbeauty.com.my,011-3547301,2017-10-21,Active
+235,12,Rachel,Lee,Beauty Therapist,"No. 60, Jalan 6/26",Gombak,Selangor,53100,1995-08-15,Female,rachel.235@glowbeauty.com.my,019-7967901,2017-10-28,Active
+236,12,Nurin,binti Osman,Sales Assistant,"No. 122, Jalan 19/8",Gombak,Selangor,53100,1984-08-28,Female,nurin.236@glowbeauty.com.my,019-3079987,2018-12-31,Active
 237,13,Nurin,binti Hassan,Branch Manager,"No. 123, Jalan 13/5",Ipoh,Perak,30000,1983-02-25,Female,nurin.237@glowbeauty.com.my,013-9193783,2018-12-21,Active
 238,13,Kai Xin,Yeoh,Receptionist,"No. 166, Jalan 8/5",Ipoh,Perak,30000,1983-04-26,Female,kai.238@glowbeauty.com.my,011-3781770,2019-02-05,Active
 239,13,Kai Xin,Lim,Senior Therapist,"No. 13, Jalan 7/19",Ipoh,Perak,30000,1983-12-11,Female,kai.239@glowbeauty.com.my,017-9241447,2019-03-24,Active

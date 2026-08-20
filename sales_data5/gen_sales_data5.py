@@ -78,10 +78,15 @@ def folder_start(name):
 # ===================================================================
 # BRANCHES  (id, name, address, city, state, postcode, phone, email,
 #            open_date, weight vs PJ, base rent 2019, headcount)
+#
+# The KL branches sit in the FEDERAL TERRITORY. Gombak does NOT - the
+# real Gombak district is Selangor - so it is a Selangor branch here,
+# which leaves Selangor with 7 shops and the Federal Territory with 4.
 # ===================================================================
+FEDERAL_TERRITORY = "Federal Territory of Kuala Lumpur"
 BRANCHES = [
     (1, "Glow Beauty Kuala Lumpur", "Lot 3-12, Jalan Bukit Bintang", "Kuala Lumpur",
-     "Wilayah Persekutuan", "55100", "03-21445566", "kl@glowbeauty.com.my", date(2016, 3, 15), 0.90, 12950, 22),
+     FEDERAL_TERRITORY, "55100", "03-21445566", "kl@glowbeauty.com.my", date(2016, 3, 15), 0.90, 12950, 22),
     (2, "Glow Beauty Petaling Jaya", "G-08, Jalan SS2/24", "Petaling Jaya",
      "Selangor", "47300", "03-78765432", "pj@glowbeauty.com.my", date(2016, 9, 1), 1.00, 9950, 24),
     (3, "Glow Beauty Johor Bahru", "No. 22, Jalan Molek 1/29", "Johor Bahru",
@@ -99,11 +104,11 @@ BRANCHES = [
     (9, "Glow Beauty Selayang", "No. 33, Jalan Selayang Utama, Selayang Baru", "Selayang",
      "Selangor", "68100", "03-61364433", "selayang@glowbeauty.com.my", date(2017, 5, 20), 0.40, 5050, 12),
     (10, "Glow Beauty Setapak", "No. 27, Jalan Genting Klang, Setapak", "Setapak",
-     "Wilayah Persekutuan", "53300", "03-40214477", "setapak@glowbeauty.com.my", date(2016, 8, 14), 0.50, 6250, 15),
+     FEDERAL_TERRITORY, "53300", "03-40214477", "setapak@glowbeauty.com.my", date(2016, 8, 14), 0.50, 6250, 15),
     (11, "Glow Beauty Wangsa Maju", "Lot 2-18, Jalan Wangsa Delima 5, Wangsa Maju", "Wangsa Maju",
-     "Wilayah Persekutuan", "53300", "03-41429988", "wangsamaju@glowbeauty.com.my", date(2017, 1, 21), 0.48, 6000, 14),
+     FEDERAL_TERRITORY, "53300", "03-41429988", "wangsamaju@glowbeauty.com.my", date(2017, 1, 21), 0.48, 6000, 14),
     (12, "Glow Beauty Gombak", "No. 15, Jalan Gombak, Batu 5", "Gombak",
-     "Wilayah Persekutuan", "53100", "03-40235566", "gombak@glowbeauty.com.my", date(2017, 7, 8), 0.38, 4850, 12),
+     "Selangor", "53100", "03-40235566", "gombak@glowbeauty.com.my", date(2017, 7, 8), 0.38, 4850, 12),
     # Ipoh: open from the start of the history, small team, low demand, expensive local supplier
     (13, "Glow Beauty Ipoh", "88, Jalan Sultan Idris Shah", "Ipoh",
      "Perak", "30000", "05-2419900", "ipoh@glowbeauty.com.my", date(2019, 1, 15), 0.38, 3300, 8),
@@ -115,7 +120,7 @@ BRANCHES = [
     (16, "Glow Beauty Subang Jaya", "No. 5, Jalan SS15/4D", "Subang Jaya",
      "Selangor", "47500", "03-56339911", "subang@glowbeauty.com.my", date(2024, 1, 1), 0.58, 7300, 16),
     (17, "Glow Beauty Bukit Jalil", "L1-08, Jalan Jalil Perkasa 1", "Bukit Jalil",
-     "Wilayah Persekutuan", "57000", "03-89965533", "bukitjalil@glowbeauty.com.my", date(2024, 1, 1), 0.52, 7000, 16),
+     FEDERAL_TERRITORY, "57000", "03-89965533", "bukitjalil@glowbeauty.com.my", date(2024, 1, 1), 0.52, 7000, 16),
 ]
 PJ = 2
 IPOH = 13
@@ -127,7 +132,7 @@ BR = {b[0]: dict(id=b[0], name=b[1], addr=b[2], city=b[3], state=b[4], postcode=
                  phone=b[6], email=b[7], open=b[8], weight=b[9], rent=b[10], headcount=b[11])
       for b in BRANCHES}
 BR_IDS = sorted(BR)
-KV_STATES = ("Selangor", "Wilayah Persekutuan")
+KV_STATES = ("Selangor", FEDERAL_TERRITORY)
 
 # realistic postcodes per city for customers (branch postcode + neighbours)
 CITY_POSTCODES = {
@@ -148,7 +153,61 @@ CITY_POSTCODES = {
     "Kuantan": ["25000", "25050", "25100", "25150", "25200", "25250", "25300", "26060"],
     "Subang Jaya": ["47500", "47600", "47610", "47620", "47630", "47650"],
     "Bukit Jalil": ["57000", "57100", "58200"],
+    # satellite towns - no branch of their own
+    "Kajang": ["43000", "43100", "43200", "43300"],
+    "Bangi": ["43650", "43600"],
+    "Cyberjaya": ["63000", "63100"],
+    "Rawang": ["48000", "48010", "48020"],
+    "Ampang": ["68000", "55100"],
+    "Sungai Buloh": ["47000", "47810", "47820"],
+    "Kepong": ["52100", "52000", "51200"],
+    "Kulai": ["81000", "81030"],
+    "Butterworth": ["12000", "12100", "12200", "13700"],
+    "Alor Gajah": ["78000", "78100"],
+    "Taiping": ["34000", "34600", "34700"],
+    "Nilai": ["71800", "71760"],
+    "Temerloh": ["28000", "28400"],
 }
+
+
+# ===================================================================
+# SATELLITE TOWNS - real places with customers but NO branch of their
+# own. A customer here still belongs to (and shops at) the branch listed
+# against them, so in the warehouse these towns read as demand nobody
+# serves locally - exactly the case an expansion report has to find.
+# Weighted towards Selangor; every other state gets one too, so the
+# state-level view is not blind to them.
+# ===================================================================
+SATELLITES = {
+    # --- Selangor (the heaviest, by design) ---
+    2:  [("Sungai Buloh", "Selangor")],                            # Petaling Jaya
+    6:  [("Sungai Buloh", "Selangor")],                            # Shah Alam
+    7:  [("Sungai Buloh", "Selangor")],                            # Klang
+    8:  [("Kajang", "Selangor"), ("Bangi", "Selangor"),
+         ("Cyberjaya", "Selangor")],                               # Puchong
+    9:  [("Rawang", "Selangor"), ("Sungai Buloh", "Selangor")],     # Selayang
+    12: [("Rawang", "Selangor"), ("Ampang", "Selangor")],          # Gombak
+    16: [("Cyberjaya", "Selangor"), ("Kajang", "Selangor")],       # Subang Jaya
+    # --- Federal Territory ---
+    1:  [("Kepong", FEDERAL_TERRITORY)],                           # Kuala Lumpur
+    10: [("Kepong", FEDERAL_TERRITORY)],                           # Setapak
+    11: [("Kepong", FEDERAL_TERRITORY)],                           # Wangsa Maju
+    17: [("Kajang", "Selangor")],                                  # Bukit Jalil
+    # --- one unserved town per remaining state ---
+    3:  [("Kulai", "Johor")],                                      # Johor Bahru
+    4:  [("Butterworth", "Pulau Pinang")],                         # George Town
+    5:  [("Alor Gajah", "Melaka")],                                # Melaka
+    13: [("Taiping", "Perak")],                                    # Ipoh
+    14: [("Nilai", "Negeri Sembilan")],                            # Seremban
+    15: [("Temerloh", "Pahang")],                                  # Kuantan
+}
+
+
+def sat_share(br):
+    """Share of a branch's customers who live in one of its satellite
+    towns. Selangor is deliberately the heaviest - that is where the
+    next-branch question is live."""
+    return 0.20 if BR[br]["state"] == "Selangor" else 0.10
 
 
 def branch_weight(br, d):
@@ -753,7 +812,27 @@ def build_customers():
     cust.sort(key=lambda c: (c.reg, c.home))
     for i, c in enumerate(cust, 1):
         c.id = i
+    place_satellite_customers(cust)
     return cust
+
+
+def place_satellite_customers(cust):
+    """Move a share of each branch's customers out to a nearby town that
+    has no branch of its own (see SATELLITES).
+
+    This runs as a SEPARATE PASS on its OWN Random instance, deliberately.
+    Drawing from the module-wide seeded stream inside build_customers
+    would shift every later draw and move every row count in the repo;
+    doing it here leaves that stream byte-identical, so orders, revenue,
+    the per-branch P&L and all the documented counts are untouched. Only
+    the customer's city / state / postcode label changes - which is the
+    whole point: the same people, now living somewhere we have no shop."""
+    rng = random.Random(SEED + 7)
+    for c in cust:
+        sat = SATELLITES.get(c.home)
+        if sat and rng.random() < sat_share(c.home):
+            c.city, c.state = rng.choice(sat)
+            c.postcode = rng.choice(CITY_POSTCODES[c.city])
 
 
 class Pool:
@@ -1525,7 +1604,7 @@ def verify():
           f"lines before launch {stat['mens_before_launch']}")
     print("\norders by branch (all years):")
     for br, n in sorted(stat["orders_by_branch"].items(), key=lambda kv: -kv[1]):
-        print(f"   {br:2d} {branch[br]['city']:14s} {branch[br]['state']:20s} {n:>8,}   res {stat['res_by_branch'][br]:>7,}"
+        print(f"   {br:2d} {branch[br]['city']:14s} {branch[br]['state']:33s} {n:>8,}   res {stat['res_by_branch'][br]:>7,}"
               f"   revenue {stat['rev_branch'][br] / 1e6:6.2f}m")
     print("orders by state:", dict(sorted(stat["orders_by_state"].items(), key=lambda kv: -kv[1])))
     print("\nrevenue (RM, completed, gross - discount, excl. tax):")

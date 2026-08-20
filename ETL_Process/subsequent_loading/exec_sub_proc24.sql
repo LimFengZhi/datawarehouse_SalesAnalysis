@@ -252,13 +252,13 @@ PROMPT ##############################################
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM (SELECT DISTINCT order_ID, product_ID FROM order_detail)) AS source_rows,
-       641846 AS expected FROM dual
+       642619 AS expected FROM dual
 UNION ALL SELECT 'reservation_fact',
        (SELECT COUNT(*) FROM reservation_fact),
-       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 129874 FROM dual
+       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 129736 FROM dual
 UNION ALL SELECT 'purchase_fact',
        (SELECT COUNT(*) FROM purchase_fact),
-       (SELECT COUNT(*) FROM purchase), 42820            FROM dual
+       (SELECT COUNT(*) FROM purchase), 42734            FROM dual
 UNION ALL SELECT 'salary_payment_fact',
        (SELECT COUNT(*) FROM salary_payment_fact),
        (SELECT COUNT(*) FROM salary_payment), 15474      FROM dual

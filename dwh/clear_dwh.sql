@@ -30,7 +30,7 @@
 --   key references it - even when the child table is already empty
 --   (ORA-02266). The facts have FKs to every dimension, so dimensions
 --   must use DELETE. Facts have no children, so TRUNCATE works there
---   and is much faster for the 855,935-row order_fact.
+--   and is much faster for the 857,664-row order_fact.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -119,7 +119,7 @@ SELECT 'customer'     AS oltp_table, COUNT(*) AS rows_kept FROM customer
 UNION ALL SELECT 'orders',       COUNT(*) FROM orders
 UNION ALL SELECT 'order_detail', COUNT(*) FROM order_detail
 ORDER BY 1;
--- expect 26182 / 222246 / 490685  (sales_data5\data19_23 loaded)
+-- expect 25866 / 222296 / 491657  (sales_data5\data19_23 loaded)
 
 
 -- ===================================================================

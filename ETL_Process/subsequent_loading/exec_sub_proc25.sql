@@ -91,7 +91,7 @@ AND    object_name IN (
 
 -- ###################################################################
 -- STEP 1 of 3 - NEW DIMENSION RECORDS
--- 6,805 customers, 6 staff, 1 supplier, 8 products (the men's line) + extend the calendar to 2025
+-- 6,824 customers, 6 staff, 1 supplier, 8 products (the men's line) + extend the calendar to 2025
 -- ###################################################################
 PROMPT
 PROMPT ##############################################
@@ -113,7 +113,7 @@ EXEC load_date_dim_incremental(2025);
 EXEC load_supplier_dim_incremental;
 -- expect 8 new (HIM Essentials men's line 49-54 + two face masks 55-56, launched 2025-01-01)
 EXEC load_product_dim_incremental;
--- expect 6,805 new
+-- expect 6,824 new
 EXEC load_customer_dim_incremental;
 
 -- Nothing new in these two for 2025 - no branch or service was added.
@@ -209,7 +209,7 @@ UNION ALL SELECT 'staff_dim',
        (SELECT COUNT(*) FROM staff), 319                           FROM dual
 UNION ALL SELECT 'customer_dim',
        (SELECT COUNT(*) FROM customer_dim WHERE is_current_flag='Y'),
-       (SELECT COUNT(*) FROM customer), 39301                      FROM dual
+       (SELECT COUNT(*) FROM customer), 39175                      FROM dual
 ORDER BY 1;
 -- current_rows must equal source_rows on every line.
 
@@ -243,13 +243,13 @@ PROMPT ##############################################
 SELECT 'order_fact' AS fact_table,
        (SELECT COUNT(*) FROM order_fact)   AS fact_rows,
        (SELECT COUNT(*) FROM (SELECT DISTINCT order_ID, product_ID FROM order_detail)) AS source_rows,
-       855935 AS expected FROM dual
+       857664 AS expected FROM dual
 UNION ALL SELECT 'reservation_fact',
        (SELECT COUNT(*) FROM reservation_fact),
-       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 167087 FROM dual
+       (SELECT COUNT(*) FROM (SELECT DISTINCT res_ID, serv_ID, st_ID FROM reservation_detail)), 166658 FROM dual
 UNION ALL SELECT 'purchase_fact',
        (SELECT COUNT(*) FROM purchase_fact),
-       (SELECT COUNT(*) FROM purchase), 54020            FROM dual
+       (SELECT COUNT(*) FROM purchase), 53933            FROM dual
 UNION ALL SELECT 'salary_payment_fact',
        (SELECT COUNT(*) FROM salary_payment_fact),
        (SELECT COUNT(*) FROM salary_payment), 18934      FROM dual
