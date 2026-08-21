@@ -210,9 +210,9 @@ TTITLE CENTER '=============================================================' SK
        CENTER '=============================================================' SKIP 2
 
 COLUMN br_city        FORMAT A15            HEADING 'Branch'
-COLUMN new_prod_sales FORMAT 99,999,990.00  HEADING 'New Products (RM)'
-COLUMN new_serv_sales FORMAT 99,999,990.00  HEADING 'New Services (RM)'
-COLUMN cohort_sales   FORMAT 99,999,990.00  HEADING 'Cohort Total (RM)'
+COLUMN new_prod_sales FORMAT 999,999,990.00 HEADING 'New Products (RM)'
+COLUMN new_serv_sales FORMAT 999,999,990.00 HEADING 'New Services (RM)'
+COLUMN cohort_sales   FORMAT 999,999,990.00 HEADING 'Cohort Total (RM)'
 COLUMN window_sales   FORMAT 999,999,990.00 HEADING 'All Sales Window (RM)'
 COLUMN cohort_share   FORMAT A8             HEADING 'Share %'
 

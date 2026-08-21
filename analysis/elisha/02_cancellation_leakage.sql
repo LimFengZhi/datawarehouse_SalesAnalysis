@@ -124,8 +124,6 @@ GROUP BY
     END;
 
 PROMPT 
-PROMPT
-PROMPT 
 
 -- Report Section 1: Company Leakage per Year
 TTITLE CENTER '=====================================================' SKIP 1 -
@@ -178,8 +176,7 @@ CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 PROMPT
-PROMPT
-PROMPT
+
 SET LINESIZE 130
 TTITLE CENTER '=====================================================' SKIP 1 -
        CENTER 'Branch Ranking by Leaked Sales' SKIP 1 -
@@ -234,13 +231,8 @@ ORDER BY
     ranking;
 
 PROMPT
-PROMPT
 
 -- Report Section 3: Most-Cancelled Items per Branch and Channel
-PROMPT
-PROMPT
-PROMPT
-
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
@@ -326,7 +318,6 @@ SET LINESIZE 100
 SET FEEDBACK ON
 SET VERIFY ON
 TTITLE OFF
-PROMPT
-PROMPT
+
 PROMPT Report complete.
 PROMPT

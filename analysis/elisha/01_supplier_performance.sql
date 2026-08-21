@@ -38,7 +38,6 @@ SET LINESIZE 100
 ACCEPT start_year_prompt CHAR PROMPT 'Enter Start Year for Analysis (e.g., 2019): '
 ACCEPT end_year_prompt   CHAR PROMPT 'Enter End Year for Analysis (e.g., 2025): '
 PROMPT
-PROMPT
 
 CREATE OR REPLACE VIEW SUPPLIER_PROCUREMENT_V AS
 SELECT
@@ -88,7 +87,6 @@ COLUMN avg_unit_cost     FORMAT 9,990.99     HEADING 'Avg Cost|Per Unit (RM)'
 COLUMN pct_total_spend   FORMAT A15          HEADING '% of Total|Spend'
 COLUMN pct_total_orders  FORMAT A15          HEADING '% of Total|Orders'
 
--- one blank line after EVERY row, so the gaps are constant
 BREAK ON ROW SKIP 1
 
 -- The query aggregates the view up to supplier level.
@@ -127,7 +125,6 @@ ORDER BY
     total_spend DESC;
 
 -- Report Section 2: Top N Products per Supplier
-PROMPT
 PROMPT
 ACCEPT top_n_prompt CHAR PROMPT 'Enter the number of Top Products per supplier to display (e.g., 3): '
 PROMPT
