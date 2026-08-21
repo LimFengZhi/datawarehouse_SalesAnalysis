@@ -269,9 +269,9 @@ The dataset is synthetic but deliberately not flat, so there is something to ana
 - **Payroll and overheads that react** — 20 % then 15 % pay cuts during lockdown, 13th-month and Raya
   bonuses that follow the moving Raya month, landlord rent rebates in the closure months, then a
   steady 3 %/year rise.
-- **A P&L that makes sense** — revenue − stock purchases − payroll − rent/utilities is +7.5 % in
-  2019, negative in the MCO years, +21 % from 2022, +17 % in 2024 (four ramping branches) and +25 %
-  in 2025; PJ is #1 by profit every year, Ipoh is negative in 2024–25. Baskets are bigger in the
+- **A P&L that makes sense** — revenue − stock purchases − payroll − rent/utilities is +14 % in
+  2019, thin to negative in the MCO years, +26 % from 2022, +22 % in 2024 (four ramping branches)
+  and +29 % in 2025; PJ is #1 by profit every year, Ipoh is negative in 2024–25. Baskets are bigger in the
   festive run-ups (2.7 units/line vs 2.4) and biggest on mega-sale days (2.9).
 
 Per-dataset detail: [sales_data5/README.md](sales_data5/README.md) (row counts, branch table,

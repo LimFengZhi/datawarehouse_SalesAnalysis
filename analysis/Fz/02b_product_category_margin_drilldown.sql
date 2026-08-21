@@ -95,7 +95,7 @@
 --     range (supplier cost is 33-43 % of shelf price for every product,
 --     less the loyalty / promo discounts on the selling side) - EXCEPT
 --     Perak at 42 %: Ipoh buys everything from its Ipoh-only supplier at
---     46-54 % of shelf price (2019-23) and 62-72 % from 2024, so its
+--     46-54 % of shelf price (2019-23) and 74-84 % from 2024, so its
 --     gross profit collapses from RM 400 k (2023) to 185 k (2024) on
 --     only 27 % less sales. Ranking by gross profit = ranking by sales
 --     everywhere else: Selangor ~44 % of company GP, Federal Territory of Kuala Lumpur

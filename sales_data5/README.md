@@ -87,13 +87,13 @@ A new branch opens with a 12-month ramp (`weight × min(1, 0.35 + 0.055·months)
 
 | year | orders | reservations | product rev | service rev | total rev | net profit | margin | the story |
 |---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 2019 | 41,247 | 17,223 | 10.79 m | 2.45 m | 13.24 m | +0.85 m | 6.4 % | normal trading, 13 branches, Ipoh's first year |
-| 2020 | 31,939 | 10,886 | 8.35 m | 1.54 m | 9.89 m | −0.61 m | −6.2 % | MCO 1.0 (salons shut 18 Mar–3 May), CMCO, RMCO, CMCO 2nd wave |
-| 2021 | 27,604 | 7,514 | 7.14 m | 1.12 m | 8.26 m | −1.31 m | −15.8 % | MCO 2.0, MCO 3.0, FMCO (salons shut Jun–Aug), phased reopening |
-| 2022 | 59,123 | 18,220 | 15.47 m | 2.78 m | 18.24 m | +3.77 m | 20.7 % | **we went online** — demand ×1.38, cross-city orders 42 % → 59 %, PJ becomes the fulfilment hub |
-| 2023 | 62,383 | 20,016 | 16.28 m | 3.03 m | 19.31 m | +3.94 m | 20.4 % | endemic, steady growth |
-| 2024 | 74,496 | 24,396 | 19.90 m | 3.70 m | 23.59 m | +3.70 m | 15.7 % | 4 new branches (ramping, 3 of 4 loss-making in year 1), 2024-01-01 price rise, Ipoh turns red |
-| 2025 | 99,187 | 28,078 | 26.73 m | 4.43 m | 31.17 m | +7.66 m | 24.6 % | **men's market** — HIM Essentials line, 35 % of new customers male, demand ×1.85, 2025-01-01 price changes |
+| 2019 | 41,247 | 17,223 | 10.79 m | 3.68 m | 14.46 m | +2.07 m | 14.3 % | normal trading, 13 branches, Ipoh's first year |
+| 2020 | 31,939 | 10,886 | 8.35 m | 2.31 m | 10.66 m | +0.16 m | 1.5 % | MCO 1.0 (salons shut 18 Mar–3 May), CMCO, RMCO, CMCO 2nd wave |
+| 2021 | 27,604 | 7,514 | 7.14 m | 1.68 m | 8.82 m | −0.75 m | −8.5 % | MCO 2.0, MCO 3.0, FMCO (salons shut Jun–Aug), phased reopening |
+| 2022 | 59,123 | 18,220 | 15.47 m | 4.16 m | 19.63 m | +5.16 m | 26.3 % | **we went online** — demand ×1.38, cross-city orders 42 % → 59 %, PJ becomes the fulfilment hub |
+| 2023 | 62,383 | 20,016 | 16.28 m | 4.55 m | 20.83 m | +5.45 m | 26.2 % | endemic, steady growth |
+| 2024 | 74,496 | 24,396 | 19.90 m | 5.54 m | 25.44 m | +5.46 m | 21.5 % | 4 new branches (ramping, 3 of 4 loss-making in year 1), 2024-01-01 price rise, Ipoh turns red |
+| 2025 | 99,187 | 28,078 | 26.73 m | 6.65 m | 33.38 m | +9.76 m | 29.2 % | **men's market** — HIM Essentials line, 35 % of new customers male, demand ×1.85, 2025-01-01 price changes |
 
 Revenue = completed lines, gross − discount, excluding the 6 % SST. Net profit = revenue − purchases −
 payroll (base + bonus) − branch utilities (rent, electricity, water, internet, maintenance, waste), i.e.
@@ -103,54 +103,54 @@ exactly what the five facts let you compute.
 
 | year | revenue | purchases | payroll | utilities | profit | margin |
 |---:|---:|---:|---:|---:|---:|---:|
-| 2019 | 13,240 | 5,486 | 5,542 | 1,366 | 846 | 6.4 % |
-| 2020 | 9,889 | 3,987 | 5,194 | 1,320 | −612 | −6.2 % |
-| 2021 | 8,263 | 3,301 | 4,943 | 1,326 | −1,307 | −15.8 % |
-| 2022 | 18,242 | 7,015 | 5,962 | 1,492 | 3,772 | 20.7 % |
-| 2023 | 19,313 | 7,469 | 6,368 | 1,540 | 3,936 | 20.4 % |
-| 2024 | 23,591 | 9,255 | 8,601 | 2,033 | 3,703 | 15.7 % |
-| 2025 | 31,166 | 12,264 | 9,150 | 2,093 | 7,658 | 24.6 % |
+| 2019 | 14,465 | 5,486 | 5,542 | 1,366 | 2,071 | 14.3 % |
+| 2020 | 10,660 | 3,987 | 5,194 | 1,320 | 158 | 1.5 % |
+| 2021 | 8,823 | 3,301 | 4,943 | 1,326 | −747 | −8.5 % |
+| 2022 | 19,630 | 7,015 | 5,962 | 1,492 | 5,160 | 26.3 % |
+| 2023 | 20,830 | 7,469 | 6,368 | 1,540 | 5,453 | 26.2 % |
+| 2024 | 25,439 | 9,345 | 8,601 | 2,033 | 5,461 | 21.5 % |
+| 2025 | 33,383 | 12,377 | 9,150 | 2,093 | 9,762 | 29.2 % |
 
 ### Profit by branch and year (RM '000)
 
 | branch | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 1 Kuala Lumpur | 204 | −21 | −100 | 479 | 503 | 501 | 811 |
-| 2 **Petaling Jaya** | **288** | **65** | **10** | **1,026** | **974** | **1,074** | **1,475** |
-| 3 Johor Bahru | 102 | −43 | −138 | 303 | 368 | 354 | 542 |
-| 4 George Town | 13 | −90 | −139 | 172 | 197 | 220 | 334 |
-| 5 Melaka | −87 | −103 | −136 | 99 | 98 | 95 | 211 |
-| 6 Shah Alam | 94 | −27 | −93 | 310 | 297 | 346 | 518 |
-| 7 Klang | 81 | −32 | −101 | 227 | 267 | 255 | 461 |
-| 8 Puchong | 92 | −25 | −83 | 279 | 324 | 343 | 498 |
-| 9 Selayang | 18 | −49 | −63 | 179 | 185 | 192 | 329 |
-| 10 Setapak | −1 | −131 | −189 | 172 | 192 | 219 | 321 |
-| 11 Wangsa Maju | 51 | −48 | −54 | 247 | 240 | 255 | 386 |
-| 12 Gombak | −20 | −86 | −127 | 145 | 147 | 168 | 300 |
-| 13 **Ipoh** | **12** | −22 | −93 | **133** | **146** | **−55** | **−28** |
-| 14 Seremban | – | – | – | – | – | −74 | 339 |
-| 15 Kuantan | – | – | – | – | – | −121 | 296 |
-| 16 Subang Jaya | – | – | – | – | – | 2 | 510 |
-| 17 Bukit Jalil | – | – | – | – | – | −73 | 354 |
+| 1 Kuala Lumpur | 355 | 73 | −29 | 651 | 686 | 692 | 1,026 |
+| 2 **Petaling Jaya** | **455** | **166** | **85** | **1,216** | **1,179** | **1,293** | **1,719** |
+| 3 Johor Bahru | 215 | 26 | −85 | 427 | 516 | 500 | 694 |
+| 4 George Town | 101 | −34 | −99 | 266 | 299 | 329 | 447 |
+| 5 Melaka | −28 | −61 | −104 | 170 | 175 | 174 | 300 |
+| 6 Shah Alam | 197 | 39 | −44 | 426 | 425 | 484 | 673 |
+| 7 Klang | 177 | 27 | −62 | 327 | 377 | 368 | 594 |
+| 8 Puchong | 190 | 34 | −39 | 385 | 444 | 465 | 640 |
+| 9 Selayang | 88 | −8 | −33 | 249 | 269 | 278 | 425 |
+| 10 Setapak | 83 | −81 | −153 | 269 | 293 | 331 | 437 |
+| 11 Wangsa Maju | 134 | 2 | −18 | 344 | 343 | 353 | 499 |
+| 12 Gombak | 41 | −47 | −99 | 223 | 225 | 249 | 388 |
+| 13 **Ipoh** | **63** | 21 | −67 | **207** | **224** | **−55** | **−49** |
+| 14 Seremban | – | – | – | – | – | −12 | 449 |
+| 15 Kuantan | – | – | – | – | – | −65 | 397 |
+| 16 Subang Jaya | – | – | – | – | – | 80 | 647 |
+| 17 Bukit Jalil | – | – | – | – | – | −3 | 476 |
 
-PJ is #1 by revenue **and** profit every year (KL second); 2020–21 are negative for every branch.
+PJ is #1 by revenue **and** profit every year (KL second in every year but 2021). 2021 is negative for every branch except PJ; 2020 is mixed — eight branches stay positive (PJ, KL, Shah Alam, Puchong, Klang, Johor Bahru, Ipoh, Wangsa Maju), five do not (Setapak, Melaka, Gombak, George Town, Selayang).
 
 ### Ipoh spotlight (the non-profit branch)
 
 Ipoh is the only branch served by **Perak Beauty Supplies Sdn Bhd** (supplier 7, Ipoh buys *everything*
 from it, nobody else ever does) at **46–54 % of shelf price** against 33–43 % everywhere else, and it has
-the lowest demand weight (0.38). From **2024-01-01** the supplier reprices to **62–72 %** and Ipoh loses
+the lowest demand weight (0.38). From **2024-01-01** the supplier reprices to **74–84 %** and Ipoh loses
 footfall to the web shop and a new Perak competitor (demand ×0.70):
 
 | year | revenue | purchases | cost/revenue | payroll | utilities | profit | margin |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 2019 | 623 | 349 | 56 % | 209 | 53 | +12 | +1.9 % |
-| 2020 | 551 | 289 | 52 % | 234 | 51 | −22 | −4.0 % |
-| 2021 | 410 | 218 | 53 % | 234 | 51 | −93 | −22.7 % |
-| 2022 | 937 | 483 | 52 % | 263 | 57 | +133 | +14.2 % |
-| 2023 | 965 | 489 | 51 % | 271 | 60 | +146 | +15.1 % |
-| 2024 | 787 | 502 | **64 %** | 279 | 61 | **−55** | −6.9 % |
-| 2025 | 954 | 628 | **66 %** | 291 | 63 | **−28** | −2.9 %
+| 2019 | 674 | 349 | 52 % | 209 | 53 | +63 | +9.3 % |
+| 2020 | 595 | 289 | 49 % | 234 | 51 | +21 | +3.6 % |
+| 2021 | 436 | 218 | 50 % | 234 | 51 | −67 | −15.4 % |
+| 2022 | 1,010 | 483 | 48 % | 263 | 57 | +207 | +20.5 % |
+| 2023 | 1,044 | 489 | 47 % | 271 | 60 | +224 | +21.5 % |
+| 2024 | 876 | 592 | **68 %** | 279 | 61 | **−55** | −6.3 % |
+| 2025 | 1,045 | 741 | **71 %** | 291 | 63 | **−49** | −4.7 %
 
 (RM '000. 2019 includes the opening stock and a ramp year; 2020–21 are COVID years for everyone.)
 `purchase_fact.purchase_unit_cost / product_dim.product_unit_price` is the ratio to look at.
@@ -259,7 +259,7 @@ runs ×1.85 (orders 74k → 99k, revenue +31 %).
   all loads: `product_dim` 72 rows = 56 current + 16 expired, `service_dim` 24 = 18 + 6.
 - Suppliers: brand → supplier map for suppliers 1–6; **7 Perak Beauty Supplies = Ipoh only** (all
   brands, from 2019); **8 HIM Care Labs** from 2025-01-01 = HIM Essentials everywhere but Ipoh.
-  Unit cost 33–43 % of the shelf price (Ipoh 46–54 %, then 62–72 % from 2024).
+  Unit cost 33–43 % of the shelf price (Ipoh 46–54 %, then 74–84 % from 2024).
 - Purchases: restock runs on the 3rd (even product ids) and 17th (odd) of every month, quantity =
   what sold since the last run × 1.08 + 0–2; slow movers every other month; opening stock 25–60 units
   per SKU one week before a branch opens (Ipoh 2019-01-08; the 2024 four on 2024-01-01 so the rows ship

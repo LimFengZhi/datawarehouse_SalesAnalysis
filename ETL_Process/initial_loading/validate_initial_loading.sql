@@ -371,7 +371,7 @@ WHERE  f.res_status = 'Completed'
 GROUP BY d.cal_year, d.cal_quarter
 ORDER BY 1, 2;
 
--- Product revenue by year 2019-2023: ~11.04m / 8.43m / 7.27m / 15.69m / 16.69m
+-- Product revenue by year 2019-2023: ~10.79m / 8.35m / 7.14m / 15.47m / 16.28m
 -- (the 2022 jump is the e-commerce launch)
 -- (revenue = total - tax = qty * price - discount, tax excluded)
 SELECT d.cal_year,
@@ -382,7 +382,8 @@ JOIN   date_dim d ON d.date_key = f.date_key
 WHERE  f.order_status = 'Completed'
 GROUP BY d.cal_year ORDER BY d.cal_year;
 
--- Service revenue by year 2019-2023: ~2.43m / 1.53m / 1.13m / 2.77m / 3.08m
+-- Service revenue by year 2019-2023: ~3.68m / 2.31m / 1.68m / 4.16m / 4.55m
+-- (service prices were multiplied by 1.5 on 2026-08-22)
 -- (revenue = total - tax = price - discount, tax excluded)
 SELECT d.cal_year,
        ROUND(SUM(f.serv_total_amt - f.serv_tax_amt), 2) AS net_revenue
