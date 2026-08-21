@@ -7,9 +7,9 @@
 --   the average branch per STATE -> every branch under its state ->
 --   ONE branch (default Ipoh, the loss-maker) vs the average branch:
 --   its customers -> WHY (staffing, purchasing, cost ratios, what-ifs).
---   The companion 01b_focus_branch_sales_mix.sql (same prompts) drills
---   the same branch into its product / service mix, loyalty tiers and
---   customer home cities.
+--   For the product-mix view of the same data see
+--   02_product_category_drilldown.sql (revenue) and its gross-profit
+--   twin 02b_product_category_margin_drilldown.sql.
 --
 -- Run in SQL*Plus as the warehouse owner:
 --   sqlplus dwh/yourpassword@XE
@@ -101,7 +101,7 @@
 --     expect them in the red in FY2024 and positive in FY2025.
 --   - Ipoh trades from 2019-01-15 but buys ALL its stock from an
 --     Ipoh-only supplier (Perak Beauty Supplies) that charges 46-54 % of
---     the shelf price (33-43 % everywhere else) and 62-72 % from 2024 -
+--     the shelf price (33-43 % everywhere else) and 74-84 % from 2024 -
 --     so its purchase cost % of sales is the number to watch.
 --   - 2020 and 2021 carry MCO / FMCO closure months (salons shut, pay
 --     cuts, rent rebates) - ranks in those years are distorted.
@@ -139,61 +139,72 @@
 --   The best-earning branch used as the yardstick in section 5 is NOT
 --   hard-coded: the script looks it up for the focus year.
 --
--- WHAT TO LOOK FOR  (FY2024, revision 5 = sales_data5, from the spool
---   NOTE: the figures in this block were calibrated BEFORE the dataset
---   was regenerated with satellite towns and the Federal Territory
---   rename (Gombak moved to Selangor). The shapes hold; the exact
---   ringgit and percentages need a re-run to refresh.
---   of the full 2019-2025 load: 17 branches)
---   - Section 1: total sales RM 13.48 M (2019) -> 24.01 M (2024) ->
---     31.40 M (2025); earning % +7.5 (2019), -5.7 / -14.5 in the MCO
---     years, +21.2 (2022, the year the shop went online: sales +120 %),
---     +21.3 (2023), +16.6 (2024 - four new branches ramping up), +24.7
---     (2025, the men's line). Purchase cost ~39 % of sales, salary ~36 %,
---     branch expense ~8-9 % in 2024. Customers 8,383 (2019) -> 21,236
---     (2024) -> 26,002 (2025); 2019 shows NEW 100 % because it is the
---     first year of history; ~RM 1,100-1,300 per customer from 2022.
---   - Section 2: Johor (Johor Bahru alone) has the highest average
---     sales per branch (RM 1.86 M), then Selangor (6 branches, RM 1.72 M
---     avg, best earning % +22.7) and Federal Territory of Kuala Lumpur (5). Klang
---     Valley branches serve ~2,700-3,200 customers each, 76-80 % local;
---     the single-branch states 34-37 % local (online orders are fulfilled
---     by any branch since 2022). Three states are in the red: Negeri
---     Sembilan and Pahang (Seremban / Kuantan, opened 2024-01-01 and still
---     ramping: salary 57-58 % of sales, 42-46 % new customers) and Perak -
---     Ipoh, in its sixth year, with purchase cost 64.9 % of sales.
---     Company average branch: RM 1.41 M sales, 2,674 customers,
---     RM 235 k net profit, +16.6 %.
---   - Section 3: Petaling Jaya leads by every yardstick (RM 3.34 M,
---     +33.2 %, 5,960 customers), Kuala Lumpur second (RM 2.43 M, +21.4 %,
---     4,664) - the "top-revenue branch is the least profitable" paradox
+-- WHAT TO LOOK FOR  (FY2024, revision 5 = sales_data5)
+--   !! STALE: measured 2026-08-21, BEFORE the 2026-08-22 repricing that
+--   multiplied every service price by 1.5 and moved Ipoh's supplier to
+--   74-84 % of shelf price. Customer counts, ranks, shares and the
+--   PURCHASING verdict still hold; every RINGGIT figure and every
+--   percentage below is superseded. Re-run this script once the
+--   warehouse has been reloaded from the regenerated CSVs and replace
+--   this block with what the spool prints. Expect roughly: company
+--   sales RM 14.46 M (2019) -> 25.44 M (2024) -> 33.38 M (2025),
+--   earning % +14.3 / +21.5 / +29.2, Ipoh -6.3 % (2024) and -4.7 %
+--   (2025) with purchase cost 68-71 % of its sales.
+--   - Section 1: total sales RM 13.24 M (2019) -> 23.59 M (2024) ->
+--     31.17 M (2025); earning % +6.4 (2019), -6.2 / -15.8 in the MCO
+--     years, +20.7 (2022, the year the shop went online: sales +121 %),
+--     +20.4 (2023), +15.7 (2024 - four new branches ramping up), +24.6
+--     (2025, the men's line). Purchase cost 39.2 % of sales, salary
+--     36.5 %, branch expense 8.6 % in 2024. Customers 8,256 (2019) ->
+--     21,097 (2024) -> 25,974 (2025); 2019 shows NEW 100 % because it is
+--     the first year of history; ~RM 1,100-1,300 per customer from 2022.
+--   - Section 2: Johor (Johor Bahru alone) has the highest average sales
+--     per branch (RM 1.82 M), then Selangor (7 branches, RM 1.59 M avg,
+--     best earning % +21.4) and Federal Territory of Kuala Lumpur
+--     (4 branches, RM 1.50 M). Klang Valley branches serve ~2,800-3,100
+--     customers each and are 73-82 % local; the four ESTABLISHED
+--     single-branch states run 34-38 % local (online orders are
+--     fulfilled by any branch since 2022) and the two 2024 openings only
+--     14 % - their customers are mostly cross-city online buyers. Three
+--     states are in the red: Negeri Sembilan (-9.0) and Pahang (-17.1) -
+--     Seremban / Kuantan, opened 2024-01-01 and still ramping: salary
+--     56-62 % of sales, ~43 % new customers - and Perak (-6.9): Ipoh, in
+--     its sixth year, with purchase cost 63.8 % of sales. Company
+--     average branch: RM 1.39 M sales, 2,656 customers, RM 218 k net
+--     profit, +15.7 %.
+--   - Section 3: Petaling Jaya leads by every yardstick (RM 3.28 M,
+--     +32.7 %, 5,947 customers), Kuala Lumpur second (RM 2.40 M, +20.8 %,
+--     4,563) - the "top-revenue branch is the least profitable" paradox
 --     is FALSE in this data. The four 2024 openings are the thin ones
---     (Subang Jaya +3.6 %, Bukit Jalil -7.3 %, Seremban -9.7 %, Kuantan
---     -11.7 %), and Ipoh (-8.7 %) is the only ESTABLISHED branch in the
---     red: 1,695 customers (vs 2,674 average) spending RM 458 each (vs
---     528). Sales per customer is flat across the other branches - they
+--     (Subang Jaya +0.2 %, Bukit Jalil -7.9 %, Seremban -9.0 %, Kuantan
+--     -17.1 %), and Ipoh (-6.9 %) is the only ESTABLISHED branch in the
+--     red: 1,711 customers (vs 2,656 average) spending RM 460 each (vs
+--     522). Sales per customer is flat across the other branches - they
 --     differ in HOW MANY customers they have, not in what each spends.
---   - Section 4 - Ipoh's customers: 1,695 vs 2,674 at the average branch
---     (-37 %), 29.9 % of them new (28.9 % average), 1.85 transactions
---     each (2.05). Fewer customers who buy a little less - that explains
---     the smaller top line, not the loss. (01b shows the same product /
---     service mix as the company at ~half the average branch's volume.)
---   - Section 5 - THE WHY is PURCHASING: Ipoh's purchase cost is 64.9 %
---     of sales against 39.1 % at the average branch (+25.8 pts) - it
+--   - Section 4 - Ipoh's customers: 1,711 vs 2,656 at the average branch
+--     (-36 %), 31.2 % of them new (29.2 % average), 1.89 transactions
+--     each (2.07). Fewer customers who buy a little less - that explains
+--     the smaller top line, not the loss.
+--   - Section 5 - THE WHY is PURCHASING: Ipoh's purchase cost is 63.8 %
+--     of sales against 39.2 % at the average branch (+24.6 pts) - it
 --     buys everything from its Ipoh-only supplier (Perak Beauty
---     Supplies) at 62-72 % of shelf price since 2024 (46-54 % before,
---     33-43 % everywhere else). Payroll and premises are on par (salary
---     36.0 % vs 35.8 %, expense 7.8 % vs 8.5 %, 8 heads with the highest
---     sales per head after PJ). What-ifs: at the average salary ratio it
---     saves almost nothing (RM 1 k); at the average PURCHASE ratio it
---     would earn RM +133 k (+17 %); it must sell RM 968 k (+25 %) to break
---     even on the current cost structure. Verdict: PURCHASING.
---   - Run it with year 2023 to see Ipoh in the black (+15.9 %, purchase
---     cost 51 %), with year 2025 to see the new branches turn positive
---     while Ipoh stays red (-2.6 %), with branch = Kuantan for the
---     opening-year story (PAYROLL sized for a mature branch, customer base
---     of a new one), or with a nonsense branch name to land on the least
---     profitable branch automatically.
+--     Supplies) at 74-84 % of shelf price since 2024 (46-54 % before,
+--     33-43 % everywhere else). Payroll and premises are on par or
+--     LEANER than average (salary 35.4 % vs 36.5 %, expense 7.7 % vs
+--     8.6 %, 8 heads turning the highest sales per head after PJ -
+--     RM 98,437 vs RM 83,067). What-ifs: at the average salary ratio it
+--     would pay RM 8 k MORE, not less (its payroll is already lean); at
+--     the average PURCHASE ratio it would earn RM +139 k (+17.6 %); it
+--     must sell RM 938 k (+19 %) to break even on the current cost
+--     structure. Verdict: PURCHASING.
+--   - Run it with year 2023 to see Ipoh in the black (+15.1 %, purchase
+--     cost 50.6 %), with year 2025 to see all four 2024 openings turn
+--     positive (+21 to +27 %) while Ipoh stays red (-2.9 %, purchase
+--     cost 65.9 %), with branch = Kuantan for the opening-year story
+--     (verdict PAYROLL - 14 heads sized for a mature branch, salary
+--     62.1 % of sales, and the customer base of a new one), or with a
+--     nonsense branch name to land on the least profitable branch
+--     automatically.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -585,12 +596,16 @@ ORDER  BY sort_key, avg_sales DESC;
 
 -- ###################################################################
 -- SECTION 3 - FOCUS YEAR: EVERY BRANCH, STATE BY STATE
--- OLAP: SLICE (year = focus year) down to the branch grain, all 13
+-- OLAP: SLICE (year = focus year) down to the branch grain, all 17
 -- branches grouped under their state (biggest branch first inside a
 -- state): sales, each cost line, net profit, earning %, and the
 -- customer side - customers served, NEW %, LOCAL % and sales per
--- customer. The last row is the AVERAGE branch (mean of the 13 rows),
--- the yardstick section 4 uses.
+-- customer. The last row is the AVERAGE branch (mean of the branch rows).
+-- Its money columns are the same yardstick sections 4-5 use; its % and
+-- per-customer columns are the unweighted MEAN of the branch values, so
+-- they read a little differently from the sales-weighted ALL STATES row
+-- of section 2 (FY2024: +11.1 % here vs +15.7 % there - same profit,
+-- different averaging).
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS

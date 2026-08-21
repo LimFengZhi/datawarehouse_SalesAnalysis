@@ -47,7 +47,7 @@ SELECT serv_ID, serv_name, serv_price AS price_before
 FROM   service
 WHERE  serv_ID IN (5, 6, 7, 10, 12, 17)
 ORDER  BY serv_ID;
--- expect 220 / 165 / 280 / 150 / 130 / 380
+-- expect 330 / 247.50 / 420 / 225 / 195 / 570
 
 -- ---------- products ----------
 -- 4  Salicylic Acid Acne Cleanser     48 -> 54   (+12.5 %)  second rise
@@ -68,18 +68,18 @@ UPDATE product SET product_unit_price = 58.00 WHERE product_ID = 43;
 UPDATE product SET product_unit_price = 42.00 WHERE product_ID = 46;
 
 -- ---------- services ----------
--- 5  HydraFacial                     220 -> 245  (+11.4 %)
-UPDATE service SET serv_price = 245.00 WHERE serv_ID = 5;
--- 6  Hydrating Glow Facial           165 -> 185  (+12.1 %)
-UPDATE service SET serv_price = 185.00 WHERE serv_ID = 6;
--- 7  Anti Aging Collagen Facial      280 -> 310  (+10.7 %)
-UPDATE service SET serv_price = 310.00 WHERE serv_ID = 7;
--- 10 Vitamin C Brightening Facial    150 -> 168  (+12.0 %)
-UPDATE service SET serv_price = 168.00 WHERE serv_ID = 10;
--- 12 Acne Clear Facial               130 -> 145  (+11.5 %)
-UPDATE service SET serv_price = 145.00 WHERE serv_ID = 12;
--- 17 Microneedling Rejuvenation      380 -> 420  (+10.5 %)
-UPDATE service SET serv_price = 420.00 WHERE serv_ID = 17;
+-- 5  HydraFacial                     330 -> 367.50  (+11.4 %)
+UPDATE service SET serv_price = 367.50 WHERE serv_ID = 5;
+-- 6  Hydrating Glow Facial        247.50 -> 277.50  (+12.1 %)
+UPDATE service SET serv_price = 277.50 WHERE serv_ID = 6;
+-- 7  Anti Aging Collagen Facial      420 -> 465.00  (+10.7 %)
+UPDATE service SET serv_price = 465.00 WHERE serv_ID = 7;
+-- 10 Vitamin C Brightening Facial    225 -> 252.00  (+12.0 %)
+UPDATE service SET serv_price = 252.00 WHERE serv_ID = 10;
+-- 12 Acne Clear Facial               195 -> 217.50  (+11.5 %)
+UPDATE service SET serv_price = 217.50 WHERE serv_ID = 12;
+-- 17 Microneedling Rejuvenation      570 -> 630.00  (+10.5 %)
+UPDATE service SET serv_price = 630.00 WHERE serv_ID = 17;
 
 COMMIT;
 
@@ -94,7 +94,7 @@ SELECT serv_ID, serv_name, serv_price AS price_after
 FROM   service
 WHERE  serv_ID IN (5, 6, 7, 10, 12, 17)
 ORDER  BY serv_ID;
--- expect 245 / 185 / 310 / 168 / 145 / 420
+-- expect 367.50 / 277.50 / 465 / 252 / 217.50 / 630
 
 
 -- ===================================================================

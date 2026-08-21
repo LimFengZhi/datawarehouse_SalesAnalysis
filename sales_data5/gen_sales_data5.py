@@ -301,25 +301,25 @@ LAUNCH_2025 = date(2025, 1, 1)        # products 49-56, supplier 8, men's push
 FIRST_NEW_PID = 49
 MENS_PRODUCTS = set(range(49, 55))
 SERVICES = [
-    (1, "Classic Facial", "Basic Facial", "Cleansing, exfoliation and mask for everyday skin maintenance.", 75.00),
-    (2, "Express Facial", "Basic Facial", "Cleansing, exfoliation and mask for everyday skin maintenance.", 60.00),
-    (3, "Deep Cleansing Facial", "Deep Cleansing", "Thorough pore cleansing with extraction.", 110.00),
-    (4, "Blackhead Extraction Facial", "Deep Cleansing", "Thorough pore cleansing with extraction.", 95.00),
-    (5, "HydraFacial", "Hydrating", "Intensive moisture infusion for dehydrated skin.", 220.00),
-    (6, "Hydrating Glow Facial", "Hydrating", "Intensive moisture infusion for dehydrated skin.", 165.00),
-    (7, "Anti Aging Collagen Facial", "Anti Aging", "Advanced firming and rejuvenation treatment.", 280.00),
-    (8, "Gold Radiance Facial", "Anti Aging", "Advanced firming and rejuvenation treatment.", 320.00),
-    (9, "Diamond Peel Facial", "Anti Aging", "Advanced firming and rejuvenation treatment.", 250.00),
-    (10, "Vitamin C Brightening Facial", "Brightening", "Targets dullness and uneven skin tone.", 150.00),
-    (11, "Whitening Facial", "Brightening", "Targets dullness and uneven skin tone.", 180.00),
-    (12, "Acne Clear Facial", "Acne Treatment", "Calms active breakouts and controls oil.", 130.00),
-    (13, "Oxygen Infusion Facial", "Acne Treatment", "Calms active breakouts and controls oil.", 160.00),
-    (14, "Eye Treatment Add on", "Add on", "Optional enhancement added to a main treatment.", 35.00),
-    (15, "LED Light Therapy Add on", "Add on", "Optional enhancement added to a main treatment.", 55.00),
-    (16, "Shoulder and Neck Massage Add on", "Add on", "Optional enhancement added to a main treatment.", 40.00),
+    (1, "Classic Facial", "Basic Facial", "Cleansing, exfoliation and mask for everyday skin maintenance.", 112.50),
+    (2, "Express Facial", "Basic Facial", "Cleansing, exfoliation and mask for everyday skin maintenance.", 90.00),
+    (3, "Deep Cleansing Facial", "Deep Cleansing", "Thorough pore cleansing with extraction.", 165.00),
+    (4, "Blackhead Extraction Facial", "Deep Cleansing", "Thorough pore cleansing with extraction.", 142.50),
+    (5, "HydraFacial", "Hydrating", "Intensive moisture infusion for dehydrated skin.", 330.00),
+    (6, "Hydrating Glow Facial", "Hydrating", "Intensive moisture infusion for dehydrated skin.", 247.50),
+    (7, "Anti Aging Collagen Facial", "Anti Aging", "Advanced firming and rejuvenation treatment.", 420.00),
+    (8, "Gold Radiance Facial", "Anti Aging", "Advanced firming and rejuvenation treatment.", 480.00),
+    (9, "Diamond Peel Facial", "Anti Aging", "Advanced firming and rejuvenation treatment.", 375.00),
+    (10, "Vitamin C Brightening Facial", "Brightening", "Targets dullness and uneven skin tone.", 225.00),
+    (11, "Whitening Facial", "Brightening", "Targets dullness and uneven skin tone.", 270.00),
+    (12, "Acne Clear Facial", "Acne Treatment", "Calms active breakouts and controls oil.", 195.00),
+    (13, "Oxygen Infusion Facial", "Acne Treatment", "Calms active breakouts and controls oil.", 240.00),
+    (14, "Eye Treatment Add on", "Add on", "Optional enhancement added to a main treatment.", 52.50),
+    (15, "LED Light Therapy Add on", "Add on", "Optional enhancement added to a main treatment.", 82.50),
+    (16, "Shoulder and Neck Massage Add on", "Add on", "Optional enhancement added to a main treatment.", 60.00),
     # bookable from 2021-04-01 (inside the initial folder)
-    (17, "Microneedling Rejuvenation", "Anti Aging", "Advanced firming and rejuvenation treatment.", 380.00),
-    (18, "Scalp Detox Add on", "Add on", "Optional enhancement added to a main treatment.", 45.00),
+    (17, "Microneedling Rejuvenation", "Anti Aging", "Advanced firming and rejuvenation treatment.", 570.00),
+    (18, "Scalp Detox Add on", "Add on", "Optional enhancement added to a main treatment.", 67.50),
 ]
 NEW_SERVICE_LAUNCH = date(2021, 4, 1)     # services 17-18
 SERV_MINUTES = {1: 60, 2: 45, 3: 75, 4: 60, 5: 75, 6: 75, 7: 90, 8: 90, 9: 75,
@@ -344,7 +344,7 @@ BRAND_SUPPLIERS = {"PureGlow": [1, 6], "HydraLuxe": [2, 6], "DermaVita": [4, 2],
                    "SunGuard": [3, 5], "RenewLab": [3], "BotaniQ": [5, 3], "ClearMe": [4, 6],
                    "HIM Essentials": [8]}
 COST_RATIO_NATIONAL = (0.33, 0.43)            # unit cost as a share of the shelf price
-COST_RATIO_IPOH = {False: (0.46, 0.54), True: (0.62, 0.72)}   # key: d >= 2024-01-01 (supplier repriced)
+COST_RATIO_IPOH = {False: (0.46, 0.54), True: (0.74, 0.84)}   # key: d >= 2024-01-01 (supplier repriced)
 IPOH_COST_STEP = date(2024, 1, 1)
 UTILS = [(1, "Rent"), (2, "Electricity"), (3, "Water"), (4, "Internet"),
          (5, "Maintenance"), (6, "Waste Management")]
@@ -353,7 +353,7 @@ UTIL_NAME = dict(UTILS)          # the CSV carries the name, not the id
 # --- price eras (the SCD2 test cases; must match the 99_price_*.sql files) ---
 PRICE_RISE_2024 = {4: 48.00, 12: 98.00, 15: 125.00, 16: 135.00, 22: 108.00, 25: 62.00, 32: 82.00, 36: 76.00}
 PRICE_RISE_2025 = {4: 54.00, 13: 84.00, 16: 149.00, 20: 88.00, 26: 69.00, 31: 50.00, 43: 58.00, 46: 42.00}
-SERVICE_RISE_2025 = {5: 245.00, 6: 185.00, 7: 310.00, 10: 168.00, 12: 145.00, 17: 420.00}
+SERVICE_RISE_2025 = {5: 367.50, 6: 277.50, 7: 465.00, 10: 252.00, 12: 217.50, 17: 630.00}
 BASE_PRICE = {p[0]: p[5] for p in PRODUCTS}
 BASE_SERV_PRICE = {s[0]: s[4] for s in SERVICES}
 PROD_CAT = {p[0]: p[3] for p in PRODUCTS}
