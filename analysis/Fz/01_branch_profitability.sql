@@ -43,15 +43,22 @@
 --   CTE (WITH)         both sections
 --   CASE WHEN          turns the tagged union into columns, and signs
 --                      the measures so net profit is a single SUM
---   RANK               section 1 - the profit ranking
+--   RANK               section 1 - the ranking on avg profit per year
 --   ROW_NUMBER         section 1 - picks AND sorts the TOP n / LOWEST n
 --   COMPUTE AVG        section 1 - average of the rows shown
 --   COMPUTE AVG        section 2 - the average-year row
 --
--- NOTE  Section 1 ranks on profit for the WHOLE period, so a branch
---       that opened part-way through (Seremban, Kuantan, Subang Jaya
---       and Bukit Jalil all opened 2024-01-01) ranks low simply because
---       it traded fewer years. Section 2 is where that shows up.
+-- NOTE  Section 1 ranks on the AVERAGE YEAR, not the period total, so a
+--       branch that opened part-way through (Seremban, Kuantan, Subang
+--       Jaya and Bukit Jalil all opened 2024-01-01) is not punished for
+--       trading fewer years. On totals Kuantan came last and Subang Jaya
+--       12th; per year they sit 14th and 3rd, and Ipoh - which has traded
+--       all seven years - drops to last, which is the honest answer.
+--       The YRS column says how many years each average covers.
+--       The one bias this leaves: the seven-year branches carry 2020-21
+--       (MCO) in their average and the 2024 openings do not, so the new
+--       branches are flattered a little. Rank on MARGIN instead if you
+--       need a figure free of both age and lockdown effects.
 -- ===================================================================
 
 -- reset anything a previous script left behind in this session
@@ -89,29 +96,29 @@ PROMPT
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. BRANCH PROFIT RANKING' SKIP 1 -
-       CENTER '&p_order &p_topn BRANCHES BY NET PROFIT, &p_from - &p_to' SKIP 1 -
+       CENTER '&p_order &p_topn BRANCHES BY AVG NET PROFIT PER YEAR, &p_from - &p_to' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'Report Generated on: ' _DATE -
        RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN profit_rank HEADING 'RANK'              FORMAT 990
-COLUMN br_city     HEADING 'BRANCH'            FORMAT A15
-COLUMN br_state    HEADING 'STATE'             FORMAT A17
-COLUMN revenue     HEADING 'TOTAL|SALES (RM)'  FORMAT 999,999,990
-COLUMN purchase    HEADING 'PURCHASE|COST (RM)' FORMAT 99,999,990
-COLUMN staff       HEADING 'STAFF|COST (RM)'   FORMAT 99,999,990
-COLUMN utility     HEADING 'UTILITY|COST (RM)' FORMAT 99,999,990
-COLUMN profit      HEADING 'NET|PROFIT (RM)'   FORMAT S99,999,990
-COLUMN margin_pct  HEADING 'MARGIN|%'          FORMAT A8
+COLUMN profit_rank HEADING 'RANK'               FORMAT 990
+COLUMN br_city     HEADING 'BRANCH'             FORMAT A15
+COLUMN yrs         HEADING 'YRS'                FORMAT 90
+COLUMN revenue     HEADING 'AVG SALES|PER YEAR' FORMAT 9,999,990
+COLUMN purchase    HEADING 'AVG PURCH|PER YEAR' FORMAT 9,999,990
+COLUMN staff       HEADING 'AVG STAFF|PER YEAR' FORMAT 9,999,990
+COLUMN utility     HEADING 'AVG UTIL|PER YEAR'  FORMAT 999,990
+COLUMN profit      HEADING 'AVG PROFIT|PER YEAR' FORMAT S9,999,990
+COLUMN margin_pct  HEADING 'MARGIN|%'           FORMAT A8
 
 BREAK ON REPORT
 COMPUTE AVG LABEL 'AVG' OF revenue purchase staff utility profit ON REPORT
 
-WITH BRANCH_PNL AS (
-    -- one row per branch for the whole period, all five facts together
+WITH BRANCH_YEAR AS (
+    -- one row per branch PER YEAR, all five facts together
     SELECT b.br_ID,
            b.br_city,
-           b.br_state,
+           d.cal_year,
            SUM(CASE WHEN x.measure IN ('PROD_REV', 'SERV_REV') THEN x.amt ELSE 0 END) AS revenue,
            SUM(CASE WHEN x.measure = 'PURCHASE' THEN x.amt ELSE 0 END) AS purchase,
            SUM(CASE WHEN x.measure = 'STAFF'    THEN x.amt ELSE 0 END) AS staff,
@@ -138,11 +145,27 @@ WITH BRANCH_PNL AS (
     JOIN   date_dim   d ON d.date_key   = x.date_key
     JOIN   branch_dim b ON b.branch_key = x.branch_key
     WHERE  d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
-    GROUP  BY b.br_ID, b.br_city, b.br_state
+    GROUP  BY b.br_ID, b.br_city, d.cal_year
+),
+BRANCH_PNL AS (
+    -- collapse the years into ONE average year per branch. Dividing by
+    -- the years a branch actually traded is what makes a 2024 opening
+    -- comparable with a branch that has traded since 2019 - on period
+    -- totals the new ones look worst purely for being younger.
+    -- Margin is unaffected: avg profit / avg revenue = total / total.
+    SELECT br_ID, br_city,
+           COUNT(*)      AS yrs,
+           AVG(revenue)  AS revenue,
+           AVG(purchase) AS purchase,
+           AVG(staff)    AS staff,
+           AVG(utility)  AS utility,
+           AVG(profit)   AS profit
+    FROM   BRANCH_YEAR
+    GROUP  BY br_ID, br_city
 ),
 RANKED AS (
     SELECT br_city,
-           br_state,
+           yrs,
            revenue,
            purchase,
            staff,
@@ -155,9 +178,7 @@ RANKED AS (
 )
 SELECT profit_rank,
        br_city,
-       -- the full label is 33 characters and would wrap the row in two
-       CASE WHEN br_state = 'Federal Territory of Kuala Lumpur'
-            THEN 'FT Kuala Lumpur' ELSE br_state END AS br_state,
+       yrs,
        revenue,
        purchase,
        staff,
