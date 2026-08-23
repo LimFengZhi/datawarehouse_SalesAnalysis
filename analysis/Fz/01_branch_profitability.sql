@@ -30,10 +30,10 @@
 --                    money. Never sum *_total_amt for sales - it is
 --                    tax-inclusive. 'Completed' rows only.
 --   Purchase cost    purchase_fact.purchase_total_cost
---   Staff cost       salary_payment_fact.base_amount + bonus_amount
---                    (gross pay; deduction_amount is the employee's EPF
+--   Staff cost       salary_payment_fact.base_amt + bonus_amt
+--                    (gross pay; deduction_amt is the employee's EPF
 --                    share, withheld but still paid by the company)
---   Utility cost     branch_utils_fact.payment_amount
+--   Utility cost     branch_utils_fact.payment_amt
 --   Net profit       revenue - purchase - staff - utilities
 --   Margin %         net profit / revenue x 100
 --   Branches are grouped on the NATURAL key br_ID, never branch_key -
@@ -137,10 +137,10 @@ WITH BRANCH_YEAR AS (
             SELECT f.date_key, f.branch_key, 'PURCHASE', f.purchase_total_cost
             FROM   purchase_fact f
             UNION ALL
-            SELECT f.date_key, f.branch_key, 'STAFF', f.base_amount + f.bonus_amount
+            SELECT f.date_key, f.branch_key, 'STAFF', f.base_amt + f.bonus_amt
             FROM   salary_payment_fact f
             UNION ALL
-            SELECT f.date_key, f.branch_key, 'UTILITY', f.payment_amount
+            SELECT f.date_key, f.branch_key, 'UTILITY', f.payment_amt
             FROM   branch_utils_fact f) x
     JOIN   date_dim   d ON d.date_key   = x.date_key
     JOIN   branch_dim b ON b.branch_key = x.branch_key
@@ -252,10 +252,10 @@ WITH BRANCH_YEAR AS (
             SELECT f.date_key, f.branch_key, 'PURCHASE', f.purchase_total_cost
             FROM   purchase_fact f
             UNION ALL
-            SELECT f.date_key, f.branch_key, 'STAFF', f.base_amount + f.bonus_amount
+            SELECT f.date_key, f.branch_key, 'STAFF', f.base_amt + f.bonus_amt
             FROM   salary_payment_fact f
             UNION ALL
-            SELECT f.date_key, f.branch_key, 'UTILITY', f.payment_amount
+            SELECT f.date_key, f.branch_key, 'UTILITY', f.payment_amt
             FROM   branch_utils_fact f) x
     JOIN   date_dim   d ON d.date_key   = x.date_key
     JOIN   branch_dim b ON b.branch_key = x.branch_key
