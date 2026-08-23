@@ -101,7 +101,7 @@ CREATE TABLE service (
     serv_ID          NUMBER(10)      NOT NULL,
     serv_name        VARCHAR2(100)   NOT NULL,
     serv_category    VARCHAR2(50),
-    serv_description VARCHAR2(300),
+    serv_desc VARCHAR2(300),
     serv_price       NUMBER(10,2)    NOT NULL,
     CONSTRAINT pk_service PRIMARY KEY (serv_ID),
     CONSTRAINT chk_serv_price CHECK (serv_price >= 0)
@@ -117,12 +117,12 @@ CREATE TABLE branch_utils (
     util_name        VARCHAR2(50)    NOT NULL,   -- Rent / Electricity / Water / Internet /
                                                  -- Maintenance / Waste Management
     billing_period   VARCHAR2(7),          -- format 'YYYY-MM'
-    payment_amount   NUMBER(10,2)    NOT NULL,
+    payment_amt   NUMBER(10,2)    NOT NULL,
     payment_date     DATE,
     CONSTRAINT pk_branch_utils PRIMARY KEY (br_exp_ID),
     CONSTRAINT fk_brutils_branch FOREIGN KEY (br_ID)
         REFERENCES branch (br_ID),
-    CONSTRAINT chk_brutils_amount CHECK (payment_amount >= 0)
+    CONSTRAINT chk_brutils_amount CHECK (payment_amt >= 0)
 );
 
 -- ============================================================
@@ -132,14 +132,14 @@ CREATE TABLE salary_payment (
     sal_pay_ID       NUMBER(10)      NOT NULL,
     st_ID            NUMBER(10)      NOT NULL,
     pay_period       VARCHAR2(7)     NOT NULL,   -- 'YYYY-MM'
-    base_amount      NUMBER(10,2)    NOT NULL,
-    bonus_amount     NUMBER(10,2)    DEFAULT 0,
-    deduction_amount NUMBER(10,2)    DEFAULT 0,
+    base_amt      NUMBER(10,2)    NOT NULL,
+    bonus_amt     NUMBER(10,2)    DEFAULT 0,
+    deduction_amt NUMBER(10,2)    DEFAULT 0,
     payment_date     DATE            NOT NULL,
     CONSTRAINT pk_salary_payment PRIMARY KEY (sal_pay_ID),
     CONSTRAINT fk_salpay_staff FOREIGN KEY (st_ID)
         REFERENCES staff (st_ID),
-    CONSTRAINT chk_salpay_base CHECK (base_amount >= 0)
+    CONSTRAINT chk_salpay_base CHECK (base_amt >= 0)
 );
 
 -- ============================================================
@@ -172,7 +172,7 @@ CREATE TABLE order_detail (
     order_det_ID     NUMBER(10)      NOT NULL,
     order_ID         NUMBER(10)      NOT NULL,
     product_ID       NUMBER(10)      NOT NULL,
-    order_quantity   NUMBER(5)       NOT NULL,
+    order_qty   NUMBER(5)       NOT NULL,
     order_discount   NUMBER(10,2)    DEFAULT 0,
     order_tax        NUMBER(10,2)    DEFAULT 0,
     CONSTRAINT pk_order_detail PRIMARY KEY (order_det_ID),
@@ -180,7 +180,7 @@ CREATE TABLE order_detail (
         REFERENCES orders (order_ID),
     CONSTRAINT fk_orddet_product FOREIGN KEY (product_ID)
         REFERENCES product (product_ID),
-    CONSTRAINT chk_orddet_qty CHECK (order_quantity > 0)
+    CONSTRAINT chk_orddet_qty CHECK (order_qty > 0)
 );
 
 -- ============================================================

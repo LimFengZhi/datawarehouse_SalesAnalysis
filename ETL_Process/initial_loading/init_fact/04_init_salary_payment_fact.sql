@@ -17,7 +17,7 @@
 --   staff_key  from staff_dim  by st_ID + payment_date range
 --   branch_key from branch_dim by that br_ID + payment_date range
 -- Measures: base, bonus, deduction and
---   total_amount = base + bonus - deduction  (net pay)
+--   total_amt = base + bonus - deduction  (net pay)
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -42,22 +42,22 @@ SELECT
         ELSE TRIM(sp.pay_period)
     END                                            AS clean_pay_period,
 
-    CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
-         THEN 0 ELSE sp.base_amount END            AS clean_base_amount,
-    ROUND(NVL(sp.bonus_amount, 0), 2)              AS clean_bonus_amount,
-    ROUND(NVL(sp.deduction_amount, 0), 2)          AS clean_deduction_amount,
+    CASE WHEN sp.base_amt IS NULL OR sp.base_amt < 0
+         THEN 0 ELSE sp.base_amt END            AS clean_base_amt,
+    ROUND(NVL(sp.bonus_amt, 0), 2)              AS clean_bonus_amt,
+    ROUND(NVL(sp.deduction_amt, 0), 2)          AS clean_deduction_amt,
 
     -- ---------- derived measure ----------
-    -- total_amount = base + bonus - deduction (the net pay)
-    ROUND(  CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
-                 THEN 0 ELSE sp.base_amount END
-          + NVL(sp.bonus_amount, 0)
-          - NVL(sp.deduction_amount, 0), 2)        AS total_amount,
+    -- total_amt = base + bonus - deduction (the net pay)
+    ROUND(  CASE WHEN sp.base_amt IS NULL OR sp.base_amt < 0
+                 THEN 0 ELSE sp.base_amt END
+          + NVL(sp.bonus_amt, 0)
+          - NVL(sp.deduction_amt, 0), 2)        AS total_amt,
 
     -- ---------- data quality flags ----------
-    CASE WHEN sp.base_amount IS NULL OR sp.base_amount < 0
+    CASE WHEN sp.base_amt IS NULL OR sp.base_amt < 0
          THEN 'Y' ELSE 'N' END                     AS base_corrected,
-    CASE WHEN sp.bonus_amount IS NULL OR sp.deduction_amount IS NULL
+    CASE WHEN sp.bonus_amt IS NULL OR sp.deduction_amt IS NULL
          THEN 'Y' ELSE 'N' END                     AS money_defaulted,
     CASE WHEN sp.pay_period IS NULL
               OR NOT REGEXP_LIKE(TRIM(sp.pay_period), '^[0-9]{4}-[0-9]{2}$')
@@ -91,7 +91,7 @@ BEGIN
 
     INSERT INTO salary_payment_fact (
         date_key, staff_key, branch_key, sal_pay_ID, pay_period,
-        base_amount, bonus_amount, deduction_amount, total_amount
+        base_amt, bonus_amt, deduction_amt, total_amt
     )
     SELECT
         d.date_key,
@@ -99,10 +99,10 @@ BEGIN
         b.branch_key,
         ls.sal_pay_ID,
         ls.clean_pay_period,
-        ls.clean_base_amount,
-        ls.clean_bonus_amount,
-        ls.clean_deduction_amount,
-        ls.total_amount
+        ls.clean_base_amt,
+        ls.clean_bonus_amt,
+        ls.clean_deduction_amt,
+        ls.total_amt
     -- SCD2 joins pick the version in force on the payment date.
     -- branch_key comes from the OLTP staff.br_ID exposed by the view
     -- (staff_dim has no br_ID), matched to branch_dim by date range.

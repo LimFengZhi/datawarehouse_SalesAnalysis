@@ -3,7 +3,8 @@
 --
 --   SECTION 1: no new view - reuses purchase_fact_staging_v
 --   SECTION 2: no sequence - PK is composite (date, supplier, branch,
---              product keys); purchase_ID is unique by grain (no constraint) and is what the
+--              product keys + the degenerate purchase_ID, like every
+--              other fact); purchase_ID alone is what the
 --              NOT EXISTS anti-join and STEP 2 match on
 --   SECTION 3: PROCEDURE - insert new lines, then update changed ones
 --   SECTION 4: run + verification

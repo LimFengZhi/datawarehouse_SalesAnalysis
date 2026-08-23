@@ -11,7 +11,7 @@ TRAILING NULLCOLS
     order_det_ID,
     order_ID,
     product_ID,
-    order_quantity,
+    order_qty,
     order_discount,
     order_tax
 )

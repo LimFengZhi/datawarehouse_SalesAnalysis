@@ -340,8 +340,8 @@ SELECT 'reservation price-disc+tax=total', COUNT(*)
 UNION ALL
 SELECT 'salary base+bonus-deduct=total', COUNT(*)
   FROM salary_payment_fact
-  WHERE ABS(base_amount + bonus_amount - deduction_amount
-            - total_amount) > 0.01;
+  WHERE ABS(base_amt + bonus_amt - deduction_amt
+            - total_amt) > 0.01;
 
 -- Derived reservation columns: start hours 10-19 (from start_time),
 -- no negative durations
@@ -405,14 +405,14 @@ GROUP BY b.br_city ORDER BY net_revenue DESC;
 -- MCO pay cuts: avg base dips in 2020 (and no increment in 2021);
 -- bonuses spike (13th month, Raya) but are halved in 2020-2021
 SELECT SUBSTR(pay_period, 1, 4) AS yr,
-       ROUND(AVG(base_amount), 2)  AS avg_base,
-       ROUND(SUM(bonus_amount), 2) AS total_bonus
+       ROUND(AVG(base_amt), 2)  AS avg_base,
+       ROUND(SUM(bonus_amt), 2) AS total_bonus
 FROM   salary_payment_fact
 GROUP BY SUBSTR(pay_period, 1, 4) ORDER BY yr;
 
 -- Rent rebates: 2020 and 2021 rent dip below the +3 %/yr trend
 SELECT SUBSTR(f.billing_period, 1, 4) AS yr,
-       ROUND(SUM(f.payment_amount), 2) AS total_rent
+       ROUND(SUM(f.payment_amt), 2) AS total_rent
 FROM   branch_utils_fact f
 WHERE  f.util_name = 'Rent'
 GROUP BY SUBSTR(f.billing_period, 1, 4) ORDER BY yr;

@@ -11,6 +11,6 @@ TRAILING NULLCOLS
     serv_ID,
     serv_name,
     serv_category,
-    serv_description,
+    serv_desc,
     serv_price
 )

@@ -37,11 +37,11 @@ BEGIN
     -- ---------------------------------------------------------------
     INSERT INTO branch_utils_fact (
         date_key, branch_key, br_exp_ID,
-        util_name, billing_period, payment_amount
+        util_name, billing_period, payment_amt
     )
     SELECT
         d.date_key, b.branch_key, ls.br_exp_ID,
-        ls.clean_util_name, ls.clean_billing_period, ls.clean_payment_amount
+        ls.clean_util_name, ls.clean_billing_period, ls.clean_payment_amt
     -- The SCD2 join picks the version in force on the payment date.
     FROM branch_utils_fact_staging_v ls
     JOIN date_dim   d ON d.cal_date = ls.payment_date
@@ -58,9 +58,9 @@ BEGIN
     -- STEP 2: refresh re-billed amounts / corrected names
     -- ---------------------------------------------------------------
     UPDATE branch_utils_fact f
-    SET   (util_name, billing_period, payment_amount) =
+    SET   (util_name, billing_period, payment_amt) =
           (SELECT ls.clean_util_name, ls.clean_billing_period,
-                  ls.clean_payment_amount
+                  ls.clean_payment_amt
            FROM   branch_utils_fact_staging_v ls
            WHERE  ls.br_exp_ID = f.br_exp_ID)
     WHERE EXISTS (
@@ -68,8 +68,8 @@ BEGIN
         FROM   branch_utils_fact_staging_v ls
         WHERE  ls.br_exp_ID = f.br_exp_ID
           AND  ls.payment_date >= v_from
-          AND (   NVL(f.payment_amount, -1)
-                    <> NVL(ls.clean_payment_amount, -1)
+          AND (   NVL(f.payment_amt, -1)
+                    <> NVL(ls.clean_payment_amt, -1)
                OR NVL(f.billing_period, '~')
                     <> NVL(ls.clean_billing_period, '~')
                OR NVL(f.util_name, '~')

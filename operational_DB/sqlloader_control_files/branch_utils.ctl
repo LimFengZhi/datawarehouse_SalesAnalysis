@@ -12,6 +12,6 @@ TRAILING NULLCOLS
     br_ID,
     util_name,
     billing_period,
-    payment_amount,
+    payment_amt,
     payment_date DATE 'YYYY-MM-DD'
 )

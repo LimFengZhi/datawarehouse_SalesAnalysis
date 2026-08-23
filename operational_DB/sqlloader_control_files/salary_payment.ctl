@@ -11,8 +11,8 @@ TRAILING NULLCOLS
     sal_pay_ID,
     st_ID,
     pay_period,
-    base_amount,
-    bonus_amount,
-    deduction_amount,
+    base_amt,
+    bonus_amt,
+    deduction_amt,
     payment_date DATE 'YYYY-MM-DD'
 )

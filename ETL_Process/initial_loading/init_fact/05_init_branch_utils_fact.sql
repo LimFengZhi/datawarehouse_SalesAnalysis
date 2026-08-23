@@ -65,14 +65,14 @@ SELECT
 
     -- Measure. Never negative, never NULL.
     ROUND(
-        CASE WHEN bu.payment_amount IS NULL OR bu.payment_amount < 0
-             THEN 0 ELSE bu.payment_amount END, 2)
-                                                   AS clean_payment_amount,
+        CASE WHEN bu.payment_amt IS NULL OR bu.payment_amt < 0
+             THEN 0 ELSE bu.payment_amt END, 2)
+                                                   AS clean_payment_amt,
 
     -- ---------- data quality flags ----------
     CASE WHEN bu.util_name IS NULL OR LENGTH(TRIM(bu.util_name)) = 0
          THEN 'Y' ELSE 'N' END                     AS name_defaulted,
-    CASE WHEN bu.payment_amount IS NULL OR bu.payment_amount < 0
+    CASE WHEN bu.payment_amt IS NULL OR bu.payment_amt < 0
          THEN 'Y' ELSE 'N' END                     AS amount_corrected,
     CASE WHEN bu.billing_period IS NULL
               OR NOT REGEXP_LIKE(TRIM(bu.billing_period),
@@ -105,7 +105,7 @@ BEGIN
 
     INSERT INTO branch_utils_fact (
         date_key, branch_key, br_exp_ID,
-        util_name, billing_period, payment_amount
+        util_name, billing_period, payment_amt
     )
     SELECT
         d.date_key,
@@ -113,7 +113,7 @@ BEGIN
         ls.br_exp_ID,
         ls.clean_util_name,
         ls.clean_billing_period,
-        ls.clean_payment_amount
+        ls.clean_payment_amt
     -- The SCD2 join picks the version in force on the payment date.
     FROM branch_utils_fact_staging_v ls
     JOIN date_dim   d ON d.cal_date = ls.payment_date
