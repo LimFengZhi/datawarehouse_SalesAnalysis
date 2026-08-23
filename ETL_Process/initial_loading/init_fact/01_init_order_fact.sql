@@ -30,7 +30,11 @@
 -- view emits qty / discount / tax only, and order_total_amt is computed
 -- in the PROCEDURE, where the product_dim version is already joined:
 --     order_total_amt = SUM(qty) * p.product_unit_price - SUM(discount) + SUM(tax)
+--     order_net_amt   = SUM(qty) * p.product_unit_price - SUM(discount)
 -- (one order date -> one price version, so summing first is exact).
+-- order_net_amt is order_total_amt without the SST: the tax is collected
+-- for the government, so it is net_amt - not total_amt - that analysis
+-- queries should sum as revenue.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -136,7 +140,8 @@ BEGIN
     INSERT INTO order_fact (
         date_key, product_key, customer_key, staff_key, branch_key,
         order_ID, order_status,
-        order_qty, order_discount_amt, order_tax_amt, order_total_amt
+        order_qty, order_discount_amt, order_tax_amt, order_total_amt,
+        order_net_amt
     )
     SELECT
         d.date_key,
@@ -154,7 +159,10 @@ BEGIN
         -- version) never rewrites history.
         ROUND(  ls.clean_order_qty * p.product_unit_price
               - ls.clean_discount_amt
-              + ls.clean_tax_amt, 2)                AS order_total_amt
+              + ls.clean_tax_amt, 2)                AS order_total_amt,
+        -- the same base terms without the tax = revenue
+        ROUND(  ls.clean_order_qty * p.product_unit_price
+              - ls.clean_discount_amt, 2)           AS order_net_amt
     -- Each SCD2 join picks the version IN FORCE ON THE ORDER DATE, not
     -- whichever version happens to be current at load time - so a
     -- backfill after later maintenance still lands on the right version.

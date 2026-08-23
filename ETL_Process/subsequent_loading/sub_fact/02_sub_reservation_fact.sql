@@ -19,7 +19,9 @@
 -- booking_date, which is when the booking was made.
 --
 -- MONEY: reservation_detail stores no price. serv_total_amt =
---   service_dim.serv_price - discount + tax, where the service_dim row
+--   service_dim.serv_price - discount + tax, and serv_net_amt is the
+--   same without the tax (that is the revenue figure - the SST belongs
+--   to the government), where the service_dim row
 -- is the SCD2 version in force on the reservation date. Both steps
 -- join service_dim by serv_ID + date range for it.
 --
@@ -47,7 +49,8 @@ BEGIN
         date_key, customer_key, staff_key, branch_key, service_key,
         res_ID, res_duration, res_status,
         start_time, end_time,
-        serv_discount_amt, serv_tax_amt, serv_total_amt
+        serv_discount_amt, serv_tax_amt, serv_total_amt,
+        serv_net_amt
     )
     SELECT
         d.date_key, c.customer_key, s.staff_key, b.branch_key,
@@ -57,7 +60,10 @@ BEGIN
         -- price from the service_dim version in force on the reservation date
         ROUND(  ls.line_count * v.serv_price
               - ls.clean_discount_amt
-              + ls.clean_tax_amt, 2)
+              + ls.clean_tax_amt, 2),
+        -- the same base terms without the tax = revenue
+        ROUND(  ls.line_count * v.serv_price
+              - ls.clean_discount_amt, 2)
     -- SCD2 joins pick the version in force on the reservation date.
     FROM reservation_fact_staging_v ls
     JOIN date_dim     d ON d.cal_date = ls.res_date
@@ -105,7 +111,9 @@ BEGIN
                ls.clean_tax_amt,
                ROUND(  ls.line_count * v.serv_price
                      - ls.clean_discount_amt
-                     + ls.clean_tax_amt, 2)          AS serv_total_amt
+                     + ls.clean_tax_amt, 2)          AS serv_total_amt,
+               ROUND(  ls.line_count * v.serv_price
+                     - ls.clean_discount_amt, 2)     AS serv_net_amt
         FROM   reservation_fact_staging_v ls
         JOIN   service_dim v ON v.serv_ID = ls.serv_ID
                             AND ls.res_date BETWEEN v.effective_start_date
@@ -127,7 +135,8 @@ BEGIN
         f.res_duration      = src.res_duration,
         f.serv_discount_amt = src.clean_discount_amt,
         f.serv_tax_amt      = src.clean_tax_amt,
-        f.serv_total_amt    = src.serv_total_amt
+        f.serv_total_amt    = src.serv_total_amt,
+        f.serv_net_amt      = src.serv_net_amt
     WHERE (   NVL(f.res_status, '~') <> NVL(src.clean_res_status, '~')
            OR NVL(f.start_time, DATE '1900-01-01')
                 <> NVL(src.start_time, DATE '1900-01-01')
@@ -135,7 +144,8 @@ BEGIN
                 <> NVL(src.end_time, DATE '1900-01-01')
            OR NVL(f.serv_discount_amt, -1) <> NVL(src.clean_discount_amt, -1)
            OR NVL(f.serv_tax_amt, -1)      <> NVL(src.clean_tax_amt, -1)
-           OR NVL(f.serv_total_amt, -1)    <> NVL(src.serv_total_amt, -1) );
+           OR NVL(f.serv_total_amt, -1)    <> NVL(src.serv_total_amt, -1)
+           OR NVL(f.serv_net_amt, -1)      <> NVL(src.serv_net_amt, -1) );
 
     v_updated := SQL%ROWCOUNT;
 

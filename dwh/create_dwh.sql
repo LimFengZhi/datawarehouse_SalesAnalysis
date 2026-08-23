@@ -179,6 +179,11 @@ CREATE TABLE order_fact (
     order_total_amt      NUMBER(12,2)   NOT NULL,             -- qty * product_dim price (version in force
                                               -- on the order date) - discount + tax; no unit
                                               -- price is stored on the line, the dimension holds it
+    order_net_amt        NUMBER(12,2)   NOT NULL,             -- order_total_amt - order_tax_amt, i.e.
+                                              -- qty * price - discount. REVENUE: the SST in
+                                              -- order_total_amt is collected for the government
+                                              -- and is not the company's money, so every sales
+                                              -- figure should sum THIS column
     CONSTRAINT pk_order_fact PRIMARY KEY (date_key, product_key, customer_key, staff_key, branch_key, order_ID),
     CONSTRAINT fk_of_date      FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_of_product   FOREIGN KEY (product_key)  REFERENCES product_dim (product_key),
@@ -209,6 +214,9 @@ CREATE TABLE reservation_fact (
     serv_discount_amt    NUMBER(12,2)   NOT NULL,
     serv_tax_amt         NUMBER(12,2)   NOT NULL,
     serv_total_amt       NUMBER(12,2)   NOT NULL,             -- service_dim price (of the date) - disc + tax
+    serv_net_amt         NUMBER(12,2)   NOT NULL,             -- serv_total_amt - serv_tax_amt, i.e.
+                                              -- price - discount. REVENUE excluding the SST -
+                                              -- sum THIS column for service sales
     CONSTRAINT pk_reservation_fact PRIMARY KEY (date_key, customer_key, staff_key, branch_key, service_key, res_ID),
     CONSTRAINT fk_rf_date      FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_rf_customer  FOREIGN KEY (customer_key) REFERENCES customer_dim (customer_key),

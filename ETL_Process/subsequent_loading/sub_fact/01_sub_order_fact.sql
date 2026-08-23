@@ -21,7 +21,9 @@
 -- on the day it first loaded, and cancellation rates would be wrong.
 --
 -- MONEY: order_detail stores no unit price. order_total_amt =
---   qty * product_dim.product_unit_price - discount + tax, where the
+--   qty * product_dim.product_unit_price - discount + tax, and
+--   order_net_amt is the same without the tax (that is the revenue
+--   figure - the SST belongs to the government), where the
 -- product_dim row is the SCD2 version in force on the order date. Both
 -- steps therefore join product_dim by product_ID + date range - STEP 1
 -- for product_key and the price, STEP 2 for the price alone.
@@ -67,7 +69,8 @@ BEGIN
     INSERT INTO order_fact (
         date_key, product_key, customer_key, staff_key, branch_key,
         order_ID, order_status,
-        order_qty, order_discount_amt, order_tax_amt, order_total_amt
+        order_qty, order_discount_amt, order_tax_amt, order_total_amt,
+        order_net_amt
     )
     SELECT
         d.date_key, p.product_key, c.customer_key, s.staff_key,
@@ -77,7 +80,9 @@ BEGIN
         -- price from the product_dim version in force on the order date
         ROUND(  ls.clean_order_qty * p.product_unit_price
               - ls.clean_discount_amt
-              + ls.clean_tax_amt, 2)
+              + ls.clean_tax_amt, 2),
+        ROUND(  ls.clean_order_qty * p.product_unit_price
+              - ls.clean_discount_amt, 2)
     -- Each SCD2 join picks the version IN FORCE ON THE ORDER DATE, not
     -- whichever version is current at load time - so the load order of
     -- facts vs price maintenance can no longer attach rows to the
@@ -141,7 +146,9 @@ BEGIN
                ls.clean_tax_amt,
                ROUND(  ls.clean_order_qty * p.product_unit_price
                      - ls.clean_discount_amt
-                     + ls.clean_tax_amt, 2)          AS order_total_amt
+                     + ls.clean_tax_amt, 2)          AS order_total_amt,
+               ROUND(  ls.clean_order_qty * p.product_unit_price
+                     - ls.clean_discount_amt, 2)     AS order_net_amt
         FROM   order_fact_staging_v ls
         JOIN   product_dim p ON p.product_ID = ls.product_ID
                             AND ls.order_date BETWEEN p.effective_start_date
@@ -154,12 +161,14 @@ BEGIN
         f.order_qty          = src.clean_order_qty,
         f.order_discount_amt = src.clean_discount_amt,
         f.order_tax_amt      = src.clean_tax_amt,
-        f.order_total_amt    = src.order_total_amt
+        f.order_total_amt    = src.order_total_amt,
+        f.order_net_amt      = src.order_net_amt
     WHERE (   NVL(f.order_status, '~')     <> NVL(src.clean_order_status, '~')
            OR NVL(f.order_qty, -1)          <> NVL(src.clean_order_qty, -1)
            OR NVL(f.order_discount_amt, -1) <> NVL(src.clean_discount_amt, -1)
            OR NVL(f.order_tax_amt, -1)      <> NVL(src.clean_tax_amt, -1)
-           OR NVL(f.order_total_amt, -1)    <> NVL(src.order_total_amt, -1) );
+           OR NVL(f.order_total_amt, -1)    <> NVL(src.order_total_amt, -1)
+           OR NVL(f.order_net_amt, -1)      <> NVL(src.order_net_amt, -1) );
 
     v_updated := SQL%ROWCOUNT;
 

@@ -26,6 +26,9 @@
 --     from service_dim.serv_price of the SCD2 version in force on the
 --     reservation date, so serv_total_amt is computed in the PROCEDURE:
 --         serv_total_amt = line_count * s.serv_price - discount + tax
+--         serv_net_amt   = line_count * s.serv_price - discount
+--     serv_net_amt is the same figure without the SST, which is collected
+--     for the government - sum THAT column for service revenue.
 -- staff_key comes from RESERVATION_DETAIL (the therapist who performed
 -- the service), NOT from the reservation header.
 -- ===================================================================
@@ -138,7 +141,8 @@ BEGIN
         date_key, customer_key, staff_key, branch_key, service_key,
         res_ID, res_duration, res_status,
         start_time, end_time,
-        serv_discount_amt, serv_tax_amt, serv_total_amt
+        serv_discount_amt, serv_tax_amt, serv_total_amt,
+        serv_net_amt
     )
     SELECT
         d.date_key,
@@ -158,7 +162,10 @@ BEGIN
         -- history.
         ROUND(  ls.line_count * v.serv_price
               - ls.clean_discount_amt
-              + ls.clean_tax_amt, 2)                AS serv_total_amt
+              + ls.clean_tax_amt, 2)                AS serv_total_amt,
+        -- the same base terms without the tax = revenue
+        ROUND(  ls.line_count * v.serv_price
+              - ls.clean_discount_amt, 2)           AS serv_net_amt
     -- SCD2 joins pick the version in force on the reservation date.
     FROM reservation_fact_staging_v ls
     JOIN date_dim     d ON d.cal_date = ls.res_date
