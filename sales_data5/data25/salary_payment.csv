@@ -1,4 +1,4 @@
-sal_pay_ID,st_ID,pay_period,base_amount,bonus_amount,deduction_amount,payment_date
+sal_pay_ID,st_ID,pay_period,base_amt,bonus_amt,deduction_amt,payment_date
 15475,1,2025-01,5264.77,0.00,579.12,2025-01-25
 15476,2,2025-01,1736.82,0.00,191.05,2025-01-25
 15477,3,2025-01,1772.24,0.00,194.95,2025-01-25

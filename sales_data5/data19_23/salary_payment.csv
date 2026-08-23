@@ -1,4 +1,4 @@
-sal_pay_ID,st_ID,pay_period,base_amount,bonus_amount,deduction_amount,payment_date
+sal_pay_ID,st_ID,pay_period,base_amt,bonus_amt,deduction_amt,payment_date
 1,1,2019-01,4474.38,0.00,492.18,2019-01-25
 2,2,2019-01,1483.25,0.00,163.16,2019-01-25
 3,3,2019-01,1519.51,0.00,167.15,2019-01-25

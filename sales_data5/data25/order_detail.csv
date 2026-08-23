@@ -1,4 +1,4 @@
-order_det_ID,order_ID,product_ID,order_quantity,order_discount,order_tax
+order_det_ID,order_ID,product_ID,order_qty,order_discount,order_tax
 656012,296793,5,2,2.10,4.07
 656013,296793,4,1,1.62,3.14
 656014,296794,24,3,7.92,15.36
