@@ -1,6 +1,8 @@
 -- ===================================================================
--- 03b_customer_hotspot.sql
+-- 03_customer_hotspot.sql
 -- GLOW BEAUTY - CUSTOMER HOTSPOTS: WHERE THE BUYERS LIVE
+--   customer home states ranked by spend, then the cities with
+--   proven demand and no shop - the expansion candidates
 --
 -- THE DRILL PATH
 --   1. STATE   sales by the customer's HOME state, ranked
@@ -9,7 +11,7 @@
 --
 -- Run in SQL*Plus as the warehouse owner:
 --   sqlplus dwh/yourpassword@XE
---   @analysis\Fz\03b_customer_hotspot.sql
+--   @analysis\Fz\03_customer_hotspot.sql
 --
 -- PARAMETERS (prompted; every one carries a DEFAULT)
 --   start year / end year   the analysis period (data runs 2019-2025)
@@ -116,7 +118,9 @@ by_state AS (
     GROUP  BY cus_state
 ),
 shops AS (
-    SELECT br_state, COUNT(DISTINCT br_city) AS shops
+    -- count branches by br_name (branch_dim is SCD2 - DISTINCT folds
+    -- the versions of one branch back to one shop)
+    SELECT br_state, COUNT(DISTINCT br_name) AS shops
     FROM   branch_dim
     GROUP  BY br_state
 )
@@ -199,8 +203,10 @@ SELECT RANK() OVER (ORDER BY sales DESC) AS rnk,
        sales / NULLIF(custs, 0) AS per_head,
        TO_CHAR(ROUND(pct_of_state, 1), '990.9') || '%' AS pct_share
 FROM   shared
--- branch_dim is SCD2, so a city can hold several rows - NOT EXISTS only
--- asks whether there is none at all
+-- deliberately br_city, NOT br_name: this compares a branch LOCATION
+-- with a customer's home city ('Glow Beauty Ipoh' would never equal
+-- 'Ipoh'). branch_dim is SCD2, so a city can hold several rows -
+-- NOT EXISTS only asks whether there is none at all
 WHERE  NOT EXISTS (SELECT 1 FROM branch_dim b
                    WHERE UPPER(b.br_city) = UPPER(shared.cus_city))
 ORDER  BY rnk;

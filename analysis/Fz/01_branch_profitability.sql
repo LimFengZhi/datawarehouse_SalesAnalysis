@@ -1,6 +1,8 @@
 -- ===================================================================
 -- 01_branch_profitability.sql
--- GLOW BEAUTY - BRANCH PROFITABILITY ANALYSIS
+-- GLOW BEAUTY - BRANCH PROFITABILITY
+--   every branch ranked on average net profit per year across all
+--   five facts, then one branch opened up year by year
 --
 --   1. BRANCH PROFIT RANKING   every branch, best to worst
 --   2. DRILL-DOWN              pick a branch, see it year by year:
@@ -18,8 +20,9 @@
 --                           about). Anything not starting with T is
 --                           read as LOWEST.
 --   how many                how many branches to list (default 5)
---   branch                  the branch section 2 opens up, by city
---                           name (default Ipoh). Case-insensitive.
+--   branch                  the branch section 2 opens up, matched on
+--                           any part of br_name (default Ipoh finds
+--                           'Glow Beauty Ipoh'). Case-insensitive.
 --
 -- MEASURES  (the five facts, drilled across on date_dim + branch_dim)
 --   Order revenue    order_fact.order_net_amt
@@ -34,10 +37,12 @@
 --                    (gross pay; deduction_amt is the employee's EPF
 --                    share, withheld but still paid by the company)
 --   Utility cost     branch_utils_fact.payment_amt
+--   Total cost       purchase + staff + utilities (section 2)
 --   Net profit       revenue - purchase - staff - utilities
 --   Margin %         net profit / revenue x 100
 --   Branches are grouped on the NATURAL key br_ID, never branch_key -
 --   branch_dim is SCD2 and one branch may own several surrogate rows.
+--   Branches are LABELLED by br_name ('Glow Beauty <city>').
 --
 -- OLAP TECHNIQUES USED
 --   CTE (WITH)         both sections
@@ -102,7 +107,7 @@ TTITLE CENTER '+==========================================================+' SKI
        RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN profit_rank HEADING 'RANK'               FORMAT 990
-COLUMN br_city     HEADING 'BRANCH'             FORMAT A15
+COLUMN br_name     HEADING 'BRANCH'             FORMAT A26
 COLUMN yrs         HEADING 'YRS'                FORMAT 90
 COLUMN revenue     HEADING 'AVG SALES|PER YEAR' FORMAT 9,999,990
 COLUMN purchase    HEADING 'AVG PURCH|PER YEAR' FORMAT 9,999,990
@@ -117,7 +122,7 @@ COMPUTE AVG LABEL 'AVG' OF revenue purchase staff utility profit ON REPORT
 WITH BRANCH_YEAR AS (
     -- one row per branch PER YEAR, all five facts together
     SELECT b.br_ID,
-           b.br_city,
+           b.br_name,
            d.cal_year,
            SUM(CASE WHEN x.measure IN ('PROD_REV', 'SERV_REV') THEN x.amt ELSE 0 END) AS revenue,
            SUM(CASE WHEN x.measure = 'PURCHASE' THEN x.amt ELSE 0 END) AS purchase,
@@ -145,7 +150,7 @@ WITH BRANCH_YEAR AS (
     JOIN   date_dim   d ON d.date_key   = x.date_key
     JOIN   branch_dim b ON b.branch_key = x.branch_key
     WHERE  d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
-    GROUP  BY b.br_ID, b.br_city, d.cal_year
+    GROUP  BY b.br_ID, b.br_name, d.cal_year
 ),
 BRANCH_PNL AS (
     -- collapse the years into ONE average year per branch. Dividing by
@@ -153,7 +158,7 @@ BRANCH_PNL AS (
     -- comparable with a branch that has traded since 2019 - on period
     -- totals the new ones look worst purely for being younger.
     -- Margin is unaffected: avg profit / avg revenue = total / total.
-    SELECT br_ID, br_city,
+    SELECT br_ID, br_name,
            COUNT(*)      AS yrs,
            AVG(revenue)  AS revenue,
            AVG(purchase) AS purchase,
@@ -161,10 +166,10 @@ BRANCH_PNL AS (
            AVG(utility)  AS utility,
            AVG(profit)   AS profit
     FROM   BRANCH_YEAR
-    GROUP  BY br_ID, br_city
+    GROUP  BY br_ID, br_name
 ),
 RANKED AS (
-    SELECT br_city,
+    SELECT br_name,
            yrs,
            revenue,
            purchase,
@@ -177,7 +182,7 @@ RANKED AS (
     FROM   BRANCH_PNL
 )
 SELECT profit_rank,
-       br_city,
+       br_name,
        yrs,
        revenue,
        purchase,
@@ -223,13 +228,14 @@ COLUMN revenue     HEADING 'TOTAL|SALES (RM)'   FORMAT 99,999,990
 COLUMN purchase    HEADING 'PURCHASE|COST (RM)' FORMAT 9,999,990
 COLUMN staff       HEADING 'STAFF|COST (RM)'    FORMAT 9,999,990
 COLUMN utility     HEADING 'UTILITY|COST (RM)'  FORMAT 999,990
+COLUMN total_cost  HEADING 'TOTAL|COST (RM)'    FORMAT 99,999,990
 COLUMN profit      HEADING 'NET|PROFIT (RM)'    FORMAT S9,999,990
 COLUMN margin_pct  HEADING 'MARGIN|%'           FORMAT A8
 
 -- COMPUTE is what draws the ---- rule above the average row; a plain
 -- UNION ALL row would print with no separator at all
 BREAK ON REPORT
-COMPUTE AVG LABEL 'AVG/YEAR' OF order_rev service_rev revenue purchase staff utility profit ON REPORT
+COMPUTE AVG LABEL 'AVG/YEAR' OF order_rev service_rev revenue purchase staff utility total_cost profit ON REPORT
 
 WITH BRANCH_YEAR AS (
     -- the same drill-across, this time one row per YEAR for one branch
@@ -259,7 +265,9 @@ WITH BRANCH_YEAR AS (
             FROM   branch_utils_fact f) x
     JOIN   date_dim   d ON d.date_key   = x.date_key
     JOIN   branch_dim b ON b.branch_key = x.branch_key
-    WHERE  UPPER(b.br_city) = UPPER(TRIM('&p_branch'))
+    -- any part of the branch NAME matches, so 'Ipoh' still finds
+    -- 'Glow Beauty Ipoh' and the full name works too
+    WHERE  UPPER(b.br_name) LIKE '%' || UPPER(TRIM('&p_branch')) || '%'
     AND    d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
     GROUP  BY d.cal_year
 )
@@ -270,6 +278,7 @@ SELECT TO_CHAR(cal_year) AS period,
        purchase,
        staff,
        utility,
+       purchase + staff + utility AS total_cost,
        order_rev + service_rev - purchase - staff - utility AS profit,
        TO_CHAR(ROUND((order_rev + service_rev - purchase - staff - utility)
                      / NULLIF(order_rev + service_rev, 0) * 100, 1), 'S990.9') || '%' AS margin_pct
