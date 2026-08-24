@@ -517,9 +517,7 @@ WHERE  rnk <= TO_NUMBER('&p_prodn')
 ORDER  BY rnk;
 
 PROMPT
-PROMPT +==========================================================+
-PROMPT |   END OF CATEGORY AND PRODUCT PERFORMANCE REPORT         |
-PROMPT +==========================================================+
+PROMPT Report Completed
 PROMPT
 
 -- ===================================================================

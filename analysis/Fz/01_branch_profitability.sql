@@ -37,6 +37,10 @@
 --                    (gross pay; deduction_amt is the employee's EPF
 --                    share, withheld but still paid by the company)
 --   Utility cost     branch_utils_fact.payment_amt
+--   Purch % sales    purchase cost / sales x 100 - how much of every
+--                    ringgit of sales goes on buying stock. The AVG
+--                    row averages the yearly ratios, so it can differ
+--                    by a few tenths from avg purchase / avg sales.
 --   Total cost       purchase + staff + utilities (section 2)
 --   Net profit       revenue - purchase - staff - utilities
 --   Margin %         net profit / revenue x 100
@@ -111,13 +115,14 @@ COLUMN br_name     HEADING 'BRANCH'             FORMAT A26
 COLUMN yrs         HEADING 'YRS'                FORMAT 90
 COLUMN revenue     HEADING 'AVG SALES|PER YEAR' FORMAT 9,999,990
 COLUMN purchase    HEADING 'AVG PURCH|PER YEAR' FORMAT 9,999,990
+COLUMN purch_pct   HEADING 'PURCH|% SALES'      FORMAT 990.9
 COLUMN staff       HEADING 'AVG STAFF|PER YEAR' FORMAT 9,999,990
 COLUMN utility     HEADING 'AVG UTIL|PER YEAR'  FORMAT 999,990
 COLUMN profit      HEADING 'AVG PROFIT|PER YEAR' FORMAT S9,999,990
 COLUMN margin_pct  HEADING 'MARGIN|%'           FORMAT A8
 
 BREAK ON REPORT
-COMPUTE AVG LABEL 'AVG' OF revenue purchase staff utility profit ON REPORT
+COMPUTE AVG LABEL 'AVG' OF revenue purchase purch_pct staff utility profit ON REPORT
 
 WITH BRANCH_YEAR AS (
     -- one row per branch PER YEAR, all five facts together
@@ -186,6 +191,7 @@ SELECT profit_rank,
        yrs,
        revenue,
        purchase,
+       ROUND(purchase / NULLIF(revenue, 0) * 100, 1) AS purch_pct,
        staff,
        utility,
        profit,
@@ -226,6 +232,7 @@ COLUMN order_rev   HEADING 'ORDER|SALES (RM)'   FORMAT 9,999,990
 COLUMN service_rev HEADING 'SERVICE|SALES (RM)' FORMAT 9,999,990
 COLUMN revenue     HEADING 'TOTAL|SALES (RM)'   FORMAT 99,999,990
 COLUMN purchase    HEADING 'PURCHASE|COST (RM)' FORMAT 9,999,990
+COLUMN purch_pct   HEADING 'PURCH|% SALES'      FORMAT 990.9
 COLUMN staff       HEADING 'STAFF|COST (RM)'    FORMAT 9,999,990
 COLUMN utility     HEADING 'UTILITY|COST (RM)'  FORMAT 999,990
 COLUMN total_cost  HEADING 'TOTAL|COST (RM)'    FORMAT 99,999,990
@@ -235,7 +242,7 @@ COLUMN margin_pct  HEADING 'MARGIN|%'           FORMAT A8
 -- COMPUTE is what draws the ---- rule above the average row; a plain
 -- UNION ALL row would print with no separator at all
 BREAK ON REPORT
-COMPUTE AVG LABEL 'AVG/YEAR' OF order_rev service_rev revenue purchase staff utility total_cost profit ON REPORT
+COMPUTE AVG LABEL 'AVG/YEAR' OF order_rev service_rev revenue purchase purch_pct staff utility total_cost profit ON REPORT
 
 WITH BRANCH_YEAR AS (
     -- the same drill-across, this time one row per YEAR for one branch
@@ -276,6 +283,7 @@ SELECT TO_CHAR(cal_year) AS period,
        service_rev,
        order_rev + service_rev AS revenue,
        purchase,
+       ROUND(purchase / NULLIF(order_rev + service_rev, 0) * 100, 1) AS purch_pct,
        staff,
        utility,
        purchase + staff + utility AS total_cost,
@@ -286,9 +294,7 @@ FROM   BRANCH_YEAR
 ORDER  BY cal_year;
 
 PROMPT
-PROMPT +==========================================================+
-PROMPT |        END OF BRANCH PROFITABILITY REPORT                |
-PROMPT +==========================================================+
+PROMPT Report Completed
 PROMPT
 
 -- ===================================================================

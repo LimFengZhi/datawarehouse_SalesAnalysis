@@ -74,9 +74,9 @@ PROMPT
 
 -- ###################################################################
 -- SECTION 1 - WHERE THE BUYERS LIVE, BY STATE
--- Ranked on total sales. The SHOPS column counts the branches Glow
+-- Ranked on total sales. The BRANCHES column counts the branches Glow
 -- Beauty actually has in that state, so a state can be read against
--- its own shop footprint straight away.
+-- its own branch footprint straight away.
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. CUSTOMER HOTSPOTS BY HOME STATE' SKIP 1 -
@@ -85,17 +85,17 @@ TTITLE CENTER '+==========================================================+' SKI
        LEFT 'Report Generated on: ' _DATE -
        RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN rnk       HEADING 'RANK'               FORMAT 990
+COLUMN rnk       HEADING 'RANK'               FORMAT 9990
 COLUMN cus_state HEADING 'CUSTOMER HOME STATE' FORMAT A34
-COLUMN shops     HEADING 'SHOPS'              FORMAT 990
+COLUMN shops     HEADING 'BRANCHES'           FORMAT 990
 COLUMN cities    HEADING 'CITIES|LIVED IN'    FORMAT 990
 COLUMN custs     HEADING 'CUSTOMERS'          FORMAT 99,990
-COLUMN sales     HEADING 'SALES (RM)'         FORMAT 999,999,990
+COLUMN sales     HEADING 'TOTAL SALES|(RM)'    FORMAT 999,999,990
 COLUMN per_head  HEADING 'SALES PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|SALES'     FORMAT A8
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF custs sales ON REPORT
+COMPUTE SUM LABEL 'TOTAL' OF custs sales ON REPORT
 
 WITH spend AS (
     -- both revenue facts on one customer grain
@@ -154,21 +154,21 @@ ACCEPT p_state CHAR DEFAULT 'Selangor' PROMPT 'State to open up (default Selango
 PROMPT
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 2. CITIES IN &p_state WITH NO SHOP' SKIP 1 -
+       CENTER 'GLOW BEAUTY - 2. CITIES IN &p_state WITH NO BRANCH' SKIP 1 -
        CENTER 'PROVEN DEMAND, NO BRANCH, &p_from - &p_to' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'Report Generated on: ' _DATE -
        RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN rnk      HEADING 'RANK'               FORMAT 990
+COLUMN rnk      HEADING 'RANK'               FORMAT 9990
 COLUMN cus_city HEADING 'CUSTOMER HOME CITY' FORMAT A24
 COLUMN custs    HEADING 'CUSTOMERS'          FORMAT 99,990
-COLUMN sales    HEADING 'SALES (RM)'         FORMAT 99,999,990
+COLUMN sales    HEADING 'TOTAL SALES|(RM)'    FORMAT 99,999,990
 COLUMN per_head HEADING 'SALES PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|STATE'    FORMAT A8
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL' OF custs sales ON REPORT
+COMPUTE SUM LABEL 'TOTAL' OF custs sales ON REPORT
 
 WITH spend AS (
     SELECT c.cus_ID, c.cus_city, x.amt
@@ -212,9 +212,7 @@ WHERE  NOT EXISTS (SELECT 1 FROM branch_dim b
 ORDER  BY rnk;
 
 PROMPT
-PROMPT +==========================================================+
-PROMPT |        END OF CUSTOMER HOTSPOT REPORT                    |
-PROMPT +==========================================================+
+PROMPT Report Completed
 PROMPT
 
 -- ===================================================================
