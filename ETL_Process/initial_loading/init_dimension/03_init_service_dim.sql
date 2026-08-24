@@ -96,7 +96,7 @@ BEGIN
     SELECT
         seq_service_key.NEXTVAL,
         serv_ID, clean_serv_name, clean_serv_category, clean_serv_price,
-        DATE '2018-01-01',   -- first version: start of recorded history
+        DATE '2019-01-01',   -- first version: the first sales year (facts start 2019-01-01)
         DATE '9999-12-31',
         'Y'
     FROM service_staging_v;

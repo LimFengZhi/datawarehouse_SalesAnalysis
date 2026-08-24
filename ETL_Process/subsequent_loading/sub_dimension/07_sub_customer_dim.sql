@@ -40,7 +40,7 @@ BEGIN
         s.cus_ID, s.clean_cus_name, s.clean_cus_email, s.clean_cus_gender,
         s.clean_cus_city, s.clean_cus_state,
         s.derived_cus_age_group, s.clean_cus_loyalty_tier,
-        DATE '2018-01-01',   -- first version: start of recorded history
+        DATE '2019-01-01',   -- first version: the first sales year (facts start 2019-01-01)
         DATE '9999-12-31',
         'Y'
     FROM   customer_staging_v s

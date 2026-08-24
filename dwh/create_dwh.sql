@@ -214,9 +214,7 @@ CREATE TABLE reservation_fact (
     serv_discount_amt    NUMBER(12,2)   NOT NULL,
     serv_tax_amt         NUMBER(12,2)   NOT NULL,
     serv_total_amt       NUMBER(12,2)   NOT NULL,             -- service_dim price (of the date) - disc + tax
-    serv_net_amt         NUMBER(12,2)   NOT NULL,             -- serv_total_amt - serv_tax_amt, i.e.
-                                              -- price - discount. REVENUE excluding the SST -
-                                              -- sum THIS column for service sales
+    serv_net_amt         NUMBER(12,2)   NOT NULL,             -- serv_total_amt - serv_tax_amt
     CONSTRAINT pk_reservation_fact PRIMARY KEY (date_key, customer_key, staff_key, branch_key, service_key, res_ID),
     CONSTRAINT fk_rf_date      FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_rf_customer  FOREIGN KEY (customer_key) REFERENCES customer_dim (customer_key),

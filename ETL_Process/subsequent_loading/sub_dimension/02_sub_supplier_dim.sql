@@ -35,7 +35,7 @@ BEGIN
     SELECT
         seq_supplier_key.NEXTVAL,
         s.sup_ID, s.clean_sup_name, s.clean_sup_phone, s.clean_sup_email,
-        DATE '2018-01-01',   -- first version: start of recorded history
+        DATE '2019-01-01',   -- first version: the first sales year (facts start 2019-01-01)
         DATE '9999-12-31',
         'Y'
     FROM   supplier_staging_v s

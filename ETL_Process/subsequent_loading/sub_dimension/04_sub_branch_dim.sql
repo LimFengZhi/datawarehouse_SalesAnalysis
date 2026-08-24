@@ -28,7 +28,7 @@ BEGIN
         seq_branch_key.NEXTVAL,
         s.br_ID, s.clean_br_name, s.clean_br_city, s.clean_br_state,
         s.clean_br_email,
-        DATE '2018-01-01',   -- first version: start of recorded history
+        DATE '2019-01-01',   -- first version: the first sales year (facts start 2019-01-01)
         DATE '9999-12-31',
         'Y'
     FROM   branch_staging_v s
