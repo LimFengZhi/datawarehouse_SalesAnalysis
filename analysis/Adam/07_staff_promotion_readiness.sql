@@ -52,14 +52,14 @@ current_bt AS (
     AND    sd.st_status = 'Active'
 ),
 rev AS (
-    SELECT sd.st_ID, SUM(f.serv_total_amt) AS revenue
+    SELECT sd.st_ID, SUM(f.serv_net_amt) AS revenue
     FROM   reservation_fact f
     JOIN   staff_dim sd ON sd.staff_key = f.staff_key
     WHERE  f.res_status = 'Completed'
     GROUP  BY sd.st_ID
 ),
 cost AS (
-    SELECT sd.st_ID, SUM(sp.base_amount + sp.bonus_amount) AS labor_cost
+    SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
     GROUP  BY sd.st_ID
@@ -136,14 +136,14 @@ current_bt AS (
     AND    sd.st_status = 'Active'
 ),
 rev AS (
-    SELECT sd.st_ID, SUM(f.serv_total_amt) AS revenue
+    SELECT sd.st_ID, SUM(f.serv_net_amt) AS revenue
     FROM   reservation_fact f
     JOIN   staff_dim sd ON sd.staff_key = f.staff_key
     WHERE  f.res_status = 'Completed'
     GROUP  BY sd.st_ID
 ),
 cost AS (
-    SELECT sd.st_ID, SUM(sp.base_amount + sp.bonus_amount) AS labor_cost
+    SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
     GROUP  BY sd.st_ID
@@ -226,14 +226,14 @@ current_bt AS (
     AND    sd.st_status = 'Active'
 ),
 rev AS (
-    SELECT sd.st_ID, SUM(f.serv_total_amt) AS revenue
+    SELECT sd.st_ID, SUM(f.serv_net_amt) AS revenue
     FROM   reservation_fact f
     JOIN   staff_dim sd ON sd.staff_key = f.staff_key
     WHERE  f.res_status = 'Completed'
     GROUP  BY sd.st_ID
 ),
 cost AS (
-    SELECT sd.st_ID, SUM(sp.base_amount + sp.bonus_amount) AS labor_cost
+    SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
     GROUP  BY sd.st_ID
@@ -316,14 +316,14 @@ current_bt AS (
     AND    sd.st_status = 'Active'
 ),
 rev AS (
-    SELECT sd.st_ID, SUM(f.serv_total_amt) AS revenue
+    SELECT sd.st_ID, SUM(f.serv_net_amt) AS revenue
     FROM   reservation_fact f
     JOIN   staff_dim sd ON sd.staff_key = f.staff_key
     WHERE  f.res_status = 'Completed'
     GROUP  BY sd.st_ID
 ),
 cost AS (
-    SELECT sd.st_ID, SUM(sp.base_amount + sp.bonus_amount) AS labor_cost
+    SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
     GROUP  BY sd.st_ID
