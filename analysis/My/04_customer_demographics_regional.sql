@@ -1,465 +1,387 @@
 -- ===================================================================
 -- 04_customer_demographics_regional.sql
--- CUSTOMER DEMOGRAPHICS & REGIONAL MARKET PENETRATION
---   base growth  ->  demographic mix  ->  regional spread  ->
---   branch catchment  ->  spend by age
+-- LOYALTY TIER REVENUE AND DISCOUNT RETURN ANALYSIS
 --
 -- Run in SQL*Plus as the warehouse owner:
 --   sqlplus dwh/yourpassword@XE
 --   @analysis\My\04_customer_demographics_regional.sql
 --
 -- PARAMETERS (prompted)
---   state        e.g. Selangor, Johor  - or ALL         (default ALL)
---   focus year   the year to zoom into                  (default 2025)
+--   start year / end year   the analysis window        (default 2019 / 2025)
+--   drill-down year         which year to open up      (Section C)
+--   drill-down tier         which loyalty tier to open (Section C)
 --
 -- WHAT IT ANSWERS
---   1. Who is the customer base and how is it growing - by age band,
---      gender, and home state?
---   2. Are branches drawing customers mainly from their own state, or
---      pulling in a lot of cross-region traffic?
---   3. Does spend per visit differ by age band - is any one segment
---      worth targeting harder?
+--   1. How much revenue does each loyalty tier actually bring in, how
+--      much does an average customer in that tier spend, and how many
+--      of them are spending less than they did last year?     [A]
+--   2. The loyalty programme costs real money - every tier discount is
+--      revenue given away. Does the higher spending of the upper tiers
+--      earn that discount back?                               [B]
+--   3. For one tier in one year - which age band and gender are those
+--      customers, and which of them spend the most?           [C]
 --
--- SCOPE NOTE
---   Every other report in analysis\My drives off a transaction fact
---   (reservation_fact). This one leads with customer_dim itself -
---   who the customers ARE, not just what they bought - and only
---   brings in reservation_fact where a transactional angle (catchment,
---   spend) genuinely needs it. customer_dim is SCD2 (cus_loyalty_tier
---   can version), so every demographic query here filters
---   is_current_flag = 'Y' - otherwise a customer whose tier changed
---   would be counted twice.
+-- THE TIER USED HERE IS THE STORED ONE
+--   customer_dim.cus_loyalty_tier - Bronze / Silver / Gold / Platinum.
+--   It is real data (it exists in the OLTP customer table too), and it
+--   is what actually drives the discount the customer receives at the
+--   till. Nothing in this report invents or re-derives a tier: every
+--   figure is grouped on the tier the business itself assigned.
 --
--- MEASURES
---   Customers            = COUNT(DISTINCT cus_ID), current snapshot only
---   New customers (yr)   = COUNT(DISTINCT cus_ID) whose earliest Completed
---                          order falls in that year - see Section 1 note
---   Home-state match %   = share of a branch's Completed reservations
---                          where the customer's cus_state equals the
---                          branch's br_state
---   Avg spend/reservation = (serv_total_amt - serv_tax_amt) averaged
---                          per Completed reservation, by age band
+-- MEASURES  (Completed rows only, from both revenue facts)
+--   Gross Revenue   what the customer would have paid at list price,
+--                   before any discount: order_net_amt +
+--                   order_discount_amt (and the serv_ equivalents).
+--   Discount Given  order_discount_amt + serv_discount_amt - the money
+--                   actually handed back to the customer.
+--   Net Revenue     order_net_amt + serv_net_amt - what Glow Beauty
+--                   keeps. Both already exclude SST, which is collected
+--                   for the government (see dwh\create_dwh.sql).
+--                   Net Revenue = Gross Revenue - Discount Given.
+--   Effective Disc% Discount Given / Gross Revenue * 100. Expect this
+--                   to run ABOVE the tier's nominal rate: the fact rows
+--                   carry the tier discount AND any promotion running
+--                   that day, and the warehouse stores only the
+--                   combined amount, so the two cannot be split apart.
+--   Net per RM Disc Net Revenue / Discount Given - how many Ringgit of
+--                   kept revenue each Ringgit of discount brings back.
+--                   HIGHER is better. Read it against Rev per Customer
+--                   in the same row: a lower ratio is only acceptable
+--                   if that tier's customers spend enough more to
+--                   compensate.
+--   At Risk         A customer is flagged in a year when that year's
+--                   net revenue is LOWER than their own previous year's.
+--                   Their first year can never be flagged (nothing to
+--                   fall from). Note this catches DECLINE, not total
+--                   churn - a customer who stops coming entirely has no
+--                   row that year and so is never flagged.
 --
--- DIMENSIONS USED  (three)
---   customer_dim  cus_age_band, cus_gender, cus_state    -> current-flag
---                 snapshot only; the dimension carries no registration
---                 date (see Section 1 note)
---   branch_dim    br_city / br_state                    -> section 4
---   date_dim      cal_year                                -> sections 1, 4, 5
---   plus order_fact for section 1 (first-order cohort year) and
---   reservation_fact for sections 4 and 5, where a transaction
---   count/amount is actually needed.
+-- DIMENSIONS USED (two)
+--   customer_dim  cus_ID (natural key - SCD2, so grouped on it, never
+--                 customer_key, per CLAUDE.md), cus_loyalty_tier,
+--                 cus_age_group, cus_gender  (cus_state is carried by
+--                 the view but no section displays it - the hook is
+--                 there if a regional cut is ever wanted)
+--   date_dim      cal_year
+-- FACTS USED (two)
+--   order_fact (product revenue), reservation_fact (service revenue)
 --
--- REPORT SECTIONS (the drill-down path)
---   1  CUSTOMER BASE GROWTH BY FIRST-ORDER YEAR    2018-2025, running
---                                                   total - an acquisition-
---                                                   cohort proxy, not raw
---                                                   registration (see note)
---   2  DEMOGRAPHIC MIX: AGE BAND x GENDER           company-wide
---   3  REGIONAL DISTRIBUTION: HOME STATE            ranked
---   4  FOCUS YEAR - BRANCH CATCHMENT                home-state vs
---                                                    cross-region %
---   5  FOCUS YEAR - AVG SPEND BY AGE BAND           ranked
---   6  SUMMARY STATISTICS                           grouped OVERALL /
---                                                    FOCUS YEAR
---   Sections 1, 2 and 3 look at the WHOLE customer base and are not
---   filterable by state (there would be nothing left to compare
---   against); sections 4, 5 and 6 honour the state filter.
+-- VIEWS BUILT AND DROPPED BY THIS SCRIPT (three, layered)
+--   customer_annual_value_v    gross / discount / net per customer-year
+--   customer_annual_trend_v    + previous year and the at-risk flag
+--   customer_profile_value_v   + loyalty tier and demographics
+--   All three are dropped at the end so the schema is left as found.
 --
--- WHAT TO LOOK FOR
---   - Section 1: the running total tracks first-time BUYERS, not raw
---     signups, so it will read a little below the full registered-base
---     figure in README.md (customers who registered but never ordered
---     are outside this count by construction) - the shape of the growth
---     curve year over year is still the useful signal
---   - Section 4: a branch with a LOW home-state match % is pulling
---     customers from further away than its own catchment - worth
---     knowing whether that is by design (a destination branch) or a
---     sign the branch's own state is under-penetrated
---   - Section 5: if spend doesn't vary much by age band, age-targeted
---     marketing is unlikely to move revenue much on its own
+-- SECTIONS
+--   A  REVENUE BY LOYALTY TIER AND YEAR
+--   B  DISCOUNT COST VS REVENUE RETURN BY TIER
+--   C  DRILL-DOWN: AGE BAND AND GENDER  (prompted year + tier)
 --
--- WHY "PAGE: 1" NEVER CHANGES
---   SQL.PNO in the TTITLE counts pages WITHIN the current SELECT's own
---   output (driven by PAGESIZE = 60 lines). Every table here is far
---   shorter than that, so it never rolls to page 2 - PAGE: 1 on every
---   section is expected.
+-- NOTE ON cus_age_group
+--   customer_dim stores the age BAND, not the date of birth, and it is
+--   a Type 1 attribute derived against SYSDATE (see CLAUDE.md). So the
+--   band is the customer's age TODAY, not their age in the analysis
+--   year - a 2019 row shows the band they are in now. That is a
+--   property of the dimension design, not a defect in this report.
 -- ===================================================================
 
--- reset anything a previous script left behind in this session
-TTITLE OFF
-BTITLE OFF
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
+TTITLE OFF
+BTITLE OFF
 SET DEFINE ON
 SET PAGESIZE 60
-SET LINESIZE 132
+SET LINESIZE 120
 SET FEEDBACK OFF
 SET VERIFY OFF
 SET ECHO OFF
 SET TERMOUT ON
-SET TRIMSPOOL ON
 
-ACCEPT state      CHAR   DEFAULT 'ALL' PROMPT 'Enter customer home state (e.g. Selangor) or ALL (default ALL): '
-ACCEPT focus_year NUMBER DEFAULT 2025  PROMPT 'Enter the focus year to zoom into (default 2025): '
+ACCEPT start_year NUMBER DEFAULT 2019 PROMPT 'Enter the START year of the analysis (default 2019): '
+ACCEPT end_year   NUMBER DEFAULT 2025 PROMPT 'Enter the END year of the analysis   (default 2025): '
 
 SET TERMOUT OFF
-COLUMN run_dt  NEW_VALUE run_dt  NOPRINT
+COLUMN run_dt NEW_VALUE run_dt NOPRINT
 SELECT TO_CHAR(SYSDATE, 'DD-MON-YYYY') AS run_dt FROM dual;
 
-COLUMN focus_y NEW_VALUE focus_y NOPRINT
-SELECT TO_CHAR(&focus_year) AS focus_y FROM dual;
-
-COLUMN st_label NEW_VALUE st_label NOPRINT
-SELECT CASE WHEN UPPER(TRIM('&state')) IN ('', 'ALL') THEN 'ALL STATES'
-            ELSE UPPER(TRIM('&state')) END AS st_label
-FROM dual;
+COLUMN yr_range NEW_VALUE yr_range NOPRINT
+SELECT TO_CHAR(&start_year) || ' - ' || TO_CHAR(&end_year) AS yr_range FROM dual;
 CLEAR COLUMNS
 SET TERMOUT ON
 
--- The state filter, used in sections 4, 5 and 6. Matches on cus_state
--- with LIKE, so 'Selangor' and 'selangor' both work.
---   (UPPER(TRIM('&state')) IN ('', 'ALL')
---    OR UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
 
-SPOOL customer_demographics_regional_output.txt
+-- ###################################################################
+-- VIEW 1 - GROSS, DISCOUNT AND NET PER CUSTOMER PER YEAR
+-- Product revenue and service revenue are aggregated separately and
+-- then FULL OUTER JOINed, so a customer who only ever bought products
+-- (or only ever booked services) still gets a row instead of being
+-- dropped by an inner join.
+-- Grouped on cus_ID, the natural key: customer_dim is SCD2, so one
+-- customer can own several customer_key values and grouping on the
+-- surrogate would split that customer into two.
+-- ###################################################################
+CREATE OR REPLACE VIEW customer_annual_value_v AS
+SELECT
+    COALESCE(p.cus_ID,   s.cus_ID)   AS cus_ID,
+    COALESCE(p.cal_year, s.cal_year) AS cal_year,
+    NVL(p.prod_net, 0)  + NVL(s.serv_net, 0)  AS net_revenue,
+    NVL(p.prod_disc, 0) + NVL(s.serv_disc, 0) AS discount_given,
+    NVL(p.prod_net, 0)  + NVL(s.serv_net, 0)
+      + NVL(p.prod_disc, 0) + NVL(s.serv_disc, 0) AS gross_revenue,
+    NVL(p.prod_net, 0)  AS product_net,
+    NVL(s.serv_net, 0)  AS service_net
+FROM (
+        SELECT c.cus_ID, d.cal_year,
+               SUM(o.order_net_amt)      AS prod_net,
+               SUM(o.order_discount_amt) AS prod_disc
+        FROM   order_fact   o
+        JOIN   date_dim     d ON d.date_key     = o.date_key
+        JOIN   customer_dim c ON c.customer_key = o.customer_key
+        WHERE  o.order_status = 'Completed'
+        GROUP  BY c.cus_ID, d.cal_year
+     ) p
+FULL OUTER JOIN (
+        SELECT c.cus_ID, d.cal_year,
+               SUM(r.serv_net_amt)      AS serv_net,
+               SUM(r.serv_discount_amt) AS serv_disc
+        FROM   reservation_fact r
+        JOIN   date_dim     d ON d.date_key     = r.date_key
+        JOIN   customer_dim c ON c.customer_key = r.customer_key
+        WHERE  r.res_status = 'Completed'
+        GROUP  BY c.cus_ID, d.cal_year
+     ) s ON s.cus_ID = p.cus_ID AND s.cal_year = p.cal_year;
 
 
 -- ###################################################################
--- SECTION 1 - CUSTOMER BASE GROWTH BY FIRST-ORDER YEAR
--- Always the whole base - a running total only means something
--- uninterrupted, so this section ignores the state filter.
---
--- customer_dim carries no registration date (cus_reg_date was dropped
--- from the dimension - see ETL_Process\initial_loading\init_dimension\
--- 07_init_customer_dim.sql), so "new customer" here is cohorted by each
--- customer's earliest Completed order year instead of a signup date.
--- That is a deliberately different, warehouse-native metric: it is the
--- year a customer first became a paying buyer, not the year they filled
--- in a registration form - arguably the more decision-relevant of the
--- two anyway. Grouping is by cus_ID (the natural key) rather than
--- customer_key, because a customer whose profile changed later carries
--- more than one customer_key and would otherwise be split across years.
+-- VIEW 2 - THE AT-RISK FLAG
+-- LAG looks at the SAME customer's previous year (PARTITION BY cus_ID),
+-- so "at risk" means the customer is spending less than they used to,
+-- not less than other people. The default of 0 in LAG means a
+-- customer's first-ever year compares against 0 and is never flagged.
+-- ###################################################################
+CREATE OR REPLACE VIEW customer_annual_trend_v AS
+SELECT
+    v.cus_ID,
+    v.cal_year,
+    v.net_revenue,
+    v.discount_given,
+    v.gross_revenue,
+    v.product_net,
+    v.service_net,
+    LAG(v.net_revenue, 1, 0) OVER (PARTITION BY v.cus_ID ORDER BY v.cal_year) AS prev_year_net,
+    CASE WHEN v.net_revenue <
+              LAG(v.net_revenue, 1, 0) OVER (PARTITION BY v.cus_ID ORDER BY v.cal_year)
+         THEN 1 ELSE 0 END AS is_at_risk
+FROM customer_annual_value_v v;
+
+
+-- ###################################################################
+-- VIEW 3 - PLUS THE STORED LOYALTY TIER AND DEMOGRAPHICS
+-- is_current_flag = 'Y' picks ONE row per customer from the SCD2
+-- dimension, so joining it cannot multiply a customer's revenue by the
+-- number of versions they happen to have.
+-- ###################################################################
+CREATE OR REPLACE VIEW customer_profile_value_v AS
+SELECT
+    t.cus_ID, t.cal_year,
+    t.net_revenue, t.discount_given, t.gross_revenue,
+    t.product_net, t.service_net,
+    t.prev_year_net, t.is_at_risk,
+    c.cus_loyalty_tier,
+    c.cus_age_group,
+    c.cus_gender,
+    c.cus_state
+FROM   customer_annual_trend_v t
+JOIN   customer_dim c ON c.cus_ID = t.cus_ID
+                     AND c.is_current_flag = 'Y';
+
+
+-- ###################################################################
+-- SECTION A - REVENUE BY LOYALTY TIER AND YEAR
+-- Does the tier ladder actually correspond to a revenue ladder? And is
+-- each tier's share of the business holding up over time?
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 1. CUSTOMER BASE GROWTH BY FIRST-ORDER YEAR' SKIP 1 -
-       CENTER 'ALL CUSTOMERS, 2018 - 2025' SKIP 1 -
+       CENTER 'GLOW BEAUTY - A. REVENUE BY LOYALTY TIER AND YEAR' SKIP 1 -
+       CENTER 'STORED cus_loyalty_tier, &yr_range' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN reg_year    HEADING 'YEAR'              FORMAT 9999
-COLUMN new_cus     HEADING 'NEW|CUSTOMERS'     FORMAT 999,999
-COLUMN running_tot HEADING 'RUNNING|TOTAL'     FORMAT 999,999
-COLUMN yoy_pct     HEADING 'GROWTH|YOY %'      FORMAT S990.0
+COLUMN cus_loyalty_tier HEADING 'LOYALTY|TIER'     FORMAT A9
+COLUMN cal_year         HEADING 'YEAR'             FORMAT 9999
+COLUMN customers        HEADING 'ACTIVE|CUSTOMERS' FORMAT 999,990
+COLUMN net_revenue      HEADING 'NET REVENUE|(RM)' FORMAT 999,999,990.00
+COLUMN rev_per_cust     HEADING 'REV PER|CUSTOMER' FORMAT 99,990.00
+COLUMN pct_revenue      HEADING '% OF YEAR|REVENUE' FORMAT 990.0
+COLUMN pct_at_risk      HEADING '% AT|RISK'        FORMAT 990.0
 
-BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL NEW' OF new_cus ON REPORT
+BREAK ON cus_loyalty_tier SKIP 1
+COMPUTE SUM LABEL 'Tier Total:' OF net_revenue ON cus_loyalty_tier
 
-WITH cust_first_order AS (
-    SELECT c.cus_ID, MIN(d.cal_year) AS reg_year
-    FROM   order_fact   f
-    JOIN   date_dim     d ON d.date_key     = f.date_key
-    JOIN   customer_dim c ON c.customer_key = f.customer_key
-    WHERE  f.order_status = 'Completed'
-    GROUP  BY c.cus_ID
-),
-by_year AS (
-    SELECT reg_year, COUNT(cus_ID) AS new_cus
-    FROM   cust_first_order
-    GROUP  BY reg_year
+WITH tier_year AS (
+    SELECT cus_loyalty_tier,
+           cal_year,
+           COUNT(DISTINCT cus_ID) AS customers,
+           SUM(net_revenue)       AS net_revenue,
+           SUM(is_at_risk)        AS at_risk_count
+    FROM   customer_profile_value_v
+    WHERE  cal_year BETWEEN &start_year AND &end_year
+    GROUP  BY cus_loyalty_tier, cal_year
 )
-SELECT reg_year, new_cus,
-       SUM(new_cus) OVER (ORDER BY reg_year)                                       AS running_tot,
-       ROUND( (new_cus - LAG(new_cus) OVER (ORDER BY reg_year))
-             / NULLIF(LAG(new_cus) OVER (ORDER BY reg_year), 0) * 100, 1)          AS yoy_pct
-FROM   by_year
-ORDER  BY reg_year;
+SELECT cus_loyalty_tier,
+       cal_year,
+       customers,
+       ROUND(net_revenue, 2)                                    AS net_revenue,
+       ROUND(net_revenue / NULLIF(customers, 0), 2)             AS rev_per_cust,
+       ROUND(net_revenue * 100.0
+             / SUM(net_revenue) OVER (PARTITION BY cal_year), 1) AS pct_revenue,
+       ROUND(at_risk_count * 100.0 / NULLIF(customers, 0), 1)    AS pct_at_risk
+FROM   tier_year
+ORDER  BY DECODE(cus_loyalty_tier, 'Platinum', 1, 'Gold', 2, 'Silver', 3, 'Bronze', 4),
+          cal_year;
 
 
 -- ###################################################################
--- SECTION 2 - DEMOGRAPHIC MIX: AGE BAND x GENDER  (company-wide)
+-- SECTION B - DISCOUNT COST VS REVENUE RETURN BY TIER
+-- The loyalty programme is not free: Silver, Gold and Platinum all get
+-- money taken off at the till. This section prices that.
+--   NET PER RM DISC  = Net Revenue / Discount Given. Higher is better.
+--                      It will FALL as the tier rises - that is the
+--                      whole design of a discount ladder. The real
+--                      question is whether REV PER CUSTOMER rises
+--                      fast enough to pay for the fall.
+-- Read the two columns together: if Platinum returns half the revenue
+-- per Ringgit of discount that Bronze does, it needs to be bringing in
+-- more than twice the revenue per customer to be worth it.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 2. DEMOGRAPHIC MIX: AGE BAND BY GENDER' SKIP 1 -
-       CENTER 'ALL CURRENT CUSTOMERS' SKIP 1 -
+       CENTER 'GLOW BEAUTY - B. DISCOUNT COST VS REVENUE RETURN' SKIP 1 -
+       CENTER 'BY LOYALTY TIER, &yr_range' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN cus_age_band HEADING 'AGE BAND' FORMAT A10
-COLUMN male_cnt      HEADING 'MALE'     FORMAT 999,999
-COLUMN female_cnt    HEADING 'FEMALE'   FORMAT 999,999
-COLUMN total_cnt     HEADING 'TOTAL'    FORMAT 999,999
-COLUMN share_pct     HEADING 'SHARE|%'  FORMAT 990.0
+COLUMN cus_loyalty_tier HEADING 'LOYALTY|TIER'       FORMAT A9
+COLUMN customers        HEADING 'CUSTOMERS'          FORMAT 999,990
+COLUMN gross_revenue    HEADING 'GROSS REVENUE|(RM)' FORMAT 999,999,990.00
+COLUMN discount_given   HEADING 'DISCOUNT GIVEN|(RM)' FORMAT 99,999,990.00
+COLUMN net_revenue      HEADING 'NET REVENUE|(RM)'   FORMAT 999,999,990.00
+COLUMN eff_disc_pct     HEADING 'EFFECTIVE|DISCOUNT %' FORMAT 990.0
+COLUMN net_per_disc     HEADING 'NET REV PER|RM DISCOUNT' FORMAT 9,990.00
+COLUMN rev_per_cust     HEADING 'REV PER|CUSTOMER'   FORMAT 99,990.00
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL AGES' OF male_cnt female_cnt total_cnt ON REPORT
+COMPUTE SUM LABEL 'ALL TIERS' OF customers gross_revenue discount_given net_revenue ON REPORT
 
-WITH cust AS (
-    SELECT c.cus_age_band, c.cus_gender
-    FROM   customer_dim c
-    WHERE  c.is_current_flag = 'Y'
+WITH by_tier AS (
+    SELECT cus_loyalty_tier,
+           COUNT(DISTINCT cus_ID) AS customers,
+           SUM(gross_revenue)     AS gross_revenue,
+           SUM(discount_given)    AS discount_given,
+           SUM(net_revenue)       AS net_revenue
+    FROM   customer_profile_value_v
+    WHERE  cal_year BETWEEN &start_year AND &end_year
+    GROUP  BY cus_loyalty_tier
 )
-SELECT cus_age_band,
-       SUM(CASE WHEN cus_gender = 'Male'   THEN 1 ELSE 0 END) AS male_cnt,
-       SUM(CASE WHEN cus_gender = 'Female' THEN 1 ELSE 0 END) AS female_cnt,
-       COUNT(*)                                                AS total_cnt,
-       ROUND(RATIO_TO_REPORT(COUNT(*)) OVER () * 100, 1)        AS share_pct
-FROM   cust
-GROUP  BY cus_age_band
-ORDER  BY cus_age_band;
+SELECT cus_loyalty_tier,
+       customers,
+       ROUND(gross_revenue, 2)                                       AS gross_revenue,
+       ROUND(discount_given, 2)                                      AS discount_given,
+       ROUND(net_revenue, 2)                                         AS net_revenue,
+       ROUND(discount_given * 100.0 / NULLIF(gross_revenue, 0), 1)   AS eff_disc_pct,
+       ROUND(net_revenue / NULLIF(discount_given, 0), 2)             AS net_per_disc,
+       ROUND(net_revenue / NULLIF(customers, 0), 2)                  AS rev_per_cust
+FROM   by_tier
+ORDER  BY DECODE(cus_loyalty_tier, 'Platinum', 1, 'Gold', 2, 'Silver', 3, 'Bronze', 4);
 
 
 -- ###################################################################
--- SECTION 3 - REGIONAL DISTRIBUTION: HOME STATE  (ranked)
+-- SECTION C - DRILL-DOWN: WHO THEY ARE
+-- Pick one year and one loyalty tier, then see which age band and
+-- gender those customers fall into - the targeting question.
 -- ###################################################################
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 
+PROMPT
+PROMPT ==================================================
+PROMPT DRILL-DOWN: ONE YEAR, ONE LOYALTY TIER
+PROMPT ==================================================
+PROMPT
+
+ACCEPT drill_year NUMBER DEFAULT 2025      PROMPT 'Enter the year to drill into (default 2025): '
+ACCEPT drill_tier CHAR   DEFAULT 'Platinum' PROMPT 'Enter the loyalty tier (Bronze/Silver/Gold/Platinum, default Platinum): '
+
 TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 3. REGIONAL DISTRIBUTION: CUSTOMER HOME STATE' SKIP 1 -
-       CENTER 'ALL CURRENT CUSTOMERS, RANKED' SKIP 1 -
+       CENTER 'GLOW BEAUTY - C. WHO THE &drill_tier CUSTOMERS ARE' SKIP 1 -
+       CENTER 'AGE BAND AND GENDER, LOYALTY TIER &drill_tier, YEAR &drill_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN rnk       HEADING 'RANK'      FORMAT 99
-COLUMN cus_state HEADING 'STATE'     FORMAT A22
-COLUMN cus_cnt   HEADING 'CUSTOMERS' FORMAT 999,999
-COLUMN share_pct HEADING 'SHARE|%'   FORMAT 990.0
+COLUMN cus_age_group HEADING 'AGE BAND'         FORMAT A24
+COLUMN female_cnt    HEADING 'FEMALE'           FORMAT 999,990
+COLUMN male_cnt      HEADING 'MALE'             FORMAT 999,990
+COLUMN customers     HEADING 'CUSTOMERS'        FORMAT 999,990
+COLUMN net_revenue   HEADING 'NET REVENUE|(RM)' FORMAT 99,999,990.00
+COLUMN pct_revenue   HEADING '% OF TIER|REVENUE' FORMAT 990.0
+COLUMN rev_per_cust  HEADING 'REV PER|CUSTOMER' FORMAT 99,990.00
+COLUMN pct_at_risk   HEADING '% AT|RISK'        FORMAT 990.0
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF cus_cnt ON REPORT
+COMPUTE SUM LABEL 'ALL AGES' OF female_cnt male_cnt customers net_revenue ON REPORT
 
-WITH by_state AS (
-    SELECT c.cus_state, COUNT(*) AS cus_cnt
-    FROM   customer_dim c
-    WHERE  c.is_current_flag = 'Y'
-    GROUP  BY c.cus_state
+WITH by_age AS (
+    SELECT cus_age_group,
+           COUNT(DISTINCT CASE WHEN cus_gender = 'Female' THEN cus_ID END) AS female_cnt,
+           COUNT(DISTINCT CASE WHEN cus_gender = 'Male'   THEN cus_ID END) AS male_cnt,
+           COUNT(DISTINCT cus_ID) AS customers,
+           SUM(net_revenue)       AS net_revenue,
+           SUM(is_at_risk)        AS at_risk_count
+    FROM   customer_profile_value_v
+    WHERE  cal_year = &drill_year
+    AND    UPPER(cus_loyalty_tier) = UPPER(TRIM('&drill_tier'))
+    GROUP  BY cus_age_group
 )
-SELECT RANK() OVER (ORDER BY cus_cnt DESC) AS rnk,
-       cus_state, cus_cnt,
-       ROUND(RATIO_TO_REPORT(cus_cnt) OVER () * 100, 1) AS share_pct
-FROM   by_state
-ORDER  BY rnk;
+SELECT cus_age_group,
+       female_cnt,
+       male_cnt,
+       customers,
+       ROUND(net_revenue, 2)                                    AS net_revenue,
+       ROUND(net_revenue * 100.0 / SUM(net_revenue) OVER (), 1) AS pct_revenue,
+       ROUND(net_revenue / NULLIF(customers, 0), 2)             AS rev_per_cust,
+       ROUND(at_risk_count * 100.0 / NULLIF(customers, 0), 1)   AS pct_at_risk
+FROM   by_age
+ORDER  BY cus_age_group;
 
 
--- ###################################################################
--- SECTION 4 - FOCUS YEAR: BRANCH CATCHMENT  (home-state vs cross-region)
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 4. FOCUS YEAR &focus_y: BRANCH CATCHMENT' SKIP 1 -
-       CENTER 'HOME-STATE VS CROSS-REGION CUSTOMERS, &st_label' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN br_city         HEADING 'BRANCH'            FORMAT A15
-COLUMN total_res       HEADING 'RESERVATIONS'      FORMAT 99,999
-COLUMN home_res        HEADING 'HOME-STATE'        FORMAT 99,999
-COLUMN cross_res       HEADING 'CROSS-|REGION'     FORMAT 99,999
-COLUMN cross_pct       HEADING 'CROSS-REGION|%'    FORMAT 990.0
-
-BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF total_res home_res cross_res ON REPORT
-
-WITH catch AS (
-    SELECT b.br_ID, b.br_city,
-           COUNT(f.res_det_ID)                                              AS total_res,
-           SUM(CASE WHEN c.cus_state = b.br_state THEN 1 ELSE 0 END)        AS home_res,
-           SUM(CASE WHEN c.cus_state != b.br_state THEN 1 ELSE 0 END)       AS cross_res
-    FROM   reservation_fact f
-    JOIN   date_dim     d ON d.date_key     = f.date_key
-    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
-    JOIN   customer_dim c ON c.customer_key = f.customer_key
-    WHERE  f.res_status = 'Completed'
-    AND    d.cal_year = &focus_year
-    AND   (UPPER(TRIM('&state')) IN ('', 'ALL')
-           OR UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
-    GROUP  BY b.br_ID, b.br_city
-)
-SELECT br_city, total_res, home_res, cross_res,
-       ROUND(cross_res / NULLIF(total_res, 0) * 100, 1) AS cross_pct
-FROM   catch
-ORDER  BY br_ID;
-
-
--- ###################################################################
--- SECTION 5 - FOCUS YEAR: AVG SPEND BY AGE BAND  (ranked)
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 5. FOCUS YEAR &focus_y: AVG SPEND BY AGE BAND' SKIP 1 -
-       CENTER '&st_label' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN cus_age_band HEADING 'AGE BAND'         FORMAT A10
-COLUMN num_res      HEADING 'RESERVATIONS'     FORMAT 99,999
-COLUMN total_rev    HEADING 'TOTAL REV (RM)'   FORMAT 999,999,990.00
-COLUMN avg_spend    HEADING 'AVG SPEND|/RES (RM)' FORMAT 9,990.00
-
-BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL AGES' OF num_res total_rev ON REPORT
-
-WITH spend AS (
-    SELECT c.cus_age_band,
-           COUNT(f.res_det_ID)                        AS num_res,
-           SUM(f.serv_total_amt - f.serv_tax_amt)      AS total_rev
-    FROM   reservation_fact f
-    JOIN   date_dim     d ON d.date_key     = f.date_key
-    JOIN   customer_dim c ON c.customer_key = f.customer_key
-    WHERE  f.res_status = 'Completed'
-    AND    d.cal_year = &focus_year
-    AND   (UPPER(TRIM('&state')) IN ('', 'ALL')
-           OR UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
-    GROUP  BY c.cus_age_band
-)
-SELECT cus_age_band, num_res, total_rev,
-       ROUND(total_rev / NULLIF(num_res, 0), 2) AS avg_spend
-FROM   spend
-ORDER  BY avg_spend DESC;
-
-
--- ###################################################################
--- SECTION 6 - SUMMARY STATISTICS
--- ###################################################################
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER '+==========================================================+' SKIP 1 -
-       CENTER 'GLOW BEAUTY - 6. CUSTOMER DEMOGRAPHICS SUMMARY STATISTICS' SKIP 1 -
-       CENTER '&st_label, FOCUS YEAR &focus_y' SKIP 1 -
-       CENTER '+==========================================================+' SKIP 1 -
-       LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
-
-COLUMN metric_name  HEADING 'METRIC'  FORMAT A38
-COLUMN metric_value HEADING 'VALUE'   FORMAT A38
-
-WITH cust AS (
-    SELECT c.cus_ID, c.cus_age_band, c.cus_gender, c.cus_state
-    FROM   customer_dim c
-    WHERE  c.is_current_flag = 'Y'
-),
-totals AS (
-    SELECT COUNT(*) AS num_customers FROM cust
-),
-by_age AS (
-    SELECT cus_age_band, COUNT(*) AS cnt FROM cust GROUP BY cus_age_band
-),
-ab AS (
-    SELECT MAX(cus_age_band) KEEP (DENSE_RANK FIRST ORDER BY cnt DESC) AS top_age_band,
-           MAX(cnt)          KEEP (DENSE_RANK FIRST ORDER BY cnt DESC) AS top_age_band_cnt
-    FROM   by_age
-),
-by_state AS (
-    SELECT cus_state, COUNT(*) AS cnt FROM cust GROUP BY cus_state
-),
-st AS (
-    SELECT MAX(cus_state) KEEP (DENSE_RANK FIRST ORDER BY cnt DESC) AS top_state,
-           MAX(cnt)       KEEP (DENSE_RANK FIRST ORDER BY cnt DESC) AS top_state_cnt
-    FROM   by_state
-),
-gen AS (
-    SELECT SUM(CASE WHEN cus_gender = 'Female' THEN 1 ELSE 0 END) AS female_cnt,
-           SUM(CASE WHEN cus_gender = 'Male'   THEN 1 ELSE 0 END) AS male_cnt
-    FROM   cust
-),
-focus_lines AS (
-    SELECT c.cus_age_band, b.br_city, b.br_state, c.cus_state,
-           f.res_det_ID, f.serv_total_amt - f.serv_tax_amt AS revenue
-    FROM   reservation_fact f
-    JOIN   date_dim     d ON d.date_key     = f.date_key
-    JOIN   branch_dim   b ON b.branch_key   = f.branch_key
-    JOIN   customer_dim c ON c.customer_key = f.customer_key
-    WHERE  f.res_status = 'Completed'
-    AND    d.cal_year = &focus_year
-    AND   (UPPER(TRIM('&state')) IN ('', 'ALL')
-           OR UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
-),
-by_branch_focus AS (
-    SELECT br_city,
-           COUNT(res_det_ID)                                        AS total_res,
-           SUM(CASE WHEN cus_state != br_state THEN 1 ELSE 0 END)   AS cross_res
-    FROM   focus_lines GROUP BY br_city
-),
-fb AS (
-    SELECT MAX(br_city) KEEP (DENSE_RANK FIRST ORDER BY cross_res / NULLIF(total_res, 0) DESC) AS most_cross_branch,
-           MAX(ROUND(cross_res / NULLIF(total_res, 0) * 100, 1))
-               KEEP (DENSE_RANK FIRST ORDER BY cross_res / NULLIF(total_res, 0) DESC)           AS most_cross_pct
-    FROM   by_branch_focus
-),
-by_age_focus AS (
-    SELECT cus_age_band, COUNT(res_det_ID) AS num_res, SUM(revenue) AS total_rev
-    FROM   focus_lines GROUP BY cus_age_band
-),
-af AS (
-    SELECT MAX(cus_age_band) KEEP (DENSE_RANK FIRST ORDER BY total_rev / NULLIF(num_res, 0) DESC) AS top_spend_band,
-           MAX(ROUND(total_rev / NULLIF(num_res, 0), 2))
-               KEEP (DENSE_RANK FIRST ORDER BY total_rev / NULLIF(num_res, 0) DESC)                AS top_spend_amt
-    FROM   by_age_focus
-),
-active_focus AS (
-    SELECT COUNT(DISTINCT c.cus_ID) AS active_customers
-    FROM   reservation_fact f
-    JOIN   date_dim     d ON d.date_key     = f.date_key
-    JOIN   customer_dim c ON c.customer_key = f.customer_key
-    WHERE  f.res_status = 'Completed'
-    AND    d.cal_year = &focus_year
-    AND   (UPPER(TRIM('&state')) IN ('', 'ALL')
-           OR UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
-),
-stats AS (
-    SELECT t.*, ab.*, st.*, gen.*, fb.*, af.*, af2.active_customers
-    FROM   totals t CROSS JOIN ab CROSS JOIN st CROSS JOIN gen CROSS JOIN fb CROSS JOIN af
-           CROSS JOIN active_focus af2
-)
-SELECT '--- OVERALL ---' AS metric_name, ' ' AS metric_value FROM dual
-UNION ALL SELECT 'Total Registered Customers',
-       TRIM(TO_CHAR(num_customers, '999,999,990'))                     FROM stats
-UNION ALL SELECT 'Gender Split (Female / Male)',
-       TRIM(TO_CHAR(female_cnt, '999,990')) || ' / ' || TRIM(TO_CHAR(male_cnt, '999,990')) FROM stats
-UNION ALL SELECT 'Largest Age Band',
-       top_age_band || '  (' || TRIM(TO_CHAR(top_age_band_cnt, '999,990')) || ' customers)' FROM stats
-UNION ALL SELECT 'Top State by Customer Count',
-       top_state || '  (' || TRIM(TO_CHAR(top_state_cnt, '999,990')) || ' customers)' FROM stats
-UNION ALL SELECT ' ', ' ' FROM dual
-UNION ALL SELECT '--- FOCUS YEAR &focus_y ---', ' ' FROM dual
-UNION ALL SELECT 'Active Customers (>=1 Completed Res.)',
-       TRIM(TO_CHAR(active_customers, '999,999,990'))                  FROM stats
-UNION ALL SELECT 'Branch with Most Cross-Region Traffic',
-       most_cross_branch || '  (' || TRIM(TO_CHAR(most_cross_pct, '990.0')) || '% cross-region)' FROM stats
-UNION ALL SELECT 'Age Band with Highest Avg Spend',
-       top_spend_band || '  (RM ' || TRIM(TO_CHAR(top_spend_amt, '9,990.00')) || '/res)' FROM stats;
+-- ===================================================================
+-- tidy up: drop the views in reverse dependency order, then reset
+-- SQL*Plus so the next script starts clean
+-- ===================================================================
+DROP VIEW customer_profile_value_v;
+DROP VIEW customer_annual_trend_v;
+DROP VIEW customer_annual_value_v;
 
 PROMPT
 PROMPT +==========================================================+
-PROMPT |  END OF CUSTOMER DEMOGRAPHICS AND REGIONAL REPORT        |
+PROMPT |  END OF LOYALTY TIER REVENUE AND DISCOUNT REPORT         |
 PROMPT +==========================================================+
 PROMPT
 
--- ===================================================================
--- tidy up so the next script starts clean
--- ===================================================================
-SPOOL OFF
 TTITLE OFF
 BTITLE OFF
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
-UNDEFINE state
-UNDEFINE focus_year
+UNDEFINE start_year
+UNDEFINE end_year
+UNDEFINE drill_year
+UNDEFINE drill_tier
 SET FEEDBACK ON
 SET VERIFY ON
 SET ECHO ON
