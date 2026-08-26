@@ -347,8 +347,8 @@ SELECT 'reservation price-disc+tax=total', COUNT(*)
 UNION ALL
 SELECT 'salary base+bonus-deduct=total', COUNT(*)
   FROM salary_payment_fact
-  WHERE ABS(base_amount + bonus_amount - deduction_amount
-            - total_amount) > 0.01;
+  WHERE ABS(base_amt + bonus_amt - deduction_amt
+            - total_amt) > 0.01;
 
 -- Grain keys unique (the PKs are composite; the guard keys must still
 -- be one row each or a re-run inserted duplicates). All must be 0.
@@ -421,7 +421,7 @@ ORDER BY d.cal_year, f.res_status;
 
 -- Payroll by year and branch: the four 2024 teams join from 2024-01
 SELECT SUBSTR(f.pay_period, 1, 4) AS yr, b.br_city,
-       ROUND(SUM(f.total_amount), 2) AS payroll,
+       ROUND(SUM(f.total_amt), 2) AS payroll,
        COUNT(DISTINCT f.staff_key) AS headcount
 FROM   salary_payment_fact f
 JOIN   branch_dim b ON b.branch_key = f.branch_key

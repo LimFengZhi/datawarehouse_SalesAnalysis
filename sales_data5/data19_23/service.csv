@@ -1,4 +1,4 @@
-serv_ID,serv_name,serv_category,serv_description,serv_price
+serv_ID,serv_name,serv_category,serv_desc,serv_price
 1,Classic Facial,Basic Facial,"Cleansing, exfoliation and mask for everyday skin maintenance.",112.50
 2,Express Facial,Basic Facial,"Cleansing, exfoliation and mask for everyday skin maintenance.",90.00
 3,Deep Cleansing Facial,Deep Cleansing,Thorough pore cleansing with extraction.,165.00

@@ -214,9 +214,7 @@ CREATE TABLE reservation_fact (
     serv_discount_amt    NUMBER(12,2)   NOT NULL,
     serv_tax_amt         NUMBER(12,2)   NOT NULL,
     serv_total_amt       NUMBER(12,2)   NOT NULL,             -- service_dim price (of the date) - disc + tax
-    serv_net_amt         NUMBER(12,2)   NOT NULL,             -- serv_total_amt - serv_tax_amt, i.e.
-                                              -- price - discount. REVENUE excluding the SST -
-                                              -- sum THIS column for service sales
+    serv_net_amt         NUMBER(12,2)   NOT NULL,             -- serv_total_amt - serv_tax_amt
     CONSTRAINT pk_reservation_fact PRIMARY KEY (date_key, customer_key, staff_key, branch_key, service_key, res_ID),
     CONSTRAINT fk_rf_date      FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_rf_customer  FOREIGN KEY (customer_key) REFERENCES customer_dim (customer_key),
@@ -234,11 +232,11 @@ CREATE TABLE purchase_fact (
     supplier_key         NUMBER(10)     NOT NULL,
     branch_key           NUMBER(10)     NOT NULL,
     product_key          NUMBER(10)     NOT NULL,
-    purchase_ID          NUMBER(10)     NOT NULL,             -- degenerate dim (kept for traceability)
+    purchase_ID          NUMBER(10)     NOT NULL,             -- degenerate dim
     purchase_qty         NUMBER(6)      NOT NULL,
     purchase_unit_cost   NUMBER(10,2)   NOT NULL,
     purchase_total_cost  NUMBER(12,2)   NOT NULL,             -- qty * unit_cost
-    CONSTRAINT pk_purchase_fact PRIMARY KEY (date_key, supplier_key, branch_key, product_key),
+    CONSTRAINT pk_purchase_fact PRIMARY KEY (date_key, supplier_key, branch_key, product_key, purchase_ID),
     CONSTRAINT fk_pf_date     FOREIGN KEY (date_key)     REFERENCES date_dim (date_key),
     CONSTRAINT fk_pf_supplier FOREIGN KEY (supplier_key) REFERENCES supplier_dim (supplier_key),
     CONSTRAINT fk_pf_branch   FOREIGN KEY (branch_key)   REFERENCES branch_dim (branch_key),
@@ -257,10 +255,10 @@ CREATE TABLE salary_payment_fact (
     branch_key           NUMBER(10)     NOT NULL,
     sal_pay_ID           NUMBER(10)     NOT NULL,
     pay_period           VARCHAR2(7)    NOT NULL,
-    base_amount          NUMBER(12,2)   NOT NULL,
-    bonus_amount         NUMBER(12,2)   NOT NULL,
-    deduction_amount     NUMBER(12,2)   NOT NULL,
-    total_amount         NUMBER(12,2)   NOT NULL,             -- base + bonus - deduction (net pay)
+    base_amt          NUMBER(12,2)   NOT NULL,
+    bonus_amt         NUMBER(12,2)   NOT NULL,
+    deduction_amt     NUMBER(12,2)   NOT NULL,
+    total_amt         NUMBER(12,2)   NOT NULL,             -- base + bonus - deduction (net pay)
     CONSTRAINT pk_salary_payment_fact PRIMARY KEY (date_key, staff_key, branch_key, sal_pay_ID),
     CONSTRAINT fk_spf_date   FOREIGN KEY (date_key)   REFERENCES date_dim (date_key),
     CONSTRAINT fk_spf_staff  FOREIGN KEY (staff_key)  REFERENCES staff_dim (staff_key),
@@ -280,7 +278,7 @@ CREATE TABLE branch_utils_fact (
     br_exp_ID            NUMBER(10)     NOT NULL,             -- degenerate dim
     util_name            VARCHAR2(50)   NOT NULL,             -- canonicalised in the staging view
     billing_period       VARCHAR2(7)    NOT NULL,
-    payment_amount       NUMBER(12,2)   NOT NULL,
+    payment_amt       NUMBER(12,2)   NOT NULL,
     CONSTRAINT pk_branch_utils_fact PRIMARY KEY (date_key, branch_key, br_exp_ID),
     CONSTRAINT fk_buf_date   FOREIGN KEY (date_key)   REFERENCES date_dim (date_key),
     CONSTRAINT fk_buf_branch FOREIGN KEY (branch_key) REFERENCES branch_dim (branch_key),

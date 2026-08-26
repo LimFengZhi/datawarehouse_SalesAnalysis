@@ -33,13 +33,15 @@ SELECT
               IN ('SAT','SUN')
          THEN 'N' ELSE 'Y' END                              AS weekday_ind
 FROM (
-    -- Horizon runs to 2035 so the SUBSEQUENT load can extend the calendar
-    -- from this same view. The INITIAL load below bounds itself to
+    -- ROLLING horizon: always reaches 31 Dec ~11 full years past today
+    -- (ADD_MONTHS(TRUNC(SYSDATE,'YYYY'), 144) - 1), so the SUBSEQUENT
+    -- load can extend the calendar from this same view and nobody ever
+    -- has to widen it again. The INITIAL load below bounds itself to
     -- 2023-12-31, so it still inserts exactly 1,826 days.
     SELECT TO_DATE('2019-01-01','YYYY-MM-DD') + LEVEL - 1 AS v_date
     FROM dual
-    CONNECT BY LEVEL <= TO_DATE('2035-12-31','YYYY-MM-DD')
-                      - TO_DATE('2019-01-01','YYYY-MM-DD') + 1   -- 6,209 days
+    CONNECT BY LEVEL <= ADD_MONTHS(TRUNC(SYSDATE, 'YYYY'), 12 * 12) - 1
+                      - TO_DATE('2019-01-01','YYYY-MM-DD') + 1
 )
 WHERE v_date IS NOT NULL;
 
@@ -83,10 +85,10 @@ BEGIN
         cal_quarter, cal_year_quarter, cal_year,
         holiday_ind, holiday_name, weekday_ind
     FROM date_staging_v
-    -- The view now reaches 2035. Bound the INITIAL load to the source
-    -- data window (sales_data5\data19_23 = 2019-2023) so it still
-    -- inserts exactly 1,826 days. Extending past this is the subsequent
-    -- load's job:
+    -- The view rolls ~11 years past today. Bound the INITIAL load to
+    -- the source data window (sales_data5\data19_23 = 2019-2023) so it
+    -- still inserts exactly 1,826 days. Extending past this is the
+    -- subsequent load's job:
     --   EXEC load_date_dim_incremental(2024);   -- data24
     --   EXEC load_date_dim_incremental(2025);   -- data25
     WHERE v_date <= DATE '2023-12-31';

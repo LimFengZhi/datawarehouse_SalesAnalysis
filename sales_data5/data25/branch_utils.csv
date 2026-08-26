@@ -1,4 +1,4 @@
-br_exp_ID,br_ID,util_name,billing_period,payment_amount,payment_date
+br_exp_ID,br_ID,util_name,billing_period,payment_amt,payment_date
 5905,1,Rent,2025-01,15462.98,2025-01-28
 5906,1,Electricity,2025-01,2122.07,2025-01-28
 5907,1,Water,2025-01,254.42,2025-01-28

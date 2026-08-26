@@ -73,9 +73,9 @@ SELECT
     -- but a staging view should never assume the source honoured it.
     -- Summed over the lines of the same product in the order.
     SUM(CASE
-            WHEN od.order_quantity IS NULL OR od.order_quantity <= 0 THEN 1
-            WHEN od.order_quantity > 999 THEN 999
-            ELSE od.order_quantity
+            WHEN od.order_qty IS NULL OR od.order_qty <= 0 THEN 1
+            WHEN od.order_qty > 999 THEN 999
+            ELSE od.order_qty
         END)                                       AS clean_order_qty,
 
     -- Money components, summed over the folded lines. The unit price is
@@ -88,8 +88,8 @@ SELECT
     COUNT(*)                                       AS line_count,
 
     -- ---------- data quality flags ----------
-    MAX(CASE WHEN od.order_quantity IS NULL OR od.order_quantity <= 0
-                  OR od.order_quantity > 999
+    MAX(CASE WHEN od.order_qty IS NULL OR od.order_qty <= 0
+                  OR od.order_qty > 999
              THEN 'Y' ELSE 'N' END)                AS qty_corrected,
     CASE WHEN o.order_status IS NULL
          THEN 'Y' ELSE 'N' END                     AS status_defaulted,

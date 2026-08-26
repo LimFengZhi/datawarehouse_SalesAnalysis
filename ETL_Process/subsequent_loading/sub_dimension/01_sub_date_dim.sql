@@ -23,6 +23,7 @@ CREATE OR REPLACE PROCEDURE load_date_dim_incremental(
 ) AS
     v_last_date  DATE;
     v_target_end DATE;
+    v_view_max   DATE;
     v_count      NUMBER := 0;
 BEGIN
     -- Highest REAL calendar date. date_key 0 is the Unknown member
@@ -40,12 +41,17 @@ BEGIN
     v_target_end := TO_DATE(TO_CHAR(p_until_year) || '-12-31',
                             'YYYY-MM-DD');
 
-    -- date_staging_v stops at 2035. Asking beyond that would quietly
-    -- return no rows, so say so instead of appearing to succeed.
-    IF p_until_year > 2035 THEN
-        DBMS_OUTPUT.PUT_LINE('*** date_staging_v only reaches 2035. '
-            || 'Widen its CONNECT BY in initial_load_date_dim.sql '
-            || 'to go further.');
+    -- date_staging_v rolls ~11 years past today (its CONNECT BY is
+    -- bound to SYSDATE, not a literal). Asking beyond its current max
+    -- would quietly return no rows, so check the REAL max and say so
+    -- instead of appearing to succeed.
+    SELECT MAX(v_date) INTO v_view_max FROM date_staging_v;
+
+    IF v_target_end > v_view_max THEN
+        DBMS_OUTPUT.PUT_LINE('*** date_staging_v currently reaches only '
+            || TO_CHAR(v_view_max, 'YYYY-MM-DD')
+            || '. The horizon rolls forward with SYSDATE; for a target '
+            || 'this far out, widen it in initial_load_date_dim.sql.');
         RETURN;
     END IF;
 

@@ -5,7 +5,8 @@
 --
 --   SECTION 1: staging VIEW - OLTP cleansing ONLY
 --   SECTION 2: no sequence   - PK is composite (date, supplier, branch,
---                              product keys); purchase_ID is unique by grain (no constraint) and
+--                              product keys + the degenerate purchase_ID,
+--                              like every other fact); purchase_ID alone
 --                              drives the NOT EXISTS
 --   SECTION 3: PROCEDURE     - resolves surrogate keys, then inserts
 --   SECTION 4: run

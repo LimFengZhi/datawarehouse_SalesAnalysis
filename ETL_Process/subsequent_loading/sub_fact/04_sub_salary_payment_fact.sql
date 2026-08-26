@@ -9,7 +9,7 @@
 --   SECTION 4: run + verification
 --
 -- STEP 2 catches a payroll re-run: a bonus added after the fact, or a
--- deduction corrected. total_amount is recomputed with the components
+-- deduction corrected. total_amt is recomputed with the components
 -- so base + bonus - deduction = total keeps holding.
 --
 -- Backfill the whole of data24 (2024):
@@ -34,13 +34,13 @@ BEGIN
     -- ---------------------------------------------------------------
     INSERT INTO salary_payment_fact (
         date_key, staff_key, branch_key, sal_pay_ID, pay_period,
-        base_amount, bonus_amount, deduction_amount, total_amount
+        base_amt, bonus_amt, deduction_amt, total_amt
     )
     SELECT
         d.date_key, s.staff_key, b.branch_key, ls.sal_pay_ID,
-        ls.clean_pay_period, ls.clean_base_amount,
-        ls.clean_bonus_amount, ls.clean_deduction_amount,
-        ls.total_amount
+        ls.clean_pay_period, ls.clean_base_amt,
+        ls.clean_bonus_amt, ls.clean_deduction_amt,
+        ls.total_amt
     -- SCD2 joins pick the version in force on the payment date.
     -- branch_key comes from the OLTP staff.br_ID exposed by the view
     -- (staff_dim has no br_ID), matched to branch_dim by date range.
@@ -59,13 +59,13 @@ BEGIN
     v_count := SQL%ROWCOUNT;
 
     -- ---------------------------------------------------------------
-    -- STEP 2: refresh amended payslips. total_amount is refreshed
+    -- STEP 2: refresh amended payslips. total_amt is refreshed
     -- with the components so base + bonus - deduction = total holds.
     -- ---------------------------------------------------------------
     UPDATE salary_payment_fact f
-    SET   (base_amount, bonus_amount, deduction_amount, total_amount) =
-          (SELECT ls.clean_base_amount, ls.clean_bonus_amount,
-                  ls.clean_deduction_amount, ls.total_amount
+    SET   (base_amt, bonus_amt, deduction_amt, total_amt) =
+          (SELECT ls.clean_base_amt, ls.clean_bonus_amt,
+                  ls.clean_deduction_amt, ls.total_amt
            FROM   salary_payment_fact_staging_v ls
            WHERE  ls.sal_pay_ID = f.sal_pay_ID)
     WHERE EXISTS (
@@ -73,12 +73,12 @@ BEGIN
         FROM   salary_payment_fact_staging_v ls
         WHERE  ls.sal_pay_ID = f.sal_pay_ID
           AND  ls.payment_date >= v_from
-          AND (   NVL(f.base_amount, -1)
-                    <> NVL(ls.clean_base_amount, -1)
-               OR NVL(f.bonus_amount, -1)
-                    <> NVL(ls.clean_bonus_amount, -1)
-               OR NVL(f.deduction_amount, -1)
-                    <> NVL(ls.clean_deduction_amount, -1) ));
+          AND (   NVL(f.base_amt, -1)
+                    <> NVL(ls.clean_base_amt, -1)
+               OR NVL(f.bonus_amt, -1)
+                    <> NVL(ls.clean_bonus_amt, -1)
+               OR NVL(f.deduction_amt, -1)
+                    <> NVL(ls.clean_deduction_amt, -1) ));
 
     v_updated := SQL%ROWCOUNT;
 
