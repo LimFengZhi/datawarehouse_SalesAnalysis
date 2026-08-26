@@ -52,7 +52,7 @@ COMPUTE SUM LABEL 'TOTAL' OF payroll_cost inventory_cost overhead_cost total_cos
 
 WITH cost_lines AS (
     SELECT b.br_ID, d.cal_year, d.cal_year_month,
-           'Overhead' AS cost_stream, f.payment_amount AS amt
+           'Overhead' AS cost_stream, f.payment_amt AS amt
     FROM   branch_utils_fact f
     JOIN   date_dim   d ON d.date_key   = f.date_key
     JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -61,7 +61,7 @@ WITH cost_lines AS (
            OR UPPER(b.br_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
     UNION ALL
     SELECT b.br_ID, d.cal_year, d.cal_year_month,
-           'Payroll', s.base_amount + s.bonus_amount
+           'Payroll', s.base_amt + s.bonus_amt
     FROM   salary_payment_fact s
     JOIN   date_dim   d ON d.date_key   = s.date_key
     JOIN   branch_dim b ON b.branch_key = s.branch_key
@@ -123,7 +123,7 @@ WITH cost_by_year AS (
            SUM(CASE WHEN cost_stream = 'Overhead'  THEN amt ELSE 0 END) AS overhead_cost,
            SUM(amt)                                                     AS year_cost
     FROM  (SELECT b.br_ID, d.cal_year, 'Overhead' AS cost_stream,
-                  f.payment_amount AS amt
+                  f.payment_amt AS amt
            FROM   branch_utils_fact f
            JOIN   date_dim   d ON d.date_key   = f.date_key
            JOIN   branch_dim b ON b.branch_key = f.branch_key
@@ -131,7 +131,7 @@ WITH cost_by_year AS (
            AND   (UPPER(TRIM('&state')) IN ('', 'ALL')
                   OR UPPER(b.br_state) LIKE '%' || UPPER(TRIM('&state')) || '%')
            UNION ALL
-           SELECT b.br_ID, d.cal_year, 'Payroll', s.base_amount + s.bonus_amount
+           SELECT b.br_ID, d.cal_year, 'Payroll', s.base_amt + s.bonus_amt
            FROM   salary_payment_fact s
            JOIN   date_dim   d ON d.date_key   = s.date_key
            JOIN   branch_dim b ON b.branch_key = s.branch_key
