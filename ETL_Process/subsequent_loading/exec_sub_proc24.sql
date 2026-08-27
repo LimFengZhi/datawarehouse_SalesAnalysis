@@ -22,12 +22,19 @@
 -- ===================================================================
 -- WHY THE CALLS LIVE HERE
 -- ===================================================================
--- Every EXEC, and every argument, sits in this one file. The three
--- values you might want to change are each on a single line:
+-- Every EXEC, and every argument, sits in this one file. Two kinds
+-- of date are passed, and they mean different things:
 --
---   EXEC load_date_dim_incremental(2024);                <- the year
+--   EXEC load_date_dim_incremental(DATE '2024-12-31');   <- calendar end
+--   EXEC load_order_fact_incremental(DATE '2024-12-31'); <- window end
 --   EXEC maintain_product_dim_scd2(DATE '2024-01-01');   <- price-rise date
---   EXEC load_order_fact_incremental(DATE '2024-01-01'); <- backfill window
+--
+-- The calendar and the five facts take p_end_date (DEFAULT SYSDATE) -
+-- only an UPPER bound. Each fact finds its own lower bound by reading
+-- the newest date already loaded into itself, so there is no start
+-- date to pass anywhere. The SCD2 effective date is different: WHEN a
+-- price changed is a business fact that is nowhere in the data (the
+-- OLTP keeps no price history), so it cannot be detected - only told.
 --
 -- ===================================================================
 -- THE THREE LAYERS, AND WHY THIS ORDER
@@ -132,9 +139,11 @@ PROMPT ##############################################
 PROMPT #  STEP 1 of 3 - NEW DIMENSION RECORDS
 PROMPT ##############################################
 
--- CHANGE THE YEAR HERE if you extend past 2024. This must run before
--- the facts, or their date lookups fail silently.
-EXEC load_date_dim_incremental(2024);
+-- Extends the calendar from its current end (2023-12-31) through the
+-- date passed. Bare (DEFAULT SYSDATE) would also work today, but the
+-- explicit year-end keeps this file reproducible. Must run before the
+-- facts, or their date lookups fail silently.
+EXEC load_date_dim_incremental(DATE '2024-12-31');
 
 -- The new 2024 days arrive with holiday_ind = 'N'. AFTER this
 -- file finishes, regenerate and apply the holiday file:
@@ -187,20 +196,20 @@ PROMPT ##############################################
 PROMPT #  STEP 3 of 3 - FACTS
 PROMPT ##############################################
 
--- Just pass the first date you want - no need to add a day. The
--- procedure filters src_date >= p_load_date - 1, so DATE '2024-01-01'
--- opens the window at 2023-12-31. That one extra day is already in the
--- fact and the NOT EXISTS anti-join skips it.
+-- No start date to pass: each procedure opens its window at the
+-- newest date already in ITS OWN fact (2023-12-31 after the initial
+-- load). That last day is re-read on purpose - late rows for it are
+-- caught, and the NOT EXISTS anti-join skips everything already in.
 --
--- The window has no upper bound, so one call backfills all of data24.
---
--- For a normal DAILY run, drop the argument - the SYSDATE default
--- covers yesterday and today:  EXEC load_order_fact_incremental;
-EXEC load_order_fact_incremental(DATE '2024-01-01');
-EXEC load_res_fact_incremental(DATE '2024-01-01');
-EXEC load_purchase_fact_incremental(DATE '2024-01-01');
-EXEC load_salary_fact_incremental(DATE '2024-01-01');
-EXEC load_br_utils_fact_incremental(DATE '2024-01-01');
+-- The argument is only the UPPER bound (p_end_date, DEFAULT SYSDATE).
+-- Capping it at 2024-12-31 makes this file load data24 ONLY, even if
+-- the data25 CSVs are already sitting in the OLTP. For a normal daily
+-- run, drop the argument:  EXEC load_order_fact_incremental;
+EXEC load_order_fact_incremental(DATE '2024-12-31');
+EXEC load_res_fact_incremental(DATE '2024-12-31');
+EXEC load_purchase_fact_incremental(DATE '2024-12-31');
+EXEC load_salary_fact_incremental(DATE '2024-12-31');
+EXEC load_br_utils_fact_incremental(DATE '2024-12-31');
 
 
 -- ###################################################################

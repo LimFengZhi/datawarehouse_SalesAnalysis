@@ -88,9 +88,9 @@ BEGIN
     -- The view rolls ~11 years past today. Bound the INITIAL load to
     -- the source data window (sales_data5\data19_23 = 2019-2023) so it
     -- still inserts exactly 1,826 days. Extending past this is the
-    -- subsequent load's job:
-    --   EXEC load_date_dim_incremental(2024);   -- data24
-    --   EXEC load_date_dim_incremental(2025);   -- data25
+    -- subsequent load's job (p_end_date DEFAULT SYSDATE):
+    --   EXEC load_date_dim_incremental(DATE '2024-12-31');   -- data24
+    --   EXEC load_date_dim_incremental(DATE '2025-12-31');   -- data25
     WHERE v_date <= DATE '2023-12-31';
 
     v_inserted_count := SQL%ROWCOUNT;

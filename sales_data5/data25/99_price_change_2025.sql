@@ -100,15 +100,16 @@ ORDER  BY serv_ID;
 -- ===================================================================
 -- NEXT: turn the change into dimension history
 -- ===================================================================
--- The data25 execute script must carry the 2025 dates:
+-- The data25 execute script must carry the 2025 dates (the facts
+-- auto-detect their own START; the argument is only the window END):
 --
---   EXEC load_date_dim_incremental(2025);
+--   EXEC load_date_dim_incremental(DATE '2025-12-31');
 --   EXEC load_supplier_dim_incremental;             -- supplier 8 (HIM Care Labs)
 --   EXEC load_product_dim_incremental;              -- products 49-56 (men's line + 2 masks)
 --   EXEC maintain_product_dim_scd2(DATE '2025-01-01');
 --   EXEC maintain_service_dim_scd2(DATE '2025-01-01');
---   EXEC load_order_fact_incremental(DATE '2025-01-01');
---   ... and the other facts from DATE '2025-01-01'
+--   EXEC load_order_fact_incremental(DATE '2025-12-31');
+--   ... and the other facts, same end date
 --
 -- Then confirm the versions landed on the right dates:
 --

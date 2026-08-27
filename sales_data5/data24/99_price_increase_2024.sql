@@ -70,12 +70,13 @@ ORDER  BY product_ID;
 -- ===================================================================
 -- NEXT: turn the change into dimension history
 -- ===================================================================
--- The data24 execute script must carry the 2024 dates:
+-- The data24 execute script must carry the 2024 dates (the facts
+-- auto-detect their own START; the argument is only the window END):
 --
---   EXEC load_date_dim_incremental(2024);
+--   EXEC load_date_dim_incremental(DATE '2024-12-31');
 --   EXEC maintain_product_dim_scd2(DATE '2024-01-01');
---   EXEC load_order_fact_incremental(DATE '2024-01-01');
---   ... and the other facts from DATE '2024-01-01'
+--   EXEC load_order_fact_incremental(DATE '2024-12-31');
+--   ... and the other facts, same end date
 --
 -- Then confirm the versions landed on the right date:
 --

@@ -3,8 +3,8 @@
 --
 --   SECTION 1: no new view - reuses staff_staging_v
 --   SECTION 2: no new sequence - reuses seq_staff_key
---   SECTION 3: PROCEDURE - expire + version (Type 2)
---   SECTION 4: run + verification
+--   SECTION 3: PROCEDURE - cursor FOR-loop: expire + version (Type 2)
+--   SECTION 4: none - the EXEC lives in exec_sub_proc24/25.sql
 --
 -- SCOPE: CHANGED RECORDS ONLY. New hires belong to
 --   sub_dimension\06_sub_staff_dim.sql
@@ -30,62 +30,70 @@ CREATE OR REPLACE PROCEDURE maintain_staff_dim_scd2(
     v_eff      DATE   := TRUNC(p_effective_date);
     v_expired  NUMBER := 0;
     v_versions NUMBER := 0;
-BEGIN
     -- ---------------------------------------------------------------
-    -- STEP 1: expire staff whose tracked attributes changed
-    --         (st_name, st_email, st_position, st_status).
+    -- ONE cursor drives both steps: each fetched row is a staff member
+    -- whose CURRENT version differs from the staging view. The change
+    -- test lives INSIDE the cursor query, so a second run fetches
+    -- nothing - that is what keeps this idempotent. The surrogate key
+    -- rides along so STEP 1 can expire exactly that row. A brand-new
+    -- st_ID has no current row to join, so it is naturally excluded -
+    -- inserting it is sub_dimension's job.
+    --
+    -- NVL on BOTH sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
+    -- <> would silently miss changes involving NULL.
     -- ---------------------------------------------------------------
-    UPDATE staff_dim d
-    SET    d.effective_end_date = GREATEST(v_eff - 1,
-                                           d.effective_start_date),
-           d.is_current_flag    = 'N'
-    WHERE  d.is_current_flag = 'Y'
-    -- Never version BACKWARDS: expiring a version that starts on or
-    -- after the effective date would corrupt the timeline.
-    AND    d.effective_start_date < v_eff
-    AND EXISTS (
-        SELECT 1
+    CURSOR changed_staff_cursor IS
+        SELECT d.staff_key AS old_key,
+               s.st_ID, s.clean_st_name, s.clean_st_email,
+               s.clean_st_position, s.clean_st_status
         FROM   staff_staging_v s
-        WHERE  s.st_ID = d.st_ID
-          AND (   NVL(s.clean_st_name, '~')     <> NVL(d.st_name, '~')
+        JOIN   staff_dim d ON d.st_ID = s.st_ID
+                      AND d.is_current_flag = 'Y'
+        -- Never version BACKWARDS: expiring a version that starts on
+        -- or after the effective date would corrupt the timeline
+        -- (overlapping ranges). A backdated call fetches nothing and
+        -- becomes a safe no-op.
+        WHERE  d.effective_start_date < v_eff
+        AND   (   NVL(s.clean_st_name, '~')     <> NVL(d.st_name, '~')
                OR NVL(s.clean_st_email, '~')    <> NVL(d.st_email, '~')
                OR NVL(s.clean_st_position, '~') <> NVL(d.st_position, '~')
-               OR NVL(s.clean_st_status, '~')   <> NVL(d.st_status, '~') ));
+               OR NVL(s.clean_st_status, '~')   <> NVL(d.st_status, '~') );
+BEGIN
+    FOR rec IN changed_staff_cursor LOOP
+        -- -----------------------------------------------------------
+        -- STEP 1: expire the old current version (ends yesterday,
+        -- never before its own start date).
+        -- -----------------------------------------------------------
+        UPDATE staff_dim
+        SET    effective_end_date = GREATEST(v_eff - 1,
+                                             effective_start_date),
+               is_current_flag    = 'N'
+        WHERE  staff_key = rec.old_key;
+        v_expired := v_expired + 1;
 
-    v_expired := SQL%ROWCOUNT;
-
-    -- ---------------------------------------------------------------
-    -- STEP 2: new version for each staff member STEP 1 expired.
-    -- ---------------------------------------------------------------
-    INSERT INTO staff_dim (
-        staff_key, st_ID, st_name, st_email, st_position, st_status,
-        effective_start_date, effective_end_date, is_current_flag
-    )
-    SELECT
-        seq_staff_key.NEXTVAL,
-        s.st_ID, s.clean_st_name, s.clean_st_email,
-        s.clean_st_position, s.clean_st_status,
-        v_eff,
-        DATE '9999-12-31',
-        'Y'
-    FROM   staff_staging_v s
-    WHERE  NOT EXISTS (SELECT 1 FROM staff_dim d
-                       WHERE d.st_ID = s.st_ID
-                         AND d.is_current_flag = 'Y')
-    AND    EXISTS     (SELECT 1 FROM staff_dim d
-                       WHERE d.st_ID = s.st_ID);
-
-    v_versions := SQL%ROWCOUNT;
+        -- -----------------------------------------------------------
+        -- STEP 2: insert the replacement version, current from v_eff.
+        -- Both statements sit in ONE loop pass, so every expired row
+        -- gets its replacement - the two counts cannot drift apart.
+        -- -----------------------------------------------------------
+        INSERT INTO staff_dim (
+            staff_key, st_ID, st_name, st_email, st_position, st_status,
+            effective_start_date, effective_end_date, is_current_flag
+        ) VALUES (
+            seq_staff_key.NEXTVAL,
+            rec.st_ID, rec.clean_st_name, rec.clean_st_email,
+            rec.clean_st_position, rec.clean_st_status,
+            v_eff,
+            DATE '9999-12-31',
+            'Y'
+        );
+        v_versions := v_versions + 1;
+    END LOOP;
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('STAFF_DIM SCD2 maintenance completed:');
     DBMS_OUTPUT.PUT_LINE(' - Rows expired       : ' || v_expired);
     DBMS_OUTPUT.PUT_LINE(' - New versions added : ' || v_versions);
-
-    IF v_expired <> v_versions THEN
-        DBMS_OUTPUT.PUT_LINE('*** WARNING: expired and inserted counts '
-            || 'differ - run the integrity checks in SECTION 4.');
-    END IF;
 
 EXCEPTION
     WHEN OTHERS THEN
