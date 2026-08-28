@@ -129,25 +129,28 @@ TTITLE CENTER '+==========================================================+' SKI
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN br_city   HEADING 'BRANCH'           FORMAT A15
-COLUMN morning   HEADING 'MORNING (9-12)'   FORMAT 99,999
-COLUMN afternoon HEADING 'AFTERNOON (12-5)' FORMAT 99,999
-COLUMN evening   HEADING 'EVENING (5-9)'    FORMAT 99,999
+COLUMN morning   HEADING 'MORNING (10-1)'   FORMAT 99,999
+COLUMN afternoon HEADING 'AFTERNOON (1-5)'  FORMAT 99,999
+COLUMN evening   HEADING 'EVENING (5-8)'    FORMAT 99,999
 COLUMN total_res HEADING 'TOTAL'            FORMAT 99,999
 
 BREAK ON REPORT
 COMPUTE SUM LABEL 'ALL BRANCHES' OF morning afternoon evening total_res ON REPORT
 
+-- Bands reflect the branch's actual booking window (10am-8pm), verified against
+-- start_time: no reservation ever starts before 10 or at/after 20, since the
+-- branch closes at 20:00 and services run 20-90 minutes.
 WITH banded AS (
     SELECT b.br_ID, b.br_city, f.res_ID,
-           CASE WHEN TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 9  AND 11 THEN 'morning'
-                WHEN TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 12 AND 16 THEN 'afternoon'
+           CASE WHEN TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 10 AND 12 THEN 'morning'
+                WHEN TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 13 AND 16 THEN 'afternoon'
                 ELSE 'evening' END AS band
     FROM   reservation_fact f
     JOIN   date_dim   d ON d.date_key   = f.date_key
     JOIN   branch_dim b ON b.branch_key = f.branch_key
     WHERE  f.res_status = 'Completed'
     AND    d.cal_year = &focus_year
-    AND    TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 9 AND 20
+    AND    TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 10 AND 19
 )
 SELECT br_city,
        COUNT(CASE WHEN band = 'morning'   THEN res_ID END) AS morning,
@@ -183,12 +186,12 @@ WITH lines AS (
 ),
 banded AS (
     SELECT l.*,
-           CASE WHEN start_hour BETWEEN 9  AND 11 THEN 'Morning (9am-12pm)'
-                WHEN start_hour BETWEEN 12 AND 16 THEN 'Afternoon (12pm-5pm)'
-                WHEN start_hour BETWEEN 17 AND 20 THEN 'Evening (5pm-9pm)'
+           CASE WHEN start_hour BETWEEN 10 AND 12 THEN 'Morning (10am-1pm)'
+                WHEN start_hour BETWEEN 13 AND 16 THEN 'Afternoon (1pm-5pm)'
+                WHEN start_hour BETWEEN 17 AND 19 THEN 'Evening (5pm-8pm)'
                 END AS hour_band
     FROM   lines l
-    WHERE  start_hour BETWEEN 9 AND 20
+    WHERE  start_hour BETWEEN 10 AND 19
 ),
 stats AS (
     SELECT
