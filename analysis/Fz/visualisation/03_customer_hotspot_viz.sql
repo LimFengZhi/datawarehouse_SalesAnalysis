@@ -1,6 +1,6 @@
 -- ===================================================================
 -- 03_customer_hotspot_viz.sql
--- GLOW BEAUTY - CHART FEED FOR 03_customer_hotspot.sql
+-- GLOW BEAUTY - CHART FEED FOR customer_hotspot_analysis.sql
 --   ONE view with everything the report covers: one row per customer
 --   HOME CITY per YEAR, with the has_shop flag. Every graph of the
 --   report is an aggregation or filter of this table - the plotting
@@ -23,27 +23,40 @@
 --     customers             COUNT(DISTINCT cus_ID) who spent THAT
 --                           YEAR - customers ACTIVE in the year, not
 --                           everyone who ever bought
---     sales                 order_net_amt + serv_net_amt, Completed
---     per_head              sales / customers, within that year
+--     revenue               order_net_amt + serv_net_amt, Completed
+--     product_rev           the order_fact part - fulfillable ONLINE
+--                           since 2022, so a shopless city's product
+--                           money is already served
+--     service_rev           the reservation_fact part - the customer
+--                           must TRAVEL to a branch, so in a shopless
+--                           city this is the expansion evidence
+--     per_head              revenue / customers, within that year
 --
 -- HOW TO REBUILD EACH REPORT SECTION FROM IT
---   1  states    group by cus_state (slice the years you want):
---                SUM(sales) is safe across cities AND years; shops =
---                count of DISTINCT cities with has_shop = 'Y'
+--   1  states    group by cus_state, slice the years: the report's
+--                AVG PER YEAR columns are the AVERAGE over cal_year
+--                of the yearly SUMs (sum the cities within each year
+--                first, then average the years); shops = count of
+--                DISTINCT cities with has_shop = 'Y'
 --   2  cities    filter one cus_state and has_shop = 'N', rank by
---                sales; share of state = city sales / the WHOLE
---                state's sales (filter has_shop AFTER the ratio)
+--                revenue; share of state = city revenue / the WHOLE
+--                state's (filter has_shop AFTER the ratio)
 --
--- THE ONE TRAP: never SUM(customers) ACROSS YEARS. It is a distinct
--- count per year, and a returning customer sits in every year they
--- bought - summing 2019-2025 would count them up to seven times.
--- Summing across CITIES within one year is fine (a person lives in
--- exactly one city). For a true multi-year unique-customer figure,
--- run the report (03_customer_hotspot.sql) - its prompts count
--- distinct over exactly the window you give it.
+-- TWO TRAPS
+--   never SUM(customers) ACROSS YEARS - it is a distinct count per
+--   year, and a returning customer sits in every year they bought
+--   (summing 2019-2025 counts them up to seven times). Summing
+--   across CITIES within one year is fine (a person lives in exactly
+--   one city). For a true multi-year unique-customer figure, run the
+--   report - its prompts count distinct over the window you give it.
+--
+--   never chart service_rev / revenue as separating cities - the
+--   product/service MIX is flat (~21 % service) everywhere by
+--   generator construction. Chart the service RM itself: in a
+--   shopless city it is demand travelling to another town.
 --
 -- CONVENTIONS (same as the report - see its header for the why)
---   sales      net of discount and the 6 % SST, 'Completed' only
+--   revenue    net of discount and the 6 % SST, 'Completed' only
 --   customers  the natural key cus_ID, never customer_key
 --              (customer_dim is SCD2 - one person, several rows)
 -- ===================================================================
@@ -52,11 +65,12 @@ SET SQLBLANKLINES ON
 
 CREATE OR REPLACE VIEW viz03_customer_hotspot_v AS
 WITH spend AS (
-    SELECT c.cus_ID, c.cus_state, c.cus_city, d.cal_year, x.amt
-    FROM   (SELECT customer_key, date_key, order_net_amt AS amt
+    SELECT c.cus_ID, c.cus_state, c.cus_city, d.cal_year, x.amt, x.src
+    FROM   (SELECT customer_key, date_key, order_net_amt AS amt,
+                   'P' AS src
             FROM   order_fact WHERE order_status = 'Completed'
             UNION ALL
-            SELECT customer_key, date_key, serv_net_amt
+            SELECT customer_key, date_key, serv_net_amt, 'S'
             FROM   reservation_fact WHERE res_status = 'Completed') x
     JOIN   date_dim     d ON d.date_key     = x.date_key
     JOIN   customer_dim c ON c.customer_key = x.customer_key
@@ -64,7 +78,9 @@ WITH spend AS (
 by_city_year AS (
     SELECT cus_state, cus_city, cal_year,
            COUNT(DISTINCT cus_ID) AS customers,
-           SUM(amt)               AS sales
+           SUM(amt)               AS revenue,
+           SUM(CASE WHEN src = 'P' THEN amt ELSE 0 END) AS product_rev,
+           SUM(CASE WHEN src = 'S' THEN amt ELSE 0 END) AS service_rev
     FROM   spend
     GROUP  BY cus_state, cus_city, cal_year
 ),
@@ -80,8 +96,10 @@ SELECT b.cus_state,
        b.cal_year,
        CASE WHEN s.ucity IS NULL THEN 'N' ELSE 'Y' END   AS has_shop,
        b.customers,
-       b.sales,
-       ROUND(b.sales / NULLIF(b.customers, 0), 2)        AS per_head
+       b.revenue,
+       b.product_rev,
+       b.service_rev,
+       ROUND(b.revenue / NULLIF(b.customers, 0), 2)      AS per_head
 FROM   by_city_year b
 LEFT   JOIN shop_city s ON s.ucity = UPPER(b.cus_city);
 
