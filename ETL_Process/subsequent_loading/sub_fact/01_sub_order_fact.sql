@@ -29,20 +29,22 @@
 -- for product_key and the price, STEP 2 for the price alone.
 --
 -- THE WINDOW
---   p_load_date IN DATE DEFAULT SYSDATE, filtered as
---       order_date >= TRUNC(p_load_date) - 1
---   so a bare call picks up yesterday and today.
+--   The lower bound is AUTO-DETECTED: the newest order date already in
+--   the fact (via date_dim). The upper bound is the one parameter,
+--   p_end_date, defaulting to SYSDATE:
+--       order_date >= newest loaded date  AND  order_date <= p_end_date
+--   so one bare call
+--       EXEC load_order_fact_incremental;
+--   loads however much the OLTP holds beyond what is loaded - one day
+--   on a daily run, a whole year on a backfill. Pass a date to CAP a
+--   backfill instead:
+--       EXEC load_order_fact_incremental(DATE '2024-12-31');
+--   loads data24 only, even if data25 is already sitting in the OLTP.
 --
---   To BACKFILL a historical range, just pass the first date you want.
---   Loading the whole of data24 (2024):
---       EXEC load_order_fact_incremental(DATE '2024-01-01');
---   which filters order_date >= 2023-12-31.
---
---   Note the window opens ONE DAY EARLIER than the date you pass -
---   that is the "- 1" above, and it is deliberate. On a daily run it
---   catches rows that arrived late for yesterday. On a backfill it
---   just re-reads one already-loaded day, which the NOT EXISTS
---   anti-join skips. So there is no need to add a day yourself.
+--   The window opens ON the last loaded day, not after it - that is
+--   deliberate. It catches rows that arrived late for that day, and
+--   the NOT EXISTS anti-join skips the ones already in. An empty fact
+--   falls back to 2019-01-01, the warehouse epoch.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -51,13 +53,31 @@ SET SERVEROUTPUT ON
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_order_fact_incremental(
-    p_load_date IN DATE DEFAULT SYSDATE
+    p_end_date IN DATE DEFAULT SYSDATE
 ) AS
-    v_from    DATE   := TRUNC(p_load_date) - 1;
+    v_from    DATE;
+    v_to      DATE   := TRUNC(p_end_date);
     v_count   NUMBER := 0;
     v_updated NUMBER := 0;
     v_errors  NUMBER := 0;
 BEGIN
+    -- ---------------------------------------------------------------
+    -- STEP 0: auto-detect the window. The newest order date already
+    -- in THIS fact (via date_dim; date_key 0, the Unknown member,
+    -- never appears on a fact row) is where the window opens.
+    -- Re-reading that whole last day is deliberate: it catches rows
+    -- that arrived late for it, and the NOT EXISTS anti-join skips
+    -- everything already loaded. An empty fact falls back to
+    -- 2019-01-01, the warehouse epoch, so this also works right after
+    -- the tables are created. The upper bound is p_end_date (default
+    -- SYSDATE = everything available); pass a date to cap a backfill,
+    -- e.g. DATE '2024-12-31' loads the data24 year only.
+    -- ---------------------------------------------------------------
+    SELECT NVL(MAX(d.cal_date), DATE '2019-01-01')
+    INTO   v_from
+    FROM   order_fact f
+    JOIN   date_dim d ON d.date_key = f.date_key;
+
     -- ---------------------------------------------------------------
     -- STEP 1: insert new (order, product) rows.
     -- The NOT EXISTS anti-join on (order_ID, product_key) - unique by
@@ -102,6 +122,7 @@ BEGIN
                        AND ls.order_date BETWEEN b.effective_start_date
                                              AND b.effective_end_date
     WHERE ls.order_date >= v_from
+    AND   ls.order_date <= v_to
     AND   NOT EXISTS (SELECT 1 FROM order_fact f
                       WHERE f.order_ID     = ls.order_ID
                         AND f.product_key  = p.product_key);
@@ -134,7 +155,8 @@ BEGIN
     -- order_fact holds hundreds of thousands of rows and an unfiltered
     -- update against the staging view is far too slow on XE. The
     -- trade-off is that a status change on an order OLDER than the
-    -- window is not picked up - widen p_load_date if you need it.
+    -- window is not picked up. The window opens at the newest loaded
+    -- date, so on a steady daily cadence nothing is ever older than it.
     -- ---------------------------------------------------------------
     MERGE INTO order_fact f
     USING (
@@ -154,6 +176,7 @@ BEGIN
                             AND ls.order_date BETWEEN p.effective_start_date
                                                   AND p.effective_end_date
         WHERE  ls.order_date >= v_from
+        AND    ls.order_date <= v_to
     ) src
     ON (f.order_ID = src.order_ID AND f.product_key = src.product_key)
     WHEN MATCHED THEN UPDATE SET
@@ -176,13 +199,16 @@ BEGIN
     SELECT COUNT(*) INTO v_errors
     FROM   order_fact_staging_v
     WHERE  order_date >= v_from
+    AND    order_date <= v_to
     AND   (qty_corrected = 'Y'
         OR status_defaulted = 'Y' OR money_defaulted = 'Y');
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('ORDER_FACT incremental load completed:');
-    DBMS_OUTPUT.PUT_LINE(' - Window from             : '
+    DBMS_OUTPUT.PUT_LINE(' - Window from (auto)      : '
         || TO_CHAR(v_from, 'YYYY-MM-DD'));
+    DBMS_OUTPUT.PUT_LINE(' - Window to (p_end_date)  : '
+        || TO_CHAR(v_to, 'YYYY-MM-DD'));
     DBMS_OUTPUT.PUT_LINE(' - New records inserted    : ' || v_count);
     DBMS_OUTPUT.PUT_LINE(' - Existing records updated: ' || v_updated);
     DBMS_OUTPUT.PUT_LINE(' - Data quality corrections: ' || v_errors);

@@ -270,7 +270,7 @@ ORDER BY 1;
 
 -- If a fact is short, these say WHICH lookup dropped rows. All 0.
 -- 'no_date' non-zero usually means date_dim was not extended:
---     EXEC load_date_dim_incremental(<year>);
+--     EXEC load_date_dim_incremental(DATE '<year>-12-31');
 -- SCD2 lookups use the same date-range predicate as the load
 -- procedures: the version in force on the transaction date.
 SELECT 'order no_date' AS chk, COUNT(*) AS bad FROM order_fact_staging_v ls

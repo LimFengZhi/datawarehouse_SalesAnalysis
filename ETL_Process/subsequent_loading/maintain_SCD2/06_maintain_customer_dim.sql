@@ -3,9 +3,9 @@
 --
 --   SECTION 1: no new view - reuses customer_staging_v
 --   SECTION 2: no new sequence - reuses seq_customer_key
---   SECTION 3: PROCEDURE - expire + version (Type 2), then refresh
---              cus_age_group in place (Type 1)
---   SECTION 4: run + verification
+--   SECTION 3: PROCEDURE - cursor FOR-loops: expire + version
+--              (Type 2), then refresh cus_age_group in place (Type 1)
+--   SECTION 4: none - the EXEC lives in exec_sub_proc24/25.sql
 --
 -- SCOPE: CHANGED RECORDS ONLY. New customers belong to
 --   sub_dimension\07_sub_customer_dim.sql
@@ -39,73 +39,94 @@ CREATE OR REPLACE PROCEDURE maintain_customer_dim_scd2(
     v_expired  NUMBER := 0;
     v_versions NUMBER := 0;
     v_ages     NUMBER := 0;
-BEGIN
     -- ---------------------------------------------------------------
-    -- STEP 1: expire customers whose meaningful attributes changed.
-    -- cus_age_group deliberately EXCLUDED - header note.
+    -- ONE cursor drives both steps: each fetched row is a customer
+    -- whose CURRENT version differs from the staging view. The change
+    -- test lives INSIDE the cursor query, so a second run fetches
+    -- nothing - that is what keeps this idempotent. The surrogate key
+    -- rides along so STEP 1 can expire exactly that row. A brand-new
+    -- cus_ID has no current row to join, so it is naturally excluded -
+    -- inserting it is sub_dimension's job.
+    --
+    -- NVL on BOTH sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
+    -- <> would silently miss changes involving NULL.
+    -- cus_age_group deliberately EXCLUDED from the change test - it is
+    -- Type 1, refreshed in place by STEP 3 (header note).
     -- ---------------------------------------------------------------
-    UPDATE customer_dim d
-    SET    d.effective_end_date = GREATEST(v_eff - 1,
-                                           d.effective_start_date),
-           d.is_current_flag    = 'N'
-    WHERE  d.is_current_flag = 'Y'
-    -- Never version BACKWARDS: expiring a version that starts on or
-    -- after the effective date would corrupt the timeline.
-    AND    d.effective_start_date < v_eff
-    AND EXISTS (
-        SELECT 1
+    CURSOR changed_customers_cursor IS
+        SELECT d.customer_key AS old_key,
+               s.cus_ID, s.clean_cus_name, s.clean_cus_email,
+               s.clean_cus_gender, s.clean_cus_city, s.clean_cus_state,
+               s.derived_cus_age_group, s.clean_cus_loyalty_tier
         FROM   customer_staging_v s
-        WHERE  s.cus_ID = d.cus_ID
-          AND (   NVL(s.clean_cus_name, '~')   <> NVL(d.cus_name, '~')
+        JOIN   customer_dim d ON d.cus_ID = s.cus_ID
+                      AND d.is_current_flag = 'Y'
+        -- Never version BACKWARDS: expiring a version that starts on
+        -- or after the effective date would corrupt the timeline
+        -- (overlapping ranges). A backdated call fetches nothing and
+        -- becomes a safe no-op.
+        WHERE  d.effective_start_date < v_eff
+        AND   (   NVL(s.clean_cus_name, '~')   <> NVL(d.cus_name, '~')
                OR NVL(s.clean_cus_email, '~')  <> NVL(d.cus_email, '~')
                OR NVL(s.clean_cus_gender, '~') <> NVL(d.cus_gender, '~')
                OR NVL(s.clean_cus_city, '~')   <> NVL(d.cus_city, '~')
                OR NVL(s.clean_cus_state, '~')  <> NVL(d.cus_state, '~')
                OR NVL(s.clean_cus_loyalty_tier, '~')
-                    <> NVL(d.cus_loyalty_tier, '~') ));
+                    <> NVL(d.cus_loyalty_tier, '~') );
+    -- STEP 3's cursor: current rows whose age group drifted (a
+    -- birthday, not a business event - Type 1, overwrite in place).
+    CURSOR aged_customers_cursor IS
+        SELECT d.customer_key AS old_key, s.derived_cus_age_group
+        FROM   customer_staging_v s
+        JOIN   customer_dim d ON d.cus_ID = s.cus_ID
+                             AND d.is_current_flag = 'Y'
+        WHERE  NVL(s.derived_cus_age_group, '~')
+                 <> NVL(d.cus_age_group, '~');
+BEGIN
+    FOR rec IN changed_customers_cursor LOOP
+        -- -----------------------------------------------------------
+        -- STEP 1: expire the old current version (ends yesterday,
+        -- never before its own start date).
+        -- -----------------------------------------------------------
+        UPDATE customer_dim
+        SET    effective_end_date = GREATEST(v_eff - 1,
+                                             effective_start_date),
+               is_current_flag    = 'N'
+        WHERE  customer_key = rec.old_key;
+        v_expired := v_expired + 1;
 
-    v_expired := SQL%ROWCOUNT;
+        -- -----------------------------------------------------------
+        -- STEP 2: insert the replacement version, current from v_eff.
+        -- Both statements sit in ONE loop pass, so every expired row
+        -- gets its replacement - the two counts cannot drift apart.
+        -- -----------------------------------------------------------
+        INSERT INTO customer_dim (
+            customer_key, cus_ID, cus_name, cus_email, cus_gender,
+            cus_city, cus_state, cus_age_group, cus_loyalty_tier,
+            effective_start_date, effective_end_date, is_current_flag
+        ) VALUES (
+            seq_customer_key.NEXTVAL,
+            rec.cus_ID, rec.clean_cus_name, rec.clean_cus_email,
+            rec.clean_cus_gender, rec.clean_cus_city, rec.clean_cus_state,
+            rec.derived_cus_age_group, rec.clean_cus_loyalty_tier,
+            v_eff,
+            DATE '9999-12-31',
+            'Y'
+        );
+        v_versions := v_versions + 1;
+    END LOOP;
 
     -- ---------------------------------------------------------------
-    -- STEP 2: new version for each customer STEP 1 expired.
+    -- STEP 3: TYPE 1 refresh of cus_age_group on CURRENT rows. Runs
+    -- AFTER the Type 2 loop: versions inserted in STEP 2 already carry
+    -- today's derived age group, so this cursor does not fetch them.
     -- ---------------------------------------------------------------
-    INSERT INTO customer_dim (
-        customer_key, cus_ID, cus_name, cus_email, cus_gender, cus_city,
-        cus_state, cus_age_group, cus_loyalty_tier,
-        effective_start_date, effective_end_date, is_current_flag
-    )
-    SELECT
-        seq_customer_key.NEXTVAL,
-        s.cus_ID, s.clean_cus_name, s.clean_cus_email, s.clean_cus_gender,
-        s.clean_cus_city, s.clean_cus_state,
-        s.derived_cus_age_group, s.clean_cus_loyalty_tier,
-        v_eff,
-        DATE '9999-12-31',
-        'Y'
-    FROM   customer_staging_v s
-    WHERE  NOT EXISTS (SELECT 1 FROM customer_dim d
-                       WHERE d.cus_ID = s.cus_ID
-                         AND d.is_current_flag = 'Y')
-    AND    EXISTS     (SELECT 1 FROM customer_dim d
-                       WHERE d.cus_ID = s.cus_ID);
-
-    v_versions := SQL%ROWCOUNT;
-
-    -- ---------------------------------------------------------------
-    -- STEP 3: TYPE 1 refresh of the age group on CURRENT rows.
-    -- Getting a year older is not a business event.
-    -- ---------------------------------------------------------------
-    UPDATE customer_dim d
-    SET    d.cus_age_group = (SELECT s.derived_cus_age_group
-                             FROM   customer_staging_v s
-                             WHERE  s.cus_ID = d.cus_ID)
-    WHERE  d.is_current_flag = 'Y'
-    AND    EXISTS (SELECT 1 FROM customer_staging_v s
-                   WHERE s.cus_ID = d.cus_ID
-                     AND NVL(s.derived_cus_age_group, '~')
-                           <> NVL(d.cus_age_group, '~'));
-
-    v_ages := SQL%ROWCOUNT;
+    FOR rec IN aged_customers_cursor LOOP
+        UPDATE customer_dim
+        SET    cus_age_group = rec.derived_cus_age_group
+        WHERE  customer_key = rec.old_key;
+        v_ages := v_ages + 1;
+    END LOOP;
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('CUSTOMER_DIM SCD2 maintenance completed:');
@@ -113,11 +134,6 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE(' - New versions added : ' || v_versions);
     DBMS_OUTPUT.PUT_LINE(' - Age groups refreshed: ' || v_ages
         || '  (Type 1, in place)');
-
-    IF v_expired <> v_versions THEN
-        DBMS_OUTPUT.PUT_LINE('*** WARNING: expired and inserted counts '
-            || 'differ - run the integrity checks in SECTION 4.');
-    END IF;
 
 EXCEPTION
     WHEN OTHERS THEN

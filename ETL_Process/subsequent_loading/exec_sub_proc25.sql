@@ -8,19 +8,20 @@
 -- HOW THIS DIFFERS FROM exec_sub_proc24.sql
 -- ===================================================================
 --   exec_sub_proc24.sql   the DATA24 run  (2024)
---       load_date_dim_incremental(2024)
+--       calendar + fact windows end DATE '2024-12-31'
 --       maintain_product_dim_scd2(DATE '2024-01-01')
---       facts from DATE '2024-01-01'
 --
 --   exec_sub_proc25.sql   THIS FILE, the DATA25 run  (2025)
---       load_date_dim_incremental(2025)
+--       calendar + fact windows end DATE '2025-12-31'
 --       maintain_product_dim_scd2(DATE '2025-01-01')
 --       maintain_service_dim_scd2(DATE '2025-01-01')   <- new this run
---       facts from DATE '2025-01-01'
 --
--- Same 18 procedures, different dates. Nothing is redefined here, so
--- the two files can live side by side and you re-run whichever year
--- you are loading.
+-- The calendar and the five facts take only p_end_date (an UPPER
+-- bound, DEFAULT SYSDATE); each fact finds its own lower bound from
+-- what it already holds. The SCD2 effective dates are business dates:
+-- WHEN a price changed is nowhere in the data, so it stays a
+-- parameter. Nothing is redefined here, so the two files can live
+-- side by side and you re-run whichever year you are loading.
 --
 -- ===================================================================
 -- BEFORE YOU RUN THIS
@@ -98,10 +99,11 @@ PROMPT ##############################################
 PROMPT #  STEP 1 of 3 - NEW DIMENSION RECORDS
 PROMPT ##############################################
 
--- 2025 this time. Must run before the facts, or their date lookups
--- fail SILENTLY - the staging views use INNER JOIN, so an unresolved
--- key drops the row with no error at all.
-EXEC load_date_dim_incremental(2025);
+-- Extends the calendar from its current end (2024-12-31 after the
+-- data24 run) through 2025-12-31. Must run before the facts, or their
+-- date lookups fail SILENTLY - the staging views use INNER JOIN, so an
+-- unresolved key drops the row with no error at all.
+EXEC load_date_dim_incremental(DATE '2025-12-31');
 
 -- The new 2025 days arrive with holiday_ind = 'N'. AFTER this file
 -- finishes, regenerate and apply the holiday file:
@@ -166,20 +168,20 @@ PROMPT ##############################################
 PROMPT #  STEP 3 of 3 - FACTS
 PROMPT ##############################################
 
--- Just pass the first date you want - no need to add a day. The
--- procedure filters src_date >= p_load_date - 1, so DATE '2025-01-01'
--- opens the window at 2024-12-31. That one extra day, and every other
--- 2019-2024 row, is already in the fact and the NOT EXISTS anti-join
--- skips it - nothing is duplicated.
+-- No start date to pass: each procedure opens its window at the
+-- newest date already in ITS OWN fact (2024-12-31 after the data24
+-- run). That last day is re-read on purpose - late rows for it are
+-- caught, and the NOT EXISTS anti-join skips everything already
+-- loaded, so nothing is duplicated.
 --
--- The window has no upper bound, so one call loads all of data25.
--- The 2025 lines resolve to the 2025 price versions by date; the 2024
+-- p_end_date = 2025-12-31 caps the window at the data25 year. The
+-- 2025 lines resolve to the 2025 price versions by date; the 2024
 -- rows already in the fact keep the versions they were loaded with.
-EXEC load_order_fact_incremental(DATE '2025-01-01');
-EXEC load_res_fact_incremental(DATE '2025-01-01');
-EXEC load_purchase_fact_incremental(DATE '2025-01-01');
-EXEC load_salary_fact_incremental(DATE '2025-01-01');
-EXEC load_br_utils_fact_incremental(DATE '2025-01-01');
+EXEC load_order_fact_incremental(DATE '2025-12-31');
+EXEC load_res_fact_incremental(DATE '2025-12-31');
+EXEC load_purchase_fact_incremental(DATE '2025-12-31');
+EXEC load_salary_fact_incremental(DATE '2025-12-31');
+EXEC load_br_utils_fact_incremental(DATE '2025-12-31');
 
 
 -- ###################################################################

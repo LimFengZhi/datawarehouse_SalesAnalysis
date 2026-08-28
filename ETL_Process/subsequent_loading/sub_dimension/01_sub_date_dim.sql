@@ -1,16 +1,20 @@
 -- ===================================================================
 -- 01_sub_date_dim.sql        DATE_DIM - SUBSEQUENT (INCREMENTAL) LOAD
 --
--- Extends the calendar to the end of a year you name:
---     EXEC load_date_dim_incremental(2026);
+-- Extends the calendar up to a date you pass (defaults to today):
+--     EXEC load_date_dim_incremental;                     -- to SYSDATE
+--     EXEC load_date_dim_incremental(DATE '2024-12-31');  -- data24 run
 --
 --   SECTION 1: no new view - reuses date_staging_v
 --   SECTION 2: no new sequence - reuses date_dim_seq
---   SECTION 3: PROCEDURE - incremental load
---   SECTION 4: run + holidays + verification
+--   SECTION 3: PROCEDURE - incremental load (set-based, like the
+--              initial load; the row volume is a year of days, but the
+--              insert is one INSERT..SELECT either way)
+--   SECTION 4: none - the EXEC lives in exec_sub_proc24/25.sql
 --
 -- Safe to re-run: a NOT EXISTS on cal_date means days already loaded
--- are never inserted twice.
+-- are never inserted twice, and a p_end_date already covered is a
+-- polite no-op.
 -- ===================================================================
 
 SET SERVEROUTPUT ON
@@ -19,10 +23,10 @@ SET SERVEROUTPUT ON
 -- SECTION 3: ETL (SUBSEQUENT / INCREMENTAL LOADING)
 -- ===================================================================
 CREATE OR REPLACE PROCEDURE load_date_dim_incremental(
-    p_until_year IN NUMBER
+    p_end_date IN DATE DEFAULT SYSDATE
 ) AS
     v_last_date  DATE;
-    v_target_end DATE;
+    v_target_end DATE := TRUNC(p_end_date);
     v_view_max   DATE;
     v_count      NUMBER := 0;
 BEGIN
@@ -38,8 +42,13 @@ BEGIN
         RETURN;
     END IF;
 
-    v_target_end := TO_DATE(TO_CHAR(p_until_year) || '-12-31',
-                            'YYYY-MM-DD');
+    IF v_target_end <= v_last_date THEN
+        DBMS_OUTPUT.PUT_LINE('DATE_DIM already covers to '
+            || TO_CHAR(v_last_date, 'YYYY-MM-DD')
+            || '. Nothing to add for '
+            || TO_CHAR(v_target_end, 'YYYY-MM-DD') || '.');
+        RETURN;
+    END IF;
 
     -- date_staging_v rolls ~11 years past today (its CONNECT BY is
     -- bound to SYSDATE, not a literal). Asking beyond its current max
@@ -55,43 +64,33 @@ BEGIN
         RETURN;
     END IF;
 
-    IF v_target_end <= v_last_date THEN
-        DBMS_OUTPUT.PUT_LINE('DATE_DIM already covers to '
-            || TO_CHAR(v_last_date, 'YYYY-MM-DD')
-            || '. Nothing to add for ' || p_until_year || '.');
-        RETURN;
-    END IF;
+    -- Set-based, exactly like the initial load: one INSERT..SELECT
+    -- with NEXTVAL in the outer select over the staging VIEW. (NEXTVAL
+    -- cannot share a query block with the view's CONNECT BY or with an
+    -- ORDER BY - so no ORDER BY here. CONNECT BY LEVEL generates the
+    -- days in ascending order anyway, so the surrogate keys still
+    -- follow the calendar.)
+    INSERT INTO date_dim (
+        date_key, cal_date, full_desc, day_week,
+        day_num_month, last_day_ind, cal_week_end_date,
+        cal_week_year, cal_month_name, cal_month_year, cal_year_month,
+        cal_quarter, cal_year_quarter, cal_year,
+        holiday_ind, holiday_name, weekday_ind
+    )
+    SELECT
+        date_dim_seq.NEXTVAL,
+        s.v_date, s.full_desc, s.day_week,
+        s.day_num_month, s.last_day_ind, s.cal_week_end_date,
+        s.cal_week_year, s.cal_month_name, s.cal_month_year,
+        s.cal_year_month, s.cal_quarter, s.cal_year_quarter, s.cal_year,
+        s.holiday_ind, s.holiday_name, s.weekday_ind
+    FROM date_staging_v s
+    WHERE s.v_date >  v_last_date
+    AND   s.v_date <= v_target_end
+    AND   NOT EXISTS (SELECT 1 FROM date_dim d
+                      WHERE d.cal_date = s.v_date);
 
-    -- Cursor FOR loop, NOT one INSERT..SELECT. date_staging_v contains
-    -- CONNECT BY, and Oracle refuses a sequence NEXTVAL in the same
-    -- query block as CONNECT BY (ORA-02287, which surfaces as
-    -- PLS-00905 when you EXEC an invalid procedure). Putting NEXTVAL
-    -- in a VALUES clause sidesteps it completely.
-    -- ORDER BY keeps surrogate keys ascending with the calendar.
-    FOR r IN (SELECT * FROM date_staging_v s
-              WHERE  s.v_date >  v_last_date
-                AND  s.v_date <= v_target_end
-                AND  NOT EXISTS (SELECT 1 FROM date_dim d
-                                 WHERE d.cal_date = s.v_date)
-              ORDER BY s.v_date)
-    LOOP
-        INSERT INTO date_dim (
-            date_key, cal_date, full_desc, day_week,
-            day_num_month, last_day_ind, cal_week_end_date,
-            cal_week_year, cal_month_name, cal_month_year, cal_year_month,
-            cal_quarter, cal_year_quarter, cal_year,
-            holiday_ind, holiday_name, weekday_ind
-        ) VALUES (
-            date_dim_seq.NEXTVAL,
-            r.v_date, r.full_desc, r.day_week,
-            r.day_num_month, r.last_day_ind,
-            r.cal_week_end_date, r.cal_week_year, r.cal_month_name,
-            r.cal_month_year, r.cal_year_month, r.cal_quarter,
-            r.cal_year_quarter, r.cal_year,
-            r.holiday_ind, r.holiday_name, r.weekday_ind
-        );
-        v_count := v_count + 1;
-    END LOOP;
+    v_count := SQL%ROWCOUNT;
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('DATE_DIM incremental load completed:');
@@ -102,7 +101,7 @@ BEGIN
         || TO_CHAR(v_target_end, 'YYYY-MM-DD'));
     DBMS_OUTPUT.PUT_LINE(' - New years arrive with NO holidays. Run:');
     DBMS_OUTPUT.PUT_LINE('     python gen_holidays.py 2019 '
-        || p_until_year || ' > holiday_update.sql');
+        || TO_CHAR(v_target_end, 'YYYY') || ' > holiday_update.sql');
     DBMS_OUTPUT.PUT_LINE('     @holiday_update.sql');
 
 EXCEPTION

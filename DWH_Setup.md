@@ -200,8 +200,11 @@ so the OLTP has to carry the new prices already or there is nothing to detect.
 ```
 
 One file, in the only safe order: **STEP 0** checks all 18 procedures · **STEP 1** extends the
-calendar to 2024 then inserts new records · **STEP 2** `maintain_product_dim_scd2(DATE '2024-01-01')`
-· **STEP 3** the five facts from `DATE '2024-01-01'`.
+calendar through `DATE '2024-12-31'` then inserts new records · **STEP 2**
+`maintain_product_dim_scd2(DATE '2024-01-01')` — the SCD2 effective date is a business date,
+because *when* a price changed is not in the data · **STEP 3** the five facts — each finds its own
+START (the newest date already loaded into itself); the argument is only the window END
+(`p_end_date`, default SYSDATE), capped at `DATE '2024-12-31'` so this run loads data24 only.
 
 ✅ 366 new days · 4 branches · 69 staff · 6,485 customers · **8 expired / 8 new** product versions ·
 facts now **642,619 / 129,736 / 42,734 / 15,474 / 5,904**
@@ -382,7 +385,7 @@ SELECT (SELECT MIN(cal_date) FROM date_dim WHERE date_key <> 0) AS dim_first_day
        (SELECT MIN(order_date) FROM orders)                     AS first_order,
        (SELECT MAX(order_date) FROM orders)                     AS last_order
 FROM dual;
--- last_order after dim_last_day  -> EXEC load_date_dim_incremental(2025);
+-- last_order after dim_last_day  -> EXEC load_date_dim_incremental(DATE '<year>-12-31');
 -- first_order before dim_first_day -> the initial date_dim script must start 2019-01-01
 ```
 
