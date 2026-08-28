@@ -32,15 +32,18 @@
 -- is currently being served from somewhere else. Section 2 lists those
 -- cities and nothing else.
 --
--- MEASURES
---   Sales      order_fact.order_net_amt + reservation_fact.serv_net_amt
---              - what the customer actually paid, net of discount and
---              excluding the 6 % SST, 'Completed' rows only. Both facts
---              carry customer_key, so a person's whole spend is counted.
---   Customers  COUNT(DISTINCT cus_ID) - the natural key, NEVER
---              customer_key: customer_dim is SCD2, so one person can
---              own several surrogate rows and would be counted twice.
---   Per head   sales / customers
+-- MEASURES  (both are AVERAGES PER YEAR, so a 3-year window and a
+--            7-year window are directly comparable)
+--   Avg sales/yr      order_net_amt + serv_net_amt (net of discount,
+--                     SST excluded, 'Completed' only), summed within
+--                     each year, then averaged over the years
+--   Avg customers/yr  COUNT(DISTINCT cus_ID) WITHIN each year, then
+--                     averaged - never one distinct count over the
+--                     whole period (a person active in 3 years is one
+--                     customer per year, not one third), and never
+--                     customer_key (SCD2 - one person, several rows)
+--   Per head          avg sales/yr / avg customers/yr - what one
+--                     customer is worth in a typical year
 --
 -- OLAP TECHNIQUES USED
 --   CTE (WITH)         both sections
@@ -67,16 +70,16 @@ SET TERMOUT ON
 SET TRIMSPOOL ON
 
 PROMPT
-ACCEPT p_from CHAR DEFAULT 2019 PROMPT 'Start year (default 2019): '
+ACCEPT p_from CHAR DEFAULT 2023 PROMPT 'Start year (default 2023): '
 ACCEPT p_to   CHAR DEFAULT 2025 PROMPT 'End year   (default 2025): '
 PROMPT
 
 
 -- ###################################################################
 -- SECTION 1 - WHERE THE BUYERS LIVE, BY STATE
--- Ranked on total sales. The BRANCHES column counts the branches Glow
--- Beauty actually has in that state, so a state can be read against
--- its own branch footprint straight away.
+-- Ranked on AVG SALES PER YEAR. The BRANCHES column counts the
+-- branches Glow Beauty actually has in that state, so a state can be
+-- read against its own branch footprint straight away.
 -- ###################################################################
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. CUSTOMER HOTSPOTS BY HOME STATE' SKIP 1 -
@@ -89,8 +92,8 @@ COLUMN rnk       HEADING 'RANK'               FORMAT 9990
 COLUMN cus_state HEADING 'CUSTOMER HOME STATE' FORMAT A34
 COLUMN shops     HEADING 'BRANCHES'           FORMAT 990
 COLUMN cities    HEADING 'CITIES|LIVED IN'    FORMAT 990
-COLUMN custs     HEADING 'CUSTOMERS'          FORMAT 99,990
-COLUMN sales     HEADING 'TOTAL SALES|(RM)'    FORMAT 999,999,990
+COLUMN custs     HEADING 'AVG CUSTOMERS|PER YEAR' FORMAT 99,990
+COLUMN sales     HEADING 'AVG SALES|PER YEAR (RM)' FORMAT 99,999,990
 COLUMN per_head  HEADING 'SALES PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|SALES'     FORMAT A8
 
@@ -98,8 +101,9 @@ BREAK ON REPORT
 COMPUTE SUM LABEL 'TOTAL' OF custs sales ON REPORT
 
 WITH spend AS (
-    -- both revenue facts on one customer grain
-    SELECT c.cus_ID, c.cus_city, c.cus_state, x.amt
+    -- both revenue facts on one customer grain, year kept for the
+    -- per-year averaging
+    SELECT c.cus_ID, c.cus_city, c.cus_state, d.cal_year, x.amt
     FROM   (SELECT customer_key, date_key, order_net_amt AS amt
             FROM   order_fact WHERE order_status = 'Completed'
             UNION ALL
@@ -109,13 +113,26 @@ WITH spend AS (
     JOIN   customer_dim c ON c.customer_key = x.customer_key
     WHERE  d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
 ),
-by_state AS (
-    SELECT cus_state,
-           COUNT(DISTINCT cus_ID)   AS custs,
-           COUNT(DISTINCT cus_city) AS cities,
-           SUM(amt)                 AS sales
+by_state_year AS (
+    -- one row per state per YEAR: customers counted DISTINCT within
+    -- the year (a person active in three years counts once per year)
+    SELECT cus_state, cal_year,
+           COUNT(DISTINCT cus_ID) AS custs,
+           SUM(amt)               AS sales
     FROM   spend
-    GROUP  BY cus_state
+    GROUP  BY cus_state, cal_year
+),
+by_state AS (
+    -- collapse the years into ONE average year per state. CITIES
+    -- LIVED IN stays a whole-period distinct count (a city is not
+    -- more of a city for appearing in three years).
+    SELECT y.cus_state,
+           AVG(y.custs)                 AS custs,
+           AVG(y.sales)                 AS sales,
+           (SELECT COUNT(DISTINCT s.cus_city) FROM spend s
+            WHERE  s.cus_state = y.cus_state) AS cities
+    FROM   by_state_year y
+    GROUP  BY y.cus_state
 ),
 shops AS (
     -- count branches by br_name (branch_dim is SCD2 - DISTINCT folds
@@ -140,7 +157,8 @@ ORDER  BY rnk;
 -- ###################################################################
 -- SECTION 2 - THE SHOPLESS CITIES INSIDE ONE STATE
 -- Only cities with NO branch appear here: real customers and real
--- revenue that the chain is currently serving from somewhere else.
+-- revenue that the chain is currently serving from somewhere else,
+-- both stated as an AVERAGE YEAR like section 1.
 -- SHARE OF STATE is measured against the state's WHOLE sales, branch
 -- cities included, so it says how much of the state is being served
 -- without a shop - not just how these towns compare to each other.
@@ -162,8 +180,8 @@ TTITLE CENTER '+==========================================================+' SKI
 
 COLUMN rnk      HEADING 'RANK'               FORMAT 9990
 COLUMN cus_city HEADING 'CUSTOMER HOME CITY' FORMAT A24
-COLUMN custs    HEADING 'CUSTOMERS'          FORMAT 99,990
-COLUMN sales    HEADING 'TOTAL SALES|(RM)'    FORMAT 99,999,990
+COLUMN custs    HEADING 'AVG CUSTOMERS|PER YEAR' FORMAT 99,990
+COLUMN sales    HEADING 'AVG SALES|PER YEAR (RM)' FORMAT 9,999,990
 COLUMN per_head HEADING 'SALES PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|STATE'    FORMAT A8
 
@@ -171,7 +189,7 @@ BREAK ON REPORT
 COMPUTE SUM LABEL 'TOTAL' OF custs sales ON REPORT
 
 WITH spend AS (
-    SELECT c.cus_ID, c.cus_city, x.amt
+    SELECT c.cus_ID, c.cus_city, d.cal_year, x.amt
     FROM   (SELECT customer_key, date_key, order_net_amt AS amt
             FROM   order_fact WHERE order_status = 'Completed'
             UNION ALL
@@ -182,11 +200,18 @@ WITH spend AS (
     WHERE  d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
     AND    UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&p_state')) || '%'
 ),
-by_city AS (
-    SELECT cus_city,
+by_city_year AS (
+    SELECT cus_city, cal_year,
            COUNT(DISTINCT cus_ID) AS custs,
            SUM(amt)               AS sales
     FROM   spend
+    GROUP  BY cus_city, cal_year
+),
+by_city AS (
+    SELECT cus_city,
+           AVG(custs) AS custs,
+           AVG(sales) AS sales
+    FROM   by_city_year
     GROUP  BY cus_city
 ),
 shared AS (

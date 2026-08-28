@@ -1,36 +1,50 @@
 -- ===================================================================
--- 02_category_product_viz.sql
--- GLOW BEAUTY - CHART FEED FOR 02_category_product_performance.sql
+-- 02b_category_product_trend_viz.sql
+-- GLOW BEAUTY - CHART FEED FOR 02b_category_product_trend.sql
 --   ONE view with everything the report covers, at the finest grain:
---   product x branch x year x quarter, costed. Every graph of the
---   report is an aggregation of this one table - the plotting tool
---   (Excel / Power BI / Python) does the grouping and filtering the
+--   product x branch x year x quarter, costed - the PERMANENT twin of
+--   the temporary costed_sales_v the report creates and drops. Every
+--   graph of the report is an aggregation of this one table; the
+--   plotting tool (Excel / Power BI / Python) does the grouping the
 --   report's prompts and sections do.
 --
 -- Run in SQL*Plus as the warehouse owner:
 --   sqlplus dwh/yourpassword@XE
---   @analysis\Fz\visualisation\02_category_product_viz.sql
+--   @analysis\Fz\visualisation\02b_category_product_trend_viz.sql
 --
 -- VIEW CREATED
---   viz02_category_product_v
+--   viz02b_costed_sales_v
 --     cal_year, cal_quarter          the time axis
---     br_id, br_name, br_state,      the branch axis - group by state
---     br_city                        for the 0a picture, by branch for
---                                    0b, or ignore for chain-wide
---     product_category, product_id,  the product axis - group by
---     product_name                   category for section 1, filter
---                                    one category for section 2
+--     br_id, br_name, br_state,      the branch axis
+--     br_city
+--     product_category, product_id,  the product axis
+--     product_name
 --     units_sold, revenue, cogs,     the measures - all additive, so
---     gross_profit                   they sum cleanly to any of the
---                                    cuts above
+--     gross_profit                   they sum cleanly to any cut
 --
 -- HOW TO REBUILD EACH REPORT SECTION FROM IT
---   0a state menu       group by br_state
---   0b branch menu      group by br_name
---   1  year x category  group by cal_year, product_category
---                       (rank / share of year = the tool's ranking)
---   2  products + qtrs  filter one cal_year + product_category,
---                       group by product_name, pivot cal_quarter
+--   0a state menu    group by br_state. The report's AVG ANNUAL
+--                    REVENUE / BR divides SUM(revenue) by the
+--                    DISTINCT COUNT of (br_id, cal_year) PAIRS -
+--                    branch-years actually traded. Do NOT divide by
+--                    (branch count x years): the four 2024 openings
+--                    trade fewer years and would drag their state
+--                    down for being young. Same denominator for the
+--                    avg COGS and avg GP columns.
+--   0b branch menu   group by br_name, divide by its DISTINCT years
+--                    traded (carry the year count onto the chart so
+--                    a short trading life is visible)
+--   1  year x cat    group by cal_year, product_category; rank on
+--                    gross profit within each year; share = category
+--                    GP / that year's total GP
+--   2  avg product   filter one product_category, group by cal_year,
+--                    divide every SUM by the DISTINCT COUNT of
+--                    product_id in that year (the report prints that
+--                    count as PRODUCTS - keep it on the chart)
+--   3  top products  filter one product_category + one cal_year,
+--                    group by product_name, rank on gross profit,
+--                    pivot cal_quarter for the quarter columns,
+--                    share = product GP / the shelf's GP that year
 --
 -- CONVENTIONS (same as the report - see its header for the why)
 --   revenue = order_net_amt, 'Completed' rows only
@@ -46,7 +60,7 @@
 
 SET SQLBLANKLINES ON
 
-CREATE OR REPLACE VIEW viz02_category_product_v AS
+CREATE OR REPLACE VIEW viz02b_costed_sales_v AS
 WITH cby AS (
     SELECT p.product_ID, b.br_ID, d.cal_year,
            SUM(f.purchase_total_cost) / SUM(f.purchase_qty) AS ucost
@@ -107,5 +121,5 @@ LEFT   JOIN cy  ON cy.product_ID  = l.product_ID
 -- ###################################################################
 -- sanity (0 rows on an empty warehouse is fine)
 -- ###################################################################
-SELECT 'viz02_category_product_v' AS view_name, COUNT(*) AS row_count
-FROM   viz02_category_product_v;
+SELECT 'viz02b_costed_sales_v' AS view_name, COUNT(*) AS row_count
+FROM   viz02b_costed_sales_v;
