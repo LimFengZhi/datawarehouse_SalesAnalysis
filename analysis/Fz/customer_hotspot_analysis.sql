@@ -111,7 +111,7 @@ COLUMN per_head  HEADING 'REVENUE PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|REVENUE'   FORMAT A8
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF custs sales prod_rev serv_rev ON REPORT
+COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
 WITH spend AS (
     -- both revenue facts on one customer grain, year kept for the
@@ -210,7 +210,7 @@ COLUMN per_head HEADING 'REVENUE PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|STATE'    FORMAT A8
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF custs sales prod_rev serv_rev ON REPORT
+COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
 WITH spend AS (
     SELECT c.cus_ID, c.cus_city, d.cal_year, x.amt, x.src
