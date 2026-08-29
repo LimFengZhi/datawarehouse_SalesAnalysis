@@ -104,3 +104,11 @@ CLAUDE.md
 # Report spool output (SQL*Plus SPOOL from analysis\*.sql)
 # -------------------------------------------------------------------
 analysis/**/*_output.txt
+
+
+# -------------------------------------------------------------------
+# Submission copy of ETL_Process\subsequent_loading - generated
+# (comments stripped, new dimension rows dated TRUNC(SYSDATE) instead
+# of DATE '2019-01-01'). Regenerate from the real folder, never edit.
+# -------------------------------------------------------------------
+submit_sub/

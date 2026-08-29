@@ -34,7 +34,7 @@
 --
 -- MEASURES  (both are AVERAGES PER YEAR, so a 3-year window and a
 --            7-year window are directly comparable)
---   Avg sales/yr      order_net_amt + serv_net_amt (net of discount,
+--   Avg revenue/yr    order_net_amt + serv_net_amt (net of discount,
 --                     SST excluded, 'Completed' only), summed within
 --                     each year, then averaged over the years
 --   Avg customers/yr  COUNT(DISTINCT cus_ID) WITHIN each year, then
@@ -42,8 +42,19 @@
 --                     whole period (a person active in 3 years is one
 --                     customer per year, not one third), and never
 --                     customer_key (SCD2 - one person, several rows)
---   Per head          avg sales/yr / avg customers/yr - what one
+--   Per head          avg revenue/yr / avg customers/yr - what one
 --                     customer is worth in a typical year
+--   Product / Service the same average year split by fact. PRODUCT
+--                     revenue has been fulfillable ONLINE since 2022,
+--                     so a shopless city's product money is already
+--                     served; SERVICE revenue requires the customer
+--                     to TRAVEL to a branch - in a shopless city that
+--                     is proven demand surviving real friction, the
+--                     strongest expansion evidence on the page. Quote
+--                     the service RM, never the service SHARE: the
+--                     product/service mix is flat (~21 % service)
+--                     everywhere by construction, so the ratio does
+--                     not separate cities
 --
 -- OLAP TECHNIQUES USED
 --   CTE (WITH)         both sections
@@ -77,7 +88,7 @@ PROMPT
 
 -- ###################################################################
 -- SECTION 1 - WHERE THE BUYERS LIVE, BY STATE
--- Ranked on AVG SALES PER YEAR. The BRANCHES column counts the
+-- Ranked on AVG REVENUE PER YEAR. The BRANCHES column counts the
 -- branches Glow Beauty actually has in that state, so a state can be
 -- read against its own branch footprint straight away.
 -- ###################################################################
@@ -93,21 +104,24 @@ COLUMN cus_state HEADING 'CUSTOMER HOME STATE' FORMAT A34
 COLUMN shops     HEADING 'BRANCHES'           FORMAT 990
 COLUMN cities    HEADING 'CITIES|LIVED IN'    FORMAT 990
 COLUMN custs     HEADING 'AVG CUSTOMERS|PER YEAR' FORMAT 99,990
-COLUMN sales     HEADING 'AVG SALES|PER YEAR (RM)' FORMAT 99,999,990
-COLUMN per_head  HEADING 'SALES PER|CUSTOMER' FORMAT 9,990.00
-COLUMN pct_share HEADING 'SHARE OF|SALES'     FORMAT A8
+COLUMN sales     HEADING 'AVG REVENUE|PER YEAR (RM)' FORMAT 99,999,990
+COLUMN prod_rev  HEADING 'AVG PRODUCT|REV/YR (RM)' FORMAT 99,999,990
+COLUMN serv_rev  HEADING 'AVG SERVICE|REV/YR (RM)' FORMAT 9,999,990
+COLUMN per_head  HEADING 'REVENUE PER|CUSTOMER' FORMAT 9,990.00
+COLUMN pct_share HEADING 'SHARE OF|REVENUE'   FORMAT A8
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF custs sales ON REPORT
+COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
 WITH spend AS (
     -- both revenue facts on one customer grain, year kept for the
     -- per-year averaging
-    SELECT c.cus_ID, c.cus_city, c.cus_state, d.cal_year, x.amt
-    FROM   (SELECT customer_key, date_key, order_net_amt AS amt
+    SELECT c.cus_ID, c.cus_city, c.cus_state, d.cal_year, x.amt, x.src
+    FROM   (SELECT customer_key, date_key, order_net_amt AS amt,
+                   'P' AS src
             FROM   order_fact WHERE order_status = 'Completed'
             UNION ALL
-            SELECT customer_key, date_key, serv_net_amt
+            SELECT customer_key, date_key, serv_net_amt, 'S'
             FROM   reservation_fact WHERE res_status = 'Completed') x
     JOIN   date_dim     d ON d.date_key     = x.date_key
     JOIN   customer_dim c ON c.customer_key = x.customer_key
@@ -118,7 +132,9 @@ by_state_year AS (
     -- the year (a person active in three years counts once per year)
     SELECT cus_state, cal_year,
            COUNT(DISTINCT cus_ID) AS custs,
-           SUM(amt)               AS sales
+           SUM(amt)               AS sales,
+           SUM(CASE WHEN src = 'P' THEN amt ELSE 0 END) AS prod_rev,
+           SUM(CASE WHEN src = 'S' THEN amt ELSE 0 END) AS serv_rev
     FROM   spend
     GROUP  BY cus_state, cal_year
 ),
@@ -129,6 +145,8 @@ by_state AS (
     SELECT y.cus_state,
            AVG(y.custs)                 AS custs,
            AVG(y.sales)                 AS sales,
+           AVG(y.prod_rev)              AS prod_rev,
+           AVG(y.serv_rev)              AS serv_rev,
            (SELECT COUNT(DISTINCT s.cus_city) FROM spend s
             WHERE  s.cus_state = y.cus_state) AS cities
     FROM   by_state_year y
@@ -147,6 +165,8 @@ SELECT RANK() OVER (ORDER BY s.sales DESC) AS rnk,
        s.cities,
        s.custs,
        s.sales,
+       s.prod_rev,
+       s.serv_rev,
        s.sales / NULLIF(s.custs, 0) AS per_head,
        TO_CHAR(ROUND(s.sales / SUM(s.sales) OVER () * 100, 1), '990.9') || '%' AS pct_share
 FROM   by_state s
@@ -158,7 +178,9 @@ ORDER  BY rnk;
 -- SECTION 2 - THE SHOPLESS CITIES INSIDE ONE STATE
 -- Only cities with NO branch appear here: real customers and real
 -- revenue that the chain is currently serving from somewhere else,
--- both stated as an AVERAGE YEAR like section 1.
+-- both stated as an AVERAGE YEAR like section 1. AVG SERVICE REV is
+-- the line to read: products ship online, but every service ringgit
+-- from a shopless city is someone TRAVELLING to another town.
 -- SHARE OF STATE is measured against the state's WHOLE sales, branch
 -- cities included, so it says how much of the state is being served
 -- without a shop - not just how these towns compare to each other.
@@ -181,19 +203,22 @@ TTITLE CENTER '+==========================================================+' SKI
 COLUMN rnk      HEADING 'RANK'               FORMAT 9990
 COLUMN cus_city HEADING 'CUSTOMER HOME CITY' FORMAT A24
 COLUMN custs    HEADING 'AVG CUSTOMERS|PER YEAR' FORMAT 99,990
-COLUMN sales    HEADING 'AVG SALES|PER YEAR (RM)' FORMAT 9,999,990
-COLUMN per_head HEADING 'SALES PER|CUSTOMER' FORMAT 9,990.00
+COLUMN sales    HEADING 'AVG REVENUE|PER YEAR (RM)' FORMAT 9,999,990
+COLUMN prod_rev HEADING 'AVG PRODUCT|REV/YR (RM)' FORMAT 9,999,990
+COLUMN serv_rev HEADING 'AVG SERVICE|REV/YR (RM)' FORMAT 999,990
+COLUMN per_head HEADING 'REVENUE PER|CUSTOMER' FORMAT 9,990.00
 COLUMN pct_share HEADING 'SHARE OF|STATE'    FORMAT A8
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF custs sales ON REPORT
+COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
 WITH spend AS (
-    SELECT c.cus_ID, c.cus_city, d.cal_year, x.amt
-    FROM   (SELECT customer_key, date_key, order_net_amt AS amt
+    SELECT c.cus_ID, c.cus_city, d.cal_year, x.amt, x.src
+    FROM   (SELECT customer_key, date_key, order_net_amt AS amt,
+                   'P' AS src
             FROM   order_fact WHERE order_status = 'Completed'
             UNION ALL
-            SELECT customer_key, date_key, serv_net_amt
+            SELECT customer_key, date_key, serv_net_amt, 'S'
             FROM   reservation_fact WHERE res_status = 'Completed') x
     JOIN   date_dim     d ON d.date_key     = x.date_key
     JOIN   customer_dim c ON c.customer_key = x.customer_key
@@ -203,21 +228,25 @@ WITH spend AS (
 by_city_year AS (
     SELECT cus_city, cal_year,
            COUNT(DISTINCT cus_ID) AS custs,
-           SUM(amt)               AS sales
+           SUM(amt)               AS sales,
+           SUM(CASE WHEN src = 'P' THEN amt ELSE 0 END) AS prod_rev,
+           SUM(CASE WHEN src = 'S' THEN amt ELSE 0 END) AS serv_rev
     FROM   spend
     GROUP  BY cus_city, cal_year
 ),
 by_city AS (
     SELECT cus_city,
-           AVG(custs) AS custs,
-           AVG(sales) AS sales
+           AVG(custs)    AS custs,
+           AVG(sales)    AS sales,
+           AVG(prod_rev) AS prod_rev,
+           AVG(serv_rev) AS serv_rev
     FROM   by_city_year
     GROUP  BY cus_city
 ),
 shared AS (
     -- the share is worked out BEFORE the shopless filter, so it stays a
     -- share of the whole state rather than of the survivors
-    SELECT cus_city, custs, sales,
+    SELECT cus_city, custs, sales, prod_rev, serv_rev,
            sales / SUM(sales) OVER () * 100 AS pct_of_state
     FROM   by_city
 )
@@ -225,6 +254,8 @@ SELECT RANK() OVER (ORDER BY sales DESC) AS rnk,
        cus_city,
        custs,
        sales,
+       prod_rev,
+       serv_rev,
        sales / NULLIF(custs, 0) AS per_head,
        TO_CHAR(ROUND(pct_of_state, 1), '990.9') || '%' AS pct_share
 FROM   shared

@@ -12,8 +12,6 @@ SET ECHO OFF
 SET TERMOUT ON
 SET TRIMSPOOL ON
 
-ACCEPT branch CHAR DEFAULT 'Kuala Lumpur' PROMPT 'Branch city for sections 3-4 (default Kuala Lumpur): '
-
 SET TERMOUT OFF
 COLUMN run_dt  NEW_VALUE run_dt  NOPRINT
 SELECT TO_CHAR(SYSDATE, 'DD-MON-YYYY') AS run_dt FROM dual;
@@ -133,6 +131,11 @@ ORDER  BY rcr DESC;
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
+
+PROMPT
+PROMPT
+ACCEPT branch CHAR DEFAULT 'Kuala Lumpur' PROMPT 'Branch city (default Kuala Lumpur): '
+PROMPT
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 3. &branch: EVERY THERAPIST, RANKED' SKIP 1 -
