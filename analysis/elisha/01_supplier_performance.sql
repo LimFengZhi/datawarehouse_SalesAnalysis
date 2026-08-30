@@ -1,37 +1,10 @@
--- ===================================================================
--- 01_supplier_performance.sql
--- SUPPLIER PERFORMANCE AND PROCUREMENT ANALYSIS
---
--- Run in SQL*Plus as the warehouse owner:
---   sqlplus dwh/yourpassword@XE
---   @analysis\elisha\01_supplier_performance.sql
---
--- WHAT IT ANSWERS (5W1H)
---   WHAT   procurement spend, units restocked, purchase orders
---   WHEN   any year range (prompted), quarterly trend for the slice
---   WHERE  which branch the stock was purchased for
---   WHO    which supplier fulfilled it (supplier_dim)
---   WHY    reveal over-reliance on a single supplier, rank suppliers
---          by spend, and support procurement negotiation strategy
---   HOW    SUM/COUNT of purchase_fact grouped supplier x product x
---          branch x time; RANK and cumulative % via window functions
---
--- OLAP TECHNIQUE: SLICING
---   The whole report slices date_dim to the prompted year range -
---   every section analyses the cube INSIDE that time slice.
---   Section 2 then breaks the slice down per supplier x product
---   (top N by spend), Section 3 per supplier x branch x quarter.
---
--- DIMENSIONS USED (four)  date_dim, supplier_dim, branch_dim,
---   product_dim     FACT: purchase_fact
---
--- NOTE: supplier_dim and product_dim are SCD2, so everything is
---   grouped on the NATURAL keys (sup_ID, product_ID) - one supplier
---   must roll up as one line no matter how many versions it owns.
--- ===================================================================
-
+CLEAR BREAKS
+CLEAR COMPUTES
+CLEAR COLUMNS
+SET DEFINE ON
 SET VERIFY OFF
 SET FEEDBACK OFF
+SET ECHO OFF
 SET PAGESIZE 200
 SET LINESIZE 100
 
@@ -68,7 +41,6 @@ GROUP BY
     dd.cal_year,
     dd.cal_quarter;
 
-PROMPT View created. Generating reports...
 PROMPT
 
 -- Report Section 1: Supplier-Level Procurement Summary
@@ -84,8 +56,8 @@ COLUMN supplier_name     FORMAT A29          HEADING 'Supplier'
 COLUMN total_spend       FORMAT 99,999,990.00 HEADING 'Total Spend|(RM)'
 COLUMN purchase_orders   FORMAT 999,999      HEADING 'Purchase|Orders'
 COLUMN avg_unit_cost     FORMAT 9,990.99     HEADING 'Avg Cost|Per Unit (RM)'
-COLUMN pct_total_spend   FORMAT A15          HEADING '% of Total|Spend'
-COLUMN pct_total_orders  FORMAT A15          HEADING '% of Total|Orders'
+COLUMN pct_total_spend   FORMAT A10          HEADING '% of Total|Spend'
+COLUMN pct_total_orders  FORMAT A10          HEADING '% of Total|Orders'
 
 BREAK ON ROW SKIP 1
 
@@ -129,9 +101,9 @@ PROMPT
 ACCEPT top_n_prompt CHAR PROMPT 'Enter the number of Top Products per supplier to display (e.g., 3): '
 PROMPT
 
+SET LINESIZE 140
 CLEAR COLUMNS
 CLEAR BREAKS
-SET LINESIZE 130
 TTITLE CENTER '======================================================' SKIP 1 -
        CENTER 'Top &top_n_prompt Products per Supplier by Procurement Spend' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
@@ -139,19 +111,16 @@ TTITLE CENTER '======================================================' SKIP 1 -
 
 COLUMN supplier_name      FORMAT A29           HEADING 'Supplier'
 COLUMN ranking            FORMAT 999           HEADING 'Rank'
-COLUMN product_name       FORMAT A30           HEADING 'Product'
-COLUMN product_category   FORMAT A18           HEADING 'Category'
+COLUMN product_name       FORMAT A37           HEADING 'Product'
+COLUMN product_category   FORMAT A16           HEADING 'Category'
 COLUMN units_bought       FORMAT 999,999       HEADING 'Units'
 COLUMN spend_on_product   FORMAT 9,999,990.00  HEADING 'Spend (RM)'
 COLUMN pct_supplier_spend FORMAT A8            HEADING 'Spend %'
-COLUMN cumulative_pct     FORMAT A10           HEADING 'Cum %'
+COLUMN cumulative_pct     FORMAT A8           HEADING 'Cum %'
 COLUMN supplier_total     NOPRINT
 
--- print the supplier name once per group, blank line between suppliers
 BREAK ON supplier_name SKIP 1
 
--- Top N products of EVERY supplier: rank restarts per supplier via
--- PARTITION BY, % figures are against that supplier's own total.
 WITH
 RANKED_PRODUCTS AS (
     SELECT
@@ -210,16 +179,12 @@ COLUMN q2_spend       FORMAT 9,999,990.00  HEADING 'Q2 (RM)'
 COLUMN q3_spend       FORMAT 9,999,990.00  HEADING 'Q3 (RM)'
 COLUMN q4_spend       FORMAT 9,999,990.00  HEADING 'Q4 (RM)'
 COLUMN branch_total   FORMAT 99,999,990.00 HEADING 'Total (RM)'
-COLUMN pct_of_branch_buying FORMAT A10     HEADING '% of Total'
+COLUMN pct_of_branch_buying FORMAT A9     HEADING 'Total (%)'
 COLUMN supplier_total NOPRINT
 
--- supplier name printed once per group, blank line between suppliers,
--- and a TOTAL row per supplier summing every quarter column
 BREAK ON supplier_name SKIP 1
 COMPUTE SUM LABEL 'TOTAL' OF q1_spend q2_spend q3_spend q4_spend branch_total ON supplier_name
 
--- Every supplier x branch, quarters across; % is the branch's share
--- of THAT supplier's total spend.
 SELECT
     MAX(pv.sup_name) AS supplier_name,
     MAX(pv.br_city)  AS br_city,
@@ -240,19 +205,18 @@ ORDER BY
     supplier_total DESC, branch_total DESC;
 
 PROMPT
+PROMPT Report complete.
 PROMPT
 DROP VIEW SUPPLIER_PROCUREMENT_V;
-
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 UNDEFINE start_year_prompt
 UNDEFINE end_year_prompt
 UNDEFINE top_n_prompt
-SET LINESIZE 100
 SET FEEDBACK ON
 SET VERIFY ON
 TTITLE OFF
-PROMPT
-PROMPT Report complete.
-PROMPT
+
+
+

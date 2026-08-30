@@ -1,52 +1,12 @@
--- ===================================================================
--- 03_launch_adoption.sql
--- NEW PRODUCT / SERVICE LAUNCH COHORT & ADOPTION RAMP-UP ANALYSIS
---
--- Run in SQL*Plus as the warehouse owner:
---   sqlplus dwh/yourpassword@XE
---   @analysis\elisha\03_launch_adoption.sql
---
--- WHAT IT ANSWERS (5W1H)
---   WHAT   completed sales of newly launched products and services in
---          their first months on the market, vs the established
---          catalogue as a baseline
---   WHEN   months since each item's launch (the adoption curve)
---   WHERE  which branch adopted the new items fastest (branch_dim)
---   WHO    the launch cohort itself - which products / services were
---          launched together (product_dim / service_dim)
---   WHY    tells management whether launching new items pays back,
---          how long ramp-up to steady sales takes, and informs the
---          next launch plan
---   HOW    an item's LAUNCH DATE = the first calendar month it ever
---          recorded a completed sale (MIN sale month in the facts).
---          Items first sold in the warehouse's opening month are the
---          ORIGINAL catalogue; any later first-sale is a launch.
---          Sales = the stored fact totals (order_total_amt /
---          serv_total_amt), Completed only.
---
--- OLAP TECHNIQUE: SLICING
---   Section 1 surveys every launch-year cohort. The report then
---   slices product_dim / service_dim to ONE launch cohort (prompted
---   year) - Sections 2 and 3 analyse date and branch INSIDE that
---   slice: per-item ramp-up by month, and branch adoption share.
---
--- DIMENSIONS USED (four)  date_dim, product_dim, service_dim,
---   branch_dim
---   FACTS: order_fact + reservation_fact (Completed only)
---
--- NOTE: product_dim / service_dim are SCD2, so items are grouped on
---   the NATURAL keys (product_ID, serv_ID) - price-change versions
---   never create "new" items. Launch is taken from the FACTS (first
---   completed sale) rather than the dimension's effective_start_date,
---   because the initial load stamps every original item with the
---   same version start date, which would put late additions in the
---   opening cohort.
--- ===================================================================
-
+CLEAR BREAKS
+CLEAR COMPUTES
+CLEAR COLUMNS
+SET DEFINE ON
 SET VERIFY OFF
 SET FEEDBACK OFF
-SET PAGESIZE 200
-SET LINESIZE 100
+SET ECHO OFF
+SET PAGESIZE 60
+SET LINESIZE 80
 
 PROMPT
 
@@ -63,7 +23,7 @@ SELECT
     bd.br_ID,
     MAX(bd.br_city)   AS br_city,
     TRUNC(dd.cal_date, 'MM')  AS month_start,
-    SUM(f.order_total_amt)    AS sales_value,
+    SUM(f.order_net_amt)      AS sales_value,
     COUNT(DISTINCT f.order_ID) AS txn_count
 FROM order_fact f
 JOIN date_dim     dd ON f.date_key     = dd.date_key
@@ -88,7 +48,7 @@ SELECT
     bd.br_ID,
     MAX(bd.br_city)   AS br_city,
     TRUNC(dd.cal_date, 'MM')  AS month_start,
-    SUM(f.serv_total_amt)     AS sales_value,
+    SUM(f.serv_net_amt)       AS sales_value,
     COUNT(DISTINCT f.res_ID)  AS txn_count
 FROM reservation_fact f
 JOIN date_dim     dd ON f.date_key     = dd.date_key
@@ -100,9 +60,6 @@ GROUP BY
     sv.serv_ID,
     bd.br_ID,
     TRUNC(dd.cal_date, 'MM');
-
-PROMPT
-PROMPT
 
 -- Report Section 1: Launch Cohort Overview (full history)
 TTITLE CENTER '=====================================================' SKIP 1 -
@@ -118,7 +75,6 @@ COLUMN items_launched FORMAT 999            HEADING 'Items'
 COLUMN total_sales    FORMAT 999,999,990.00 HEADING 'Sales To Date (RM)'
 COLUMN avg_per_item   FORMAT 9,999,990.00   HEADING 'Avg Per Item (RM)'
 
--- channel printed once per group, blank line between channels
 BREAK ON channel SKIP 1
 
 SELECT
@@ -137,35 +93,30 @@ ORDER BY
 
 -- Report Section 2: Adoption Ramp-Up per Item (the SLICE)
 PROMPT
-PROMPT
 ACCEPT launch_year_prompt CHAR PROMPT 'Enter the Launch Year cohort to slice into (e.g., 2023): '
 PROMPT
 
 CLEAR COLUMNS
 CLEAR BREAKS
-SET LINESIZE 150
+SET LINESIZE 132
 TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Adoption Ramp-Up of the &launch_year_prompt Launch Cohort' SKIP 1 -
        CENTER 'Completed Sales in the First 6 Months After Launch' SKIP 1 -
        CENTER '=============================================================' SKIP 2
 
-COLUMN channel        FORMAT A20           HEADING 'Channel'
-COLUMN item_name      FORMAT A31           HEADING 'Product / Service'
-COLUMN launch_month   FORMAT A8            HEADING 'Launched'
-COLUMN m1_sales       FORMAT 999,990.00    HEADING 'M1 (RM)'
-COLUMN m2_sales       FORMAT 999,990.00    HEADING 'M2 (RM)'
-COLUMN m3_sales       FORMAT 999,990.00    HEADING 'M3 (RM)'
-COLUMN m4_sales       FORMAT 999,990.00    HEADING 'M4 (RM)'
-COLUMN m5_sales       FORMAT 999,990.00    HEADING 'M5 (RM)'
-COLUMN m6_sales       FORMAT 999,990.00    HEADING 'M6 (RM)'
-COLUMN total_to_date  FORMAT 9,999,990.00  HEADING 'To Date (RM)'
+COLUMN channel         FORMAT A19           HEADING 'Channel'
+COLUMN launch_month    FORMAT A8            HEADING 'Launched'
+COLUMN item_name       FORMAT A33           HEADING 'Item Name'
+COLUMN m1_sales        FORMAT 999,990       HEADING 'M1 (RM)'
+COLUMN m2_sales        FORMAT 999,990       HEADING 'M2 (RM)'
+COLUMN m3_sales        FORMAT 999,990       HEADING 'M3 (RM)'
+COLUMN m4_sales        FORMAT 999,990       HEADING 'M4 (RM)'
+COLUMN m5_sales        FORMAT 999,990       HEADING 'M5 (RM)'
+COLUMN m6_sales        FORMAT 999,990       HEADING 'M6 (RM)'
+COLUMN total_to_date   FORMAT 9,999,990.00  HEADING 'To Date (RM)'
 
--- channel printed once per group, blank line between channels
-BREAK ON channel SKIP 1
+BREAK ON channel SKIP 1 ON launch_month SKIP 1
 
--- M1 = the item's own first calendar month on sale, M2 the second,
--- and so on - every item is aligned on ITS OWN launch, so items
--- launched in different months still compare fairly.
 WITH
 ITEM_MONTHS AS (
     SELECT
@@ -181,8 +132,8 @@ ITEM_MONTHS AS (
 )
 SELECT
     channel,
-    MAX(item_name)                          AS item_name,
     TO_CHAR(MIN(launch_date), 'MON-YYYY')   AS launch_month,
+    MAX(item_name)                          AS item_name,
     SUM(CASE WHEN msl = 0 THEN sales_value ELSE 0 END) AS m1_sales,
     SUM(CASE WHEN msl = 1 THEN sales_value ELSE 0 END) AS m2_sales,
     SUM(CASE WHEN msl = 2 THEN sales_value ELSE 0 END) AS m3_sales,
@@ -196,80 +147,82 @@ GROUP BY
     item_ID
 ORDER BY
     channel,
+    MIN(launch_date),
     total_to_date DESC;
 
 -- Report Section 3: Branch Adoption of the Cohort
 PROMPT
-PROMPT
-
 CLEAR COLUMNS
 CLEAR BREAKS
+SET LINESIZE 89
 TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Branch Adoption of the &launch_year_prompt Launch Cohort' SKIP 1 -
        CENTER 'Cohort Sales vs All Sales Since the Cohort Launched' SKIP 1 -
        CENTER '=============================================================' SKIP 2
 
+COLUMN channel        FORMAT A20            HEADING 'Channel'
 COLUMN br_city        FORMAT A15            HEADING 'Branch'
-COLUMN new_prod_sales FORMAT 999,999,990.00 HEADING 'New Products (RM)'
-COLUMN new_serv_sales FORMAT 999,999,990.00 HEADING 'New Services (RM)'
-COLUMN cohort_sales   FORMAT 999,999,990.00 HEADING 'Cohort Total (RM)'
+COLUMN cohort_sales   FORMAT 999,999,990.00 HEADING 'Cohort Sales (RM)'
 COLUMN window_sales   FORMAT 999,999,990.00 HEADING 'All Sales Window (RM)'
 COLUMN cohort_share   FORMAT A8             HEADING 'Share %'
 
--- one blank line after EVERY row, plus a grand-total row
-BREAK ON ROW SKIP 1 ON REPORT
-COMPUTE SUM LABEL 'TOTAL' OF new_prod_sales new_serv_sales cohort_sales window_sales ON REPORT
+BREAK ON channel SKIP 2 ON REPORT
+COMPUTE SUM LABEL 'Channel Total (RM)' OF cohort_sales ON channel
 
--- Share % = the cohort's completed sales as a share of ALL completed
--- sales at that branch in the window since the cohort launched -
--- how much of the branch's business the new items became.
 WITH
 COHORT AS (
     SELECT MIN(TRUNC(launch_date, 'MM')) AS cohort_start
     FROM LAUNCH_ADOPTION_V
     WHERE launch_year = TO_NUMBER('&launch_year_prompt')
 ),
-BRANCH_ADOPTION AS (
+COHORT_CHANNELS AS (
+    SELECT DISTINCT channel
+    FROM LAUNCH_ADOPTION_V
+    WHERE launch_year = TO_NUMBER('&launch_year_prompt')
+),
+BRANCH_WINDOW AS (
     SELECT
         v.br_ID,
-        MAX(v.br_city) AS br_city,
-        SUM(CASE WHEN v.launch_year = TO_NUMBER('&launch_year_prompt')
-                  AND v.channel = 'Product Order'
-                 THEN v.sales_value ELSE 0 END)           AS new_prod_sales,
-        SUM(CASE WHEN v.launch_year = TO_NUMBER('&launch_year_prompt')
-                  AND v.channel = 'Service Reservation'
-                 THEN v.sales_value ELSE 0 END)           AS new_serv_sales,
-        SUM(CASE WHEN v.launch_year = TO_NUMBER('&launch_year_prompt')
-                 THEN v.sales_value ELSE 0 END)           AS cohort_sales,
-        SUM(v.sales_value)                                AS window_sales
+        MAX(v.br_city)      AS br_city,
+        SUM(v.sales_value)  AS window_sales
     FROM LAUNCH_ADOPTION_V v
     CROSS JOIN COHORT c
     WHERE v.month_start >= c.cohort_start
     GROUP BY v.br_ID
+),
+BRANCH_ADOPTION AS (
+    SELECT
+        v.channel,
+        v.br_ID,
+        SUM(v.sales_value) AS cohort_sales
+    FROM LAUNCH_ADOPTION_V v
+    WHERE v.launch_year = TO_NUMBER('&launch_year_prompt')
+    GROUP BY v.channel, v.br_ID
 )
 SELECT
-    br_city,
-    new_prod_sales,
-    new_serv_sales,
-    cohort_sales,
-    window_sales,
-    TO_CHAR(ROUND(cohort_sales * 100.0 /
-        NULLIF(window_sales, 0), 1), '990.9') || '%'      AS cohort_share
-FROM BRANCH_ADOPTION
+    cc.channel,
+    bw.br_city,
+    NVL(ba.cohort_sales, 0)                                AS cohort_sales,
+    bw.window_sales,
+    TO_CHAR(ROUND(NVL(ba.cohort_sales, 0) * 100.0 /
+        NULLIF(bw.window_sales, 0), 1), '990.9') || '%'    AS cohort_share
+FROM COHORT_CHANNELS cc
+CROSS JOIN BRANCH_WINDOW bw
+LEFT JOIN BRANCH_ADOPTION ba
+       ON ba.channel = cc.channel AND ba.br_ID = bw.br_ID
 ORDER BY
+    cc.channel,
     cohort_sales DESC;
 
-PROMPT
 DROP VIEW LAUNCH_ADOPTION_V;
-
+PROMPT
+PROMPT Report complete.
+PROMPT
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 UNDEFINE launch_year_prompt
-SET LINESIZE 100
 SET FEEDBACK ON
 SET VERIFY ON
 TTITLE OFF
-PROMPT
-PROMPT Report complete.
-PROMPT
+
