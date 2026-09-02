@@ -6,7 +6,8 @@ SET VERIFY OFF
 SET FEEDBACK OFF
 SET ECHO OFF
 SET PAGESIZE 60
-SET LINESIZE 80
+SET LINESIZE 132
+SET TRIMSPOOL ON
 
 PROMPT
 
@@ -62,18 +63,18 @@ GROUP BY
     TRUNC(dd.cal_date, 'MM');
 
 -- Report Section 1: Launch Cohort Overview (full history)
-TTITLE CENTER '=====================================================' SKIP 1 -
+TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Launch Cohort Overview - Items Launched per Year' SKIP 1 -
        CENTER '(earliest year = the original opening catalogue)' SKIP 1 -
-       CENTER '=====================================================' SKIP 1 -
+       CENTER '=============================================================' SKIP 1 -
        LEFT 'Report Generated on: ' _DATE -
        RIGHT 'Page: ' SQL.PNO SKIP 2
 
 COLUMN channel        FORMAT A20            HEADING 'Channel'
 COLUMN launch_year    FORMAT 9999           HEADING 'Launch|Year'
 COLUMN items_launched FORMAT 999            HEADING 'Items'
-COLUMN total_sales    FORMAT 999,999,990.00 HEADING 'Sales To Date (RM)'
-COLUMN avg_per_item   FORMAT 9,999,990.00   HEADING 'Avg Per Item (RM)'
+COLUMN total_sales    FORMAT 999,999,990.00 HEADING 'Sales To Date|(RM)'
+COLUMN avg_per_item   FORMAT 9,999,990.00   HEADING 'Avg Per Item|(RM)'
 
 BREAK ON channel SKIP 1
 
@@ -98,7 +99,6 @@ PROMPT
 
 CLEAR COLUMNS
 CLEAR BREAKS
-SET LINESIZE 132
 TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Adoption Ramp-Up of the &launch_year_prompt Launch Cohort' SKIP 1 -
        CENTER 'Completed Sales in the First 6 Months After Launch' SKIP 1 -
@@ -106,14 +106,14 @@ TTITLE CENTER '=============================================================' SK
 
 COLUMN channel         FORMAT A19           HEADING 'Channel'
 COLUMN launch_month    FORMAT A8            HEADING 'Launched'
-COLUMN item_name       FORMAT A33           HEADING 'Item Name'
+COLUMN item_name       FORMAT A36           HEADING 'Item Name'
 COLUMN m1_sales        FORMAT 999,990       HEADING 'M1 (RM)'
 COLUMN m2_sales        FORMAT 999,990       HEADING 'M2 (RM)'
 COLUMN m3_sales        FORMAT 999,990       HEADING 'M3 (RM)'
 COLUMN m4_sales        FORMAT 999,990       HEADING 'M4 (RM)'
 COLUMN m5_sales        FORMAT 999,990       HEADING 'M5 (RM)'
 COLUMN m6_sales        FORMAT 999,990       HEADING 'M6 (RM)'
-COLUMN total_to_date   FORMAT 9,999,990.00  HEADING 'To Date (RM)'
+COLUMN total_to_date   FORMAT 9,999,990     HEADING 'To Date|(RM)'
 
 BREAK ON channel SKIP 1 ON launch_month SKIP 1
 
@@ -154,16 +154,15 @@ ORDER BY
 PROMPT
 CLEAR COLUMNS
 CLEAR BREAKS
-SET LINESIZE 89
 TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Branch Adoption of the &launch_year_prompt Launch Cohort' SKIP 1 -
        CENTER 'Cohort Sales vs All Sales Since the Cohort Launched' SKIP 1 -
        CENTER '=============================================================' SKIP 2
 
-COLUMN channel        FORMAT A20            HEADING 'Channel'
+COLUMN channel        FORMAT A19            HEADING 'Channel'
 COLUMN br_city        FORMAT A15            HEADING 'Branch'
-COLUMN cohort_sales   FORMAT 999,999,990.00 HEADING 'Cohort Sales (RM)'
-COLUMN window_sales   FORMAT 999,999,990.00 HEADING 'All Sales Window (RM)'
+COLUMN cohort_sales   FORMAT 999,999,990.00 HEADING 'Cohort Sales|(RM)'
+COLUMN window_sales   FORMAT 999,999,990.00 HEADING 'All Sales|Window (RM)'
 COLUMN cohort_share   FORMAT A8             HEADING 'Share %'
 
 BREAK ON channel SKIP 2 ON REPORT
@@ -215,7 +214,6 @@ ORDER BY
     cohort_sales DESC;
 
 DROP VIEW LAUNCH_ADOPTION_V;
-PROMPT
 PROMPT Report complete.
 PROMPT
 CLEAR COLUMNS

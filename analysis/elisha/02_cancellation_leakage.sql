@@ -5,8 +5,10 @@ SET DEFINE ON
 SET VERIFY OFF
 SET FEEDBACK OFF
 SET ECHO OFF
-SET PAGESIZE 200
-SET LINESIZE 100
+SET PAGESIZE 60
+SET LINESIZE 132
+SET NEWPAGE 0
+SET TRIMSPOOL ON
 
 ACCEPT start_year_prompt CHAR PROMPT 'Enter Start Year for Analysis (e.g., 2019): '
 ACCEPT end_year_prompt   CHAR PROMPT 'Enter End Year for Analysis (e.g., 2025): '
@@ -81,10 +83,10 @@ GROUP BY
     END;
 PROMPT 
 -- Report Section 1: Company Leakage per Year
-TTITLE CENTER '=====================================================' SKIP 1 -
+TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Sales Leakage from Cancellations per Year' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
-       CENTER '=====================================================' SKIP 1 -
+       CENTER '=============================================================' SKIP 1 -
        LEFT 'Report Generated on: ' _DATE -
        RIGHT 'Page: ' SQL.PNO SKIP 2
 
@@ -92,7 +94,7 @@ COLUMN cal_year      FORMAT A6            HEADING 'Year'
 COLUMN realized_sales  FORMAT 999,999,990.00 HEADING 'Realized (RM)'
 COLUMN product_leak  FORMAT 9,999,990.00  HEADING 'Product Leak'
 COLUMN service_leak  FORMAT 9,999,990.00  HEADING 'Service Leak'
-COLUMN total_leak    FORMAT 99,999,990.00 HEADING 'Total Leaked (RM)'
+COLUMN total_leak    FORMAT 99,999,990.00 HEADING 'Total Leaked|(RM)'
 COLUMN lost_txns     FORMAT 9,999,999     HEADING 'Lost Txns'
 COLUMN leak_rate     FORMAT A7            HEADING 'Leak %'
 
@@ -130,18 +132,17 @@ CLEAR BREAKS
 CLEAR COMPUTES
 PROMPT
 
-SET LINESIZE 104
-TTITLE CENTER '=====================================================' SKIP 1 -
+TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Branch Ranking by Leaked Sales' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
-       CENTER '=====================================================' SKIP 2
+       CENTER '=============================================================' SKIP 2
 
 COLUMN ranking       FORMAT 9999           HEADING 'Rank'
 COLUMN br_city       FORMAT A15           HEADING 'Branch'
 COLUMN realized_sales  FORMAT 999,999,990.00 HEADING 'Realized (RM)'
 COLUMN product_leak  FORMAT 9,999,990.00  HEADING 'Product Leak'
 COLUMN service_leak  FORMAT 9,999,990.00  HEADING 'Service Leak'
-COLUMN total_leak    FORMAT 99,999,990.00 HEADING 'Total Leaked (RM)'
+COLUMN total_leak    FORMAT 99,999,990.00 HEADING 'Total Leaked|(RM)'
 COLUMN leak_rate     FORMAT A7            HEADING 'Leak %'
 COLUMN pct_of_leak   FORMAT A12           HEADING 'Total Leak %'
 
@@ -185,7 +186,6 @@ ORDER BY
 PROMPT
 
 -- Report Section 3: Most-Cancelled Items per Branch and Channel
-SET LINESIZE 132
 CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
@@ -195,12 +195,12 @@ TTITLE CENTER '=============================================================' SK
        CENTER '=============================================================' SKIP 2
 
 COLUMN br_city          FORMAT A15           HEADING 'Branch'
-COLUMN channel          FORMAT A20           HEADING 'Channel'
+COLUMN channel          FORMAT A19           HEADING 'Channel'
 COLUMN ranking          FORMAT 999           HEADING 'Rank'
-COLUMN item_name        FORMAT A38           HEADING 'Product / Service'
+COLUMN item_name        FORMAT A43           HEADING 'Product / Service'
 COLUMN item_category    FORMAT A16           HEADING 'Category'
-COLUMN lost_txns        FORMAT 999,999       HEADING 'Lost Txns'
-COLUMN leaked_value     FORMAT 999,990.00    HEADING 'Leaked (RM)'
+COLUMN lost_txns        FORMAT 999,999       HEADING 'Lost|Txns'
+COLUMN leaked_value     FORMAT 999,990.00    HEADING 'Leaked|(RM)'
 COLUMN leak_rate        FORMAT A7            HEADING 'Leak %'
 COLUMN branch_leak      NOPRINT
 
@@ -254,7 +254,6 @@ ORDER BY
     channel,
     ranking;
 
-PROMPT
 PROMPT Report complete.
 PROMPT
 DROP VIEW CANCELLATION_LEAKAGE_V;
@@ -263,7 +262,6 @@ CLEAR BREAKS
 CLEAR COMPUTES
 UNDEFINE start_year_prompt
 UNDEFINE end_year_prompt
-SET LINESIZE 132
 SET FEEDBACK ON
 SET VERIFY ON
 TTITLE OFF

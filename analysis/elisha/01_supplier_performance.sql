@@ -5,8 +5,9 @@ SET DEFINE ON
 SET VERIFY OFF
 SET FEEDBACK OFF
 SET ECHO OFF
-SET PAGESIZE 200
-SET LINESIZE 100
+SET PAGESIZE 60
+SET LINESIZE 132
+SET TRIMSPOOL ON
 
 ACCEPT start_year_prompt CHAR PROMPT 'Enter Start Year for Analysis (e.g., 2019): '
 ACCEPT end_year_prompt   CHAR PROMPT 'Enter End Year for Analysis (e.g., 2025): '
@@ -44,10 +45,10 @@ GROUP BY
 PROMPT
 
 -- Report Section 1: Supplier-Level Procurement Summary
-TTITLE CENTER '=====================================================' SKIP 1 -
+TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Supplier-Level Procurement Performance Summary' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
-       CENTER '=====================================================' SKIP 1 -
+       CENTER '=============================================================' SKIP 1 -
        LEFT 'Report Generated on: ' _DATE -
        RIGHT 'Page: ' SQL.PNO SKIP 2
 
@@ -101,22 +102,21 @@ PROMPT
 ACCEPT top_n_prompt CHAR PROMPT 'Enter the number of Top Products per supplier to display (e.g., 3): '
 PROMPT
 
-SET LINESIZE 140
 CLEAR COLUMNS
 CLEAR BREAKS
-TTITLE CENTER '======================================================' SKIP 1 -
+TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Top &top_n_prompt Products per Supplier by Procurement Spend' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
-       CENTER '======================================================' SKIP 2
+       CENTER '=============================================================' SKIP 2
 
 COLUMN supplier_name      FORMAT A29           HEADING 'Supplier'
 COLUMN ranking            FORMAT 999           HEADING 'Rank'
-COLUMN product_name       FORMAT A37           HEADING 'Product'
-COLUMN product_category   FORMAT A16           HEADING 'Category'
+COLUMN product_name       FORMAT A34           HEADING 'Product'
+COLUMN product_category   FORMAT A13           HEADING 'Category'
 COLUMN units_bought       FORMAT 999,999       HEADING 'Units'
 COLUMN spend_on_product   FORMAT 9,999,990.00  HEADING 'Spend (RM)'
-COLUMN pct_supplier_spend FORMAT A8            HEADING 'Spend %'
-COLUMN cumulative_pct     FORMAT A8           HEADING 'Cum %'
+COLUMN pct_supplier_spend FORMAT A7            HEADING 'Spend %'
+COLUMN cumulative_pct     FORMAT A7            HEADING 'Cum %'
 COLUMN supplier_total     NOPRINT
 
 BREAK ON supplier_name SKIP 1
@@ -167,10 +167,10 @@ PROMPT
 
 CLEAR COLUMNS
 CLEAR BREAKS
-TTITLE CENTER '================================================================' SKIP 1 -
+TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Procurement by Branch and Quarter per Supplier' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
-       CENTER '================================================================' SKIP 2
+       CENTER '=============================================================' SKIP 2
 
 COLUMN supplier_name  FORMAT A29           HEADING 'Supplier'
 COLUMN br_city        FORMAT A15           HEADING 'Branch'
