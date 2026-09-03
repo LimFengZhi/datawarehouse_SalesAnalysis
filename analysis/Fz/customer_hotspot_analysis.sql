@@ -254,7 +254,6 @@ BREAK ON REPORT
 COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
 WITH by_city_year AS (
-    -- the same view, scoped to the state asked for
     SELECT cus_city, cal_year,
            COUNT(DISTINCT cus_ID) AS custs,
            SUM(spend)             AS sales,
