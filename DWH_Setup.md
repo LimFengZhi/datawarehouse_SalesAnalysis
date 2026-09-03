@@ -131,7 +131,7 @@ between 18 Mar–3 May 2020 and Jun–Aug 2021 (salons legally closed), and reve
 
 This **appends**. Nothing from Part A is deleted.
 
-## Step 6 — Create the 18 subsequent procedures *(first time only)*
+## Step 6 — Create the 16 subsequent procedures *(first time only)*
 
 These scripts are **create-only** — each defines one procedure and executes nothing. The `EXEC`
 calls all live in the two `exec_sub_proc*` files.
@@ -140,23 +140,26 @@ calls all live in the two `exec_sub_proc*` files.
 cd C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading
 ```
 ```sql
-@sub_dimension\01_sub_date_dim.sql          @maintain_SCD2\01_maintain_supplier_dim.sql
-@sub_dimension\02_sub_supplier_dim.sql      @maintain_SCD2\02_maintain_product_dim.sql
-@sub_dimension\03_sub_product_dim.sql       @maintain_SCD2\03_maintain_branch_dim.sql
-@sub_dimension\04_sub_branch_dim.sql        @maintain_SCD2\04_maintain_service_dim.sql
-@sub_dimension\05_sub_service_dim.sql       @maintain_SCD2\05_maintain_staff_dim.sql
-@sub_dimension\06_sub_staff_dim.sql         @maintain_SCD2\06_maintain_customer_dim.sql
-@sub_dimension\07_sub_customer_dim.sql
-@sub_fact\01_sub_order_fact.sql             @sub_fact\04_sub_salary_payment_fact.sql
-@sub_fact\02_sub_reservation_fact.sql       @sub_fact\05_sub_branch_utils_fact.sql
-@sub_fact\03_sub_purchase_fact.sql
+@sub_dimension\01_sub_date_dim.sql          @maintain_SCD2\01_maintain_product_dim.sql
+@sub_dimension\02_sub_supplier_dim.sql      @maintain_SCD2\02_maintain_service_dim.sql
+@sub_dimension\03_sub_product_dim.sql       @maintain_SCD2\03_maintain_staff_dim.sql
+@sub_dimension\04_sub_branch_dim.sql        @maintain_SCD2\04_maintain_customer_dim.sql
+@sub_dimension\05_sub_service_dim.sql
+@sub_dimension\06_sub_staff_dim.sql         @sub_fact\01_sub_order_fact.sql
+@sub_dimension\07_sub_customer_dim.sql      @sub_fact\02_sub_reservation_fact.sql
+                                            @sub_fact\03_sub_purchase_fact.sql
+                                            @sub_fact\04_sub_salary_payment_fact.sql
+                                            @sub_fact\05_sub_branch_utils_fact.sql
 ```
 
 *(Run them one per line — the two columns above are only to keep this page short.)*
 
-The three layers are deliberately orthogonal: `sub_dimension` only **inserts** new natural keys,
-`maintain_SCD2` only **versions** keys that already exist and changed, `sub_fact` inserts new rows
-and refreshes changed ones.
+The three layers split by **attribute, not by operation**: `sub_dimension` inserts new natural keys
+*and* overwrites the untracked attributes on existing ones (name, email, category — Type 1, in
+place), `maintain_SCD2` only **versions** the tracked ones (price · position+status ·
+tier+city+state — Type 2), `sub_fact` inserts new fact rows and refreshes changed ones.
+Only four dimensions are SCD2: `branch_dim` and `supplier_dim` keep no history, so they have no
+maintain script — their `sub_dimension` procedure is their complete sync.
 
 ## Step 7 — Validate the procedures compiled
 
@@ -167,7 +170,7 @@ WHERE object_type = 'PROCEDURE' AND status <> 'VALID' ORDER BY 1;
 ✅ **No rows.** If one is INVALID, `PLS-00905` will hide the real message later — get it now with
 `SELECT line, text FROM user_errors WHERE name = '<PROC>' ORDER BY sequence;`
 
-*(Step 10 re-checks this: its STEP 0 counts all 18 and refuses to run if any is missing or invalid.)*
+*(Step 10 re-checks this: its STEP 0 counts all 16 and refuses to run if any is missing or invalid.)*
 
 ## Step 8 — Load the 2024 CSVs
 
@@ -199,7 +202,7 @@ so the OLTP has to carry the new prices already or there is nothing to detect.
 @C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\exec_sub_proc24.sql
 ```
 
-One file, in the only safe order: **STEP 0** checks all 18 procedures · **STEP 1** extends the
+One file, in the only safe order: **STEP 0** checks all 16 procedures · **STEP 1** extends the
 calendar through `DATE '2024-12-31'` then inserts new records · **STEP 2**
 `maintain_product_dim_scd2(DATE '2024-01-01')` — the SCD2 effective date is a business date,
 because *when* a price changed is not in the data · **STEP 3** the five facts — each finds its own
@@ -262,8 +265,9 @@ Then validate again:
 ```sql
 @C:\Users\ASUS\Desktop\datawarehouse_SalesAnalysis\ETL_Process\subsequent_loading\validate_subsequent_loading.sql
 ```
-✅ Calendar continuity, dimension coverage, SCD2 integrity (one current row per key, no expired row
-still open, no overlapping ranges), fact-vs-source counts, business patterns — all "must be 0"
+✅ Calendar continuity, dimension coverage, SCD2 integrity for the four versioned dimensions (one
+current row per key, no expired row still open, no overlapping ranges) plus exactly-one-row-per-key
+for `branch_dim` / `supplier_dim`, fact-vs-source counts, business patterns — all "must be 0"
 checks at 0.
 
 ---
@@ -313,7 +317,7 @@ WHERE holiday_ind = 'Y' GROUP BY cal_year ORDER BY cal_year;
 --     @ETL_Process\initial_loading\init_fact\01..05
 -- 5.  @ETL_Process\initial_loading\validate_initial_loading.sql
 -- 6.  @ETL_Process\subsequent_loading\sub_dimension\01..07
---     @ETL_Process\subsequent_loading\maintain_SCD2\01..06
+--     @ETL_Process\subsequent_loading\maintain_SCD2\01..04
 --     @ETL_Process\subsequent_loading\sub_fact\01..05          (create-only)
 -- 7.  check user_objects: no INVALID procedure
 -- 8.  .\load_all.bat dwh abcxyz XE "...\sales_data5\data24"

@@ -26,11 +26,27 @@ Type 2** with real price history.
 | `salary_payment_fact` | one staff member per pay period | 18,934 |
 | `branch_utils_fact` | one branch per utility per month (`util_name` carried on the row) | 7,128 |
 
-Six of the seven dimensions (all but `date_dim`) are **SCD Type 2** — a changed attribute expires the old row and opens
-a new version, so history never gets rewritten. The one attribute that drifts for a non-business
-reason (`customer_dim.cus_age_group`, e.g. `'Young Adult (18-24)'`, derived from the date of birth —
-the OLTP keeps no age column) is **Type 1**: overwritten in
-place, because a customer having a birthday is not a business event worth versioning.
+**Four** of the seven dimensions are **SCD Type 2** — `product_dim`, `service_dim`, `staff_dim` and
+`customer_dim`. A change to a *tracked* attribute expires the old row and opens a new version, so
+history never gets rewritten:
+
+| Dimension | Tracked (Type 2 — versioned) | Type 1 — overwritten in place |
+|---|---|---|
+| `product_dim` | `product_unit_price` | name, category |
+| `service_dim` | `serv_price` | name, category |
+| `staff_dim` | `st_position`, `st_status` | name, email |
+| `customer_dim` | `cus_loyalty_tier`, `cus_city`, `cus_state` | name, email, gender, `cus_age_group` |
+
+Only what genuinely rewrites history is versioned: a price change revalues past orders, a promotion
+changes who was senior in 2021, a house move changes which city a past purchase belongs to. A
+corrected spelling does not — so it is overwritten on **every version** of the key, and the natural
+key still rolls up as one line. `cus_age_group` (derived from the date of birth — the OLTP keeps
+no age column) is Type 1 for the same reason, refreshed on the current row only: having a birthday
+is not a business event worth versioning.
+
+`branch_dim`, `supplier_dim` and `date_dim` keep **no history at all** — one row per key, no
+effective dates, no current flag. A branch or a supplier is a static reference: the facts join it
+on the natural key alone.
 
 The schema follows the two ERDs of the project: `staff` has a single job-title column
 (`st_position`), `order_detail` carries no unit price (the price is the `product_dim` version in
@@ -44,7 +60,8 @@ lines that share a product inside one order (about 2 % of lines) and the increme
 `(order_ID, product_key)` / `(res_ID, service_key, staff_key)`. Every warehouse column outside `date_dim`
 is `NOT NULL`; there are no UNIQUE constraints (the composite PKs cover the grain).
 
-Facts resolve their dimension keys **by effective date**, not by "whichever version is current":
+Facts resolve their **SCD2** dimension keys **by effective date**, not by "whichever version is
+current":
 
 ```sql
 JOIN product_dim p ON p.product_ID = ls.product_ID
@@ -53,7 +70,8 @@ JOIN product_dim p ON p.product_ID = ls.product_ID
 ```
 
 so a 2024 order always reports the price that was actually charged in 2024, regardless of how many
-times the price has moved since or what order the scripts were run in.
+times the price has moved since or what order the scripts were run in. `branch_dim` and
+`supplier_dim` carry no dates, so the facts join them on the natural key alone.
 
 ---
 
@@ -83,8 +101,8 @@ datawarehouse_SalesAnalysis\
 │   │   ├── init_fact\       01..05  the 5 fact tables
 │   │   └── validate_initial_loading.sql
 │   └── subsequent_loading\                 incremental, from data24\ / data25\
-│       ├── sub_dimension\   01..07  NEW records only
-│       ├── maintain_SCD2\   01..06  CHANGED records -> new versions
+│       ├── sub_dimension\   01..07  NEW records + Type 1 corrections
+│       ├── maintain_SCD2\   01..04  CHANGED tracked attrs -> new versions
 │       ├── sub_fact\        01..05  new rows + refresh changed ones
 │       ├── exec_sub_proc24.sql       RUNS the data24 load (2024)
 │       ├── exec_sub_proc25.sql       RUNS the data25 load (2025)
@@ -119,8 +137,10 @@ loaded, and the same view serves both the initial and the incremental load.
 
 New records and changed records are handled by deliberately separate scripts:
 
-- `sub_dimension\` — a natural key that does **not exist yet** → insert it
-- `maintain_SCD2\` — a natural key that **exists and changed** → expire the old row, insert a new version
+- `sub_dimension\` — a natural key that does **not exist yet** → insert it; plus **Type 1**
+  overwrites of the untracked attributes on keys that already exist
+- `maintain_SCD2\` — a **tracked** attribute changed → expire the old row, insert a new version
+  (the four versioned dimensions only)
 
 Run them in that order; reversed, a brand-new product would be "versioned" before it exists.
 
@@ -163,9 +183,9 @@ cd operational_DB\sqlloader_control_files          -- 2. load the CSVs
 ### Part B — adding data24 (2024)
 
 ```sql
--- 6. create the 18 subsequent procedures (first time only - these run nothing)
+-- 6. create the 16 subsequent procedures (first time only - these run nothing)
 @ETL_Process\subsequent_loading\sub_dimension\01..07_sub_*.sql
-@ETL_Process\subsequent_loading\maintain_SCD2\01..06_maintain_*.sql
+@ETL_Process\subsequent_loading\maintain_SCD2\01..04_maintain_*.sql
 @ETL_Process\subsequent_loading\sub_fact\01..05_sub_*.sql
 -- 7. validate: SELECT object_name, status FROM user_objects
 --              WHERE object_type='PROCEDURE' AND status <> 'VALID';   -> no rows
@@ -221,8 +241,9 @@ Two scripts collect every check in one place, rather than scattering them throug
 - [ETL_Process/subsequent_loading/validate_subsequent_loading.sql](ETL_Process/subsequent_loading/validate_subsequent_loading.sql)
 
 They check row counts against source, orphaned keys, duplicate natural keys, which dimension lookup
-dropped rows, measure arithmetic (`qty × product_dim price − discount + tax = total`), SCD2 integrity (exactly one
-current row per key, no expired row still open, no overlapping version ranges), and the business
+dropped rows, measure arithmetic (`qty × product_dim price − discount + tax = total`), SCD2 integrity
+for the four versioned dimensions (exactly one current row per key, no expired row still open, no
+overlapping version ranges) plus exactly-one-row-per-key for `branch_dim` / `supplier_dim`, and the business
 patterns the dataset was built to contain. Anything labelled **"must be 0"** that is not 0 names
 the table to investigate.
 
