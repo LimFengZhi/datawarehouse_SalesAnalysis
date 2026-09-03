@@ -111,9 +111,7 @@ BEGIN
     JOIN staff_dim  s ON s.st_ID    = ls.st_ID
                      AND ls.payment_date BETWEEN s.effective_start_date
                                              AND s.effective_end_date
-    JOIN branch_dim b ON b.br_ID    = ls.br_ID
-                     AND ls.payment_date BETWEEN b.effective_start_date
-                                             AND b.effective_end_date;
+    JOIN branch_dim b ON b.br_ID    = ls.br_ID;
 
     v_count := SQL%ROWCOUNT;
 

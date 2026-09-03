@@ -92,13 +92,15 @@ PROMPT ##############################################
 PROMPT #  3. SCD2 INTEGRITY - all must be 0
 PROMPT ##############################################
 
--- Exactly ONE current row per natural key
-SELECT 'branch current<>1' AS chk, COUNT(*) AS bad FROM (
-    SELECT br_ID FROM branch_dim WHERE is_current_flag = 'Y'
+-- branch_dim / supplier_dim are NOT SCD2 (no flag): exactly ONE row
+-- per natural key, ever
+SELECT 'branch dup NK' AS chk, COUNT(*) AS bad FROM (
+    SELECT br_ID FROM branch_dim
     GROUP BY br_ID HAVING COUNT(*) <> 1)
-UNION ALL SELECT 'supplier current<>1', COUNT(*) FROM (
-    SELECT sup_ID FROM supplier_dim WHERE is_current_flag = 'Y'
+UNION ALL SELECT 'supplier dup NK', COUNT(*) FROM (
+    SELECT sup_ID FROM supplier_dim
     GROUP BY sup_ID HAVING COUNT(*) <> 1)
+-- Exactly ONE current row per natural key (the four SCD2 dims)
 UNION ALL SELECT 'product current<>1', COUNT(*) FROM (
     SELECT product_ID FROM product_dim WHERE is_current_flag = 'Y'
     GROUP BY product_ID HAVING COUNT(*) <> 1)
@@ -113,13 +115,7 @@ UNION ALL SELECT 'customer current<>1', COUNT(*) FROM (
     GROUP BY cus_ID HAVING COUNT(*) <> 1);
 
 -- No expired row may still claim 9999-12-31
-SELECT 'branch bad_end_dates' AS chk, COUNT(*) AS bad FROM branch_dim
-  WHERE is_current_flag = 'N'
-    AND effective_end_date = DATE '9999-12-31'
-UNION ALL SELECT 'supplier bad_end_dates', COUNT(*) FROM supplier_dim
-  WHERE is_current_flag = 'N'
-    AND effective_end_date = DATE '9999-12-31'
-UNION ALL SELECT 'product bad_end_dates', COUNT(*) FROM product_dim
+SELECT 'product bad_end_dates' AS chk, COUNT(*) AS bad FROM product_dim
   WHERE is_current_flag = 'N'
     AND effective_end_date = DATE '9999-12-31'
 UNION ALL SELECT 'service bad_end_dates', COUNT(*) FROM service_dim
@@ -135,17 +131,7 @@ UNION ALL SELECT 'customer bad_end_dates', COUNT(*) FROM customer_dim
 -- No OVERLAPPING version ranges per natural key. The fact loads pick
 -- the version whose date range covers the transaction date, so every
 -- date must belong to exactly one version. All must be 0.
-SELECT 'branch overlaps' AS chk, COUNT(*) AS bad
-  FROM branch_dim a JOIN branch_dim b
-    ON a.br_ID = b.br_ID AND a.branch_key < b.branch_key
-   AND a.effective_start_date <= b.effective_end_date
-   AND b.effective_start_date <= a.effective_end_date
-UNION ALL SELECT 'supplier overlaps', COUNT(*)
-  FROM supplier_dim a JOIN supplier_dim b
-    ON a.sup_ID = b.sup_ID AND a.supplier_key < b.supplier_key
-   AND a.effective_start_date <= b.effective_end_date
-   AND b.effective_start_date <= a.effective_end_date
-UNION ALL SELECT 'product overlaps', COUNT(*)
+SELECT 'product overlaps' AS chk, COUNT(*) AS bad
   FROM product_dim a JOIN product_dim b
     ON a.product_ID = b.product_ID AND a.product_key < b.product_key
    AND a.effective_start_date <= b.effective_end_date
@@ -293,9 +279,7 @@ UNION ALL SELECT 'order no_staff', COUNT(*) FROM order_fact_staging_v ls
                                             AND s.effective_end_date)
 UNION ALL SELECT 'order no_branch', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                    WHERE b.br_ID = ls.br_ID
-                      AND ls.order_date BETWEEN b.effective_start_date
-                                            AND b.effective_end_date)
+                    WHERE b.br_ID = ls.br_ID)
 UNION ALL SELECT 'reservation no_date', COUNT(*)
   FROM reservation_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
@@ -313,9 +297,7 @@ UNION ALL SELECT 'purchase no_date', COUNT(*)
 UNION ALL SELECT 'purchase no_supplier', COUNT(*)
   FROM purchase_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM supplier_dim u
-                    WHERE u.sup_ID = ls.sup_ID
-                      AND ls.purchase_date BETWEEN u.effective_start_date
-                                               AND u.effective_end_date)
+                    WHERE u.sup_ID = ls.sup_ID)
 UNION ALL SELECT 'salary no_date', COUNT(*)
   FROM salary_payment_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d

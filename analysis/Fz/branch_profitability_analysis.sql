@@ -61,9 +61,9 @@
 --                    every ringgit of revenue goes on buying stock
 --   Net profit       revenue - purchase - staff - utilities
 --   Margin %         net profit / revenue x 100
---   Branches are grouped on the NATURAL key br_ID (branch_dim is
---   SCD2, so one branch may own several surrogate rows) and are
---   labelled by br_name ('Glow Beauty <city>').
+--   Branches are grouped on the NATURAL key br_ID and labelled by
+--   br_name ('Glow Beauty <city>'). branch_dim is no longer SCD2 -
+--   one row per branch - so the grouping is now just tidy.
 --
 -- OLAP TECHNIQUES USED
 --   VIEW               branch_pnl_year_v, the shared drill-across
@@ -173,7 +173,7 @@ COMPUTE AVG LABEL 'AVG' OF avg_revenue avg_purchase purch_pct avg_staff avg_util
 -- Build the title's scope label BEFORE the TTITLE that uses it.
 -- COLUMN ... NEW_VALUE copies the query result into the substitution
 -- variable p_scope. Typing ALL, or any number >= the branch count in
--- branch_dim (DISTINCT br_ID - SCD2 versions are one branch), makes
+-- branch_dim (DISTINCT br_ID; one row per branch now), makes
 -- the title read 'ALL BRANCHES'; a smaller number keeps the end and
 -- the count, e.g. 'LOWEST 5 BRANCHES'. CASE tests in order, so the
 -- TO_NUMBER in the second test never sees the word ALL.

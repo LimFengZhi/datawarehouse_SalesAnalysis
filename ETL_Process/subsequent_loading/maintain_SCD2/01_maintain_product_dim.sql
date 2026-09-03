@@ -1,5 +1,5 @@
 -- ===================================================================
--- 02_maintain_product_dim.sql    PRODUCT_DIM - MAINTAIN SCD TYPE 2
+-- 01_maintain_product_dim.sql    PRODUCT_DIM - MAINTAIN SCD TYPE 2
 --
 --   SECTION 1: no new view - reuses product_staging_v
 --   SECTION 2: no new sequence - reuses seq_product_key
@@ -9,6 +9,11 @@
 --
 -- SCOPE: CHANGED RECORDS ONLY. New products belong to
 --   sub_dimension\03_sub_product_dim.sql
+--
+-- TRACKED (TYPE 2): product_unit_price ONLY - price is what revalues
+-- the historical order lines. A rename or a recategorisation is a
+-- correction, not history: sub_dimension's STEP 2 overwrites it in
+-- place (Type 1). This procedure versions the price and nothing else.
 --
 -- WHY THIS MATTERS HERE MORE THAN ANYWHERE ELSE:
 -- when a price changes, orders placed BEFORE the change keep pointing
@@ -28,20 +33,7 @@ CREATE OR REPLACE PROCEDURE maintain_product_dim_scd2(
     v_eff      DATE   := TRUNC(p_effective_date);
     v_expired  NUMBER := 0;
     v_versions NUMBER := 0;
-    -- ---------------------------------------------------------------
-    -- ONE cursor drives both steps: each fetched row is a product
-    -- whose CURRENT version differs from the staging view. The change
-    -- test lives INSIDE the cursor query, so a second run fetches
-    -- nothing - that is what keeps this idempotent. The surrogate key
-    -- rides along so STEP 1 can expire exactly that row. A brand-new
-    -- product_ID has no current row to join, so it is naturally excluded -
-    -- inserting it is sub_dimension's job.
-    --
-    -- NVL on BOTH sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
-    -- <> would silently miss changes involving NULL.
-    -- Price uses NVL(...,-1): it is a NUMBER, and a string sentinel in
-    -- a numeric comparison would raise ORA-01722.
-    -- ---------------------------------------------------------------
+
     CURSOR changed_products_cursor IS
         SELECT d.product_key AS old_key,
                s.product_ID, s.clean_product_name,
@@ -49,17 +41,9 @@ CREATE OR REPLACE PROCEDURE maintain_product_dim_scd2(
         FROM   product_staging_v s
         JOIN   product_dim d ON d.product_ID = s.product_ID
                       AND d.is_current_flag = 'Y'
-        -- Never version BACKWARDS: expiring a version that starts on
-        -- or after the effective date would corrupt the timeline
-        -- (overlapping ranges). A backdated call fetches nothing and
-        -- becomes a safe no-op.
         WHERE  d.effective_start_date < v_eff
-        AND   (   NVL(s.clean_product_name, '~')
-                    <> NVL(d.product_name, '~')
-               OR NVL(s.clean_product_category, '~')
-                    <> NVL(d.product_category, '~')
-               OR NVL(s.clean_product_price, -1)
-                    <> NVL(d.product_unit_price, -1) );
+        AND   NVL(s.clean_product_price, -1)<> NVL(d.product_unit_price, -1);
+
 BEGIN
     FOR rec IN changed_products_cursor LOOP
         -- -----------------------------------------------------------

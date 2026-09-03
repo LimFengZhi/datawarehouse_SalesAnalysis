@@ -153,8 +153,8 @@ by_state AS (
     GROUP  BY y.cus_state
 ),
 shops AS (
-    -- count branches by br_name (branch_dim is SCD2 - DISTINCT folds
-    -- the versions of one branch back to one shop)
+    -- count branches by br_name (branch_dim is not SCD2 any more -
+    -- one row per branch, the DISTINCT is just belt and braces)
     SELECT br_state, COUNT(DISTINCT br_name) AS shops
     FROM   branch_dim
     GROUP  BY br_state
@@ -261,8 +261,8 @@ SELECT RANK() OVER (ORDER BY sales DESC) AS rnk,
 FROM   shared
 -- deliberately br_city, NOT br_name: this compares a branch LOCATION
 -- with a customer's home city ('Glow Beauty Ipoh' would never equal
--- 'Ipoh'). branch_dim is SCD2, so a city can hold several rows -
--- NOT EXISTS only asks whether there is none at all
+-- 'Ipoh'). A city can hold several branches - NOT EXISTS only asks
+-- whether there is none at all
 WHERE  NOT EXISTS (SELECT 1 FROM branch_dim b
                    WHERE UPPER(b.br_city) = UPPER(shared.cus_city))
 ORDER  BY rnk;

@@ -97,8 +97,6 @@ BEGIN
                        AND ls.res_date BETWEEN s.effective_start_date
                                            AND s.effective_end_date
     JOIN branch_dim   b ON b.br_ID    = ls.br_ID
-                       AND ls.res_date BETWEEN b.effective_start_date
-                                           AND b.effective_end_date
     JOIN service_dim  v ON v.serv_ID  = ls.serv_ID
                        AND ls.res_date BETWEEN v.effective_start_date
                                            AND v.effective_end_date

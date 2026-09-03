@@ -7,15 +7,17 @@
 -- ===================================================================
 -- BEFORE YOU RUN THIS
 -- ===================================================================
--- Open and run the 18 numbered scripts first, in any order. Each one
+-- Open and run the 16 numbered scripts first, in any order. Each one
 -- only does CREATE OR REPLACE PROCEDURE plus its own verification
 -- queries - none of them execute anything.
 --
 --   sub_dimension\   01..07   (7 procedures)
---   maintain_SCD2\   01..06   (6 procedures)
+--   maintain_SCD2\   01..04   (4 procedures - product, service,
+--                             staff, customer; branch and supplier
+--                             are NOT SCD2 any more)
 --   sub_fact\        01..05   (5 procedures)
 --
--- Then run this file. STEP 0 below checks all 18 exist and are VALID
+-- Then run this file. STEP 0 below checks all 16 exist and are VALID
 -- before it calls a single one, so a missed script is caught straight
 -- away instead of failing half-way through.
 --
@@ -81,11 +83,11 @@ SET DEFINE OFF
 
 
 -- ###################################################################
--- STEP 0 - ARE ALL 18 PROCEDURES THERE AND VALID?
+-- STEP 0 - ARE ALL 16 PROCEDURES THERE AND VALID?
 -- ###################################################################
 PROMPT
 PROMPT ##############################################
-PROMPT #  STEP 0 - checking the 18 procedures
+PROMPT #  STEP 0 - checking the 16 procedures
 PROMPT ##############################################
 
 -- Anything listed here is missing or broken. INVALID is what produces
@@ -98,8 +100,7 @@ AND    object_name IN (
     'LOAD_PRODUCT_DIM_INCREMENTAL','LOAD_BRANCH_DIM_INCREMENTAL',
     'LOAD_SERVICE_DIM_INCREMENTAL',
     'LOAD_STAFF_DIM_INCREMENTAL','LOAD_CUSTOMER_DIM_INCREMENTAL',
-    'MAINTAIN_SUPPLIER_DIM_SCD2','MAINTAIN_PRODUCT_DIM_SCD2',
-    'MAINTAIN_BRANCH_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
+    'MAINTAIN_PRODUCT_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
     'MAINTAIN_STAFF_DIM_SCD2','MAINTAIN_CUSTOMER_DIM_SCD2',
     'LOAD_ORDER_FACT_INCREMENTAL','LOAD_RES_FACT_INCREMENTAL',
     'LOAD_PURCHASE_FACT_INCREMENTAL','LOAD_SALARY_FACT_INCREMENTAL',
@@ -108,8 +109,8 @@ AND    status <> 'VALID'
 ORDER BY object_name;
 -- NO ROWS = every procedure that exists is valid.
 
--- This one must return 18. Fewer means a numbered script was not run.
-SELECT COUNT(*) AS procedures_found, 18 AS expected
+-- This one must return 16. Fewer means a numbered script was not run.
+SELECT COUNT(*) AS procedures_found, 16 AS expected
 FROM   user_objects
 WHERE  object_type = 'PROCEDURE'
 AND    object_name IN (
@@ -117,8 +118,7 @@ AND    object_name IN (
     'LOAD_PRODUCT_DIM_INCREMENTAL','LOAD_BRANCH_DIM_INCREMENTAL',
     'LOAD_SERVICE_DIM_INCREMENTAL',
     'LOAD_STAFF_DIM_INCREMENTAL','LOAD_CUSTOMER_DIM_INCREMENTAL',
-    'MAINTAIN_SUPPLIER_DIM_SCD2','MAINTAIN_PRODUCT_DIM_SCD2',
-    'MAINTAIN_BRANCH_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
+    'MAINTAIN_PRODUCT_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
     'MAINTAIN_STAFF_DIM_SCD2','MAINTAIN_CUSTOMER_DIM_SCD2',
     'LOAD_ORDER_FACT_INCREMENTAL','LOAD_RES_FACT_INCREMENTAL',
     'LOAD_PURCHASE_FACT_INCREMENTAL','LOAD_SALARY_FACT_INCREMENTAL',
@@ -180,8 +180,6 @@ PROMPT ##############################################
 -- attributed to the wrong price version.
 EXEC maintain_product_dim_scd2(DATE '2024-01-01');
 
-EXEC maintain_supplier_dim_scd2;
-EXEC maintain_branch_dim_scd2;
 EXEC maintain_service_dim_scd2;
 EXEC maintain_staff_dim_scd2;
 EXEC maintain_customer_dim_scd2;
@@ -222,11 +220,11 @@ PROMPT #  DIMENSION ROW COUNTS
 PROMPT ##############################################
 
 SELECT 'branch_dim' AS dimension,
-       (SELECT COUNT(*) FROM branch_dim WHERE is_current_flag='Y') AS current_rows,
+       (SELECT COUNT(*) FROM branch_dim) AS dim_rows,
        (SELECT COUNT(*) FROM branch)                               AS source_rows,
        17 AS expected FROM dual
 UNION ALL SELECT 'supplier_dim',
-       (SELECT COUNT(*) FROM supplier_dim WHERE is_current_flag='Y'),
+       (SELECT COUNT(*) FROM supplier_dim),
        (SELECT COUNT(*) FROM supplier), 7                          FROM dual
 UNION ALL SELECT 'service_dim',
        (SELECT COUNT(*) FROM service_dim WHERE is_current_flag='Y'),

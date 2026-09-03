@@ -36,7 +36,7 @@ CREATE TABLE date_dim (
 );
 
 -- ============================================================
--- BRANCH DIMENSION  (SCD Type 2)
+-- BRANCH DIMENSION  (no SCD - static reference, one row per branch)
 -- ============================================================
 CREATE TABLE branch_dim (
     branch_key           NUMBER(10)     NOT NULL,             -- surrogate key
@@ -45,12 +45,8 @@ CREATE TABLE branch_dim (
     br_city              VARCHAR2(50)   NOT NULL,
     br_state             VARCHAR2(50)   NOT NULL,
     br_email             VARCHAR2(100)  NOT NULL,
-    effective_start_date DATE           NOT NULL,
-    effective_end_date   DATE           DEFAULT DATE '9999-12-31' NOT NULL,
-    is_current_flag      CHAR(1)        DEFAULT 'Y' NOT NULL,
     CONSTRAINT pk_branch_dim PRIMARY KEY (branch_key),
-    CONSTRAINT fk_branchdim_oltp FOREIGN KEY (br_ID) REFERENCES branch (br_ID),
-    CONSTRAINT chk_branch_dim_flag CHECK (is_current_flag IN ('Y','N'))
+    CONSTRAINT fk_branchdim_oltp FOREIGN KEY (br_ID) REFERENCES branch (br_ID)
 );
 
 -- ============================================================
@@ -114,7 +110,7 @@ CREATE TABLE product_dim (
 );
 
 -- ============================================================
--- SUPPLIER DIMENSION  (SCD Type 2)
+-- SUPPLIER DIMENSION  (no SCD - static reference, one row per supplier)
 -- ============================================================
 CREATE TABLE supplier_dim (
     supplier_key         NUMBER(10)     NOT NULL,
@@ -122,12 +118,8 @@ CREATE TABLE supplier_dim (
     sup_name             VARCHAR2(100)  NOT NULL,
     sup_phone            VARCHAR2(20)   NOT NULL,
     sup_email            VARCHAR2(100)  NOT NULL,
-    effective_start_date DATE           NOT NULL,
-    effective_end_date   DATE           DEFAULT DATE '9999-12-31' NOT NULL,
-    is_current_flag      CHAR(1)        DEFAULT 'Y' NOT NULL,
     CONSTRAINT pk_supplier_dim PRIMARY KEY (supplier_key),
-    CONSTRAINT fk_suppdim_oltp FOREIGN KEY (sup_ID) REFERENCES supplier (sup_ID),
-    CONSTRAINT chk_supp_dim_flag CHECK (is_current_flag IN ('Y','N'))
+    CONSTRAINT fk_suppdim_oltp FOREIGN KEY (sup_ID) REFERENCES supplier (sup_ID)
 );
 
 -- ============================================================

@@ -26,7 +26,7 @@
 -- ===================================================================
 -- BEFORE YOU RUN THIS
 -- ===================================================================
---   1. the 18 numbered scripts have been run at least once, so the
+--   1. the 16 numbered scripts have been run at least once, so the
 --      procedures exist  (STEP 0 below checks)
 --   2. the data25 CSVs are loaded into the OLTP
 --        cd operational_DB\sqlloader_control_files
@@ -47,11 +47,11 @@ SET DEFINE OFF
 
 
 -- ###################################################################
--- STEP 0 - ARE ALL 18 PROCEDURES THERE AND VALID?
+-- STEP 0 - ARE ALL 16 PROCEDURES THERE AND VALID?
 -- ###################################################################
 PROMPT
 PROMPT ##############################################
-PROMPT #  STEP 0 - checking the 18 procedures
+PROMPT #  STEP 0 - checking the 16 procedures
 PROMPT ##############################################
 
 -- Anything listed here is broken. INVALID is what produces PLS-00905.
@@ -63,8 +63,7 @@ AND    object_name IN (
     'LOAD_PRODUCT_DIM_INCREMENTAL','LOAD_BRANCH_DIM_INCREMENTAL',
     'LOAD_SERVICE_DIM_INCREMENTAL',
     'LOAD_STAFF_DIM_INCREMENTAL','LOAD_CUSTOMER_DIM_INCREMENTAL',
-    'MAINTAIN_SUPPLIER_DIM_SCD2','MAINTAIN_PRODUCT_DIM_SCD2',
-    'MAINTAIN_BRANCH_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
+    'MAINTAIN_PRODUCT_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
     'MAINTAIN_STAFF_DIM_SCD2','MAINTAIN_CUSTOMER_DIM_SCD2',
     'LOAD_ORDER_FACT_INCREMENTAL','LOAD_RES_FACT_INCREMENTAL',
     'LOAD_PURCHASE_FACT_INCREMENTAL','LOAD_SALARY_FACT_INCREMENTAL',
@@ -73,8 +72,8 @@ AND    status <> 'VALID'
 ORDER BY object_name;
 -- NO ROWS = every procedure that exists is valid.
 
--- This must return 18. Fewer means a numbered script was never run.
-SELECT COUNT(*) AS procedures_found, 18 AS expected
+-- This must return 16. Fewer means a numbered script was never run.
+SELECT COUNT(*) AS procedures_found, 16 AS expected
 FROM   user_objects
 WHERE  object_type = 'PROCEDURE'
 AND    object_name IN (
@@ -82,8 +81,7 @@ AND    object_name IN (
     'LOAD_PRODUCT_DIM_INCREMENTAL','LOAD_BRANCH_DIM_INCREMENTAL',
     'LOAD_SERVICE_DIM_INCREMENTAL',
     'LOAD_STAFF_DIM_INCREMENTAL','LOAD_CUSTOMER_DIM_INCREMENTAL',
-    'MAINTAIN_SUPPLIER_DIM_SCD2','MAINTAIN_PRODUCT_DIM_SCD2',
-    'MAINTAIN_BRANCH_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
+    'MAINTAIN_PRODUCT_DIM_SCD2','MAINTAIN_SERVICE_DIM_SCD2',
     'MAINTAIN_STAFF_DIM_SCD2','MAINTAIN_CUSTOMER_DIM_SCD2',
     'LOAD_ORDER_FACT_INCREMENTAL','LOAD_RES_FACT_INCREMENTAL',
     'LOAD_PURCHASE_FACT_INCREMENTAL','LOAD_SALARY_FACT_INCREMENTAL',
@@ -154,8 +152,6 @@ EXEC maintain_product_dim_scd2(DATE '2025-01-01');
 EXEC maintain_service_dim_scd2(DATE '2025-01-01');
 
 -- Nothing changed in these for 2025. They should all report 0.
-EXEC maintain_supplier_dim_scd2;
-EXEC maintain_branch_dim_scd2;
 EXEC maintain_staff_dim_scd2;
 EXEC maintain_customer_dim_scd2;
 
@@ -194,11 +190,11 @@ PROMPT #  DIMENSION ROW COUNTS
 PROMPT ##############################################
 
 SELECT 'branch_dim' AS dimension,
-       (SELECT COUNT(*) FROM branch_dim WHERE is_current_flag='Y') AS current_rows,
+       (SELECT COUNT(*) FROM branch_dim) AS dim_rows,
        (SELECT COUNT(*) FROM branch)                               AS source_rows,
        17 AS expected FROM dual
 UNION ALL SELECT 'supplier_dim',
-       (SELECT COUNT(*) FROM supplier_dim WHERE is_current_flag='Y'),
+       (SELECT COUNT(*) FROM supplier_dim),
        (SELECT COUNT(*) FROM supplier), 8                          FROM dual
 UNION ALL SELECT 'service_dim',
        (SELECT COUNT(*) FROM service_dim WHERE is_current_flag='Y'),
