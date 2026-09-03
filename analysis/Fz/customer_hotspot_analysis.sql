@@ -18,6 +18,21 @@
 --   state                   the state section 2 opens up, matched on any
 --                           part of the name (default Selangor)
 --
+-- HOW THE CODE IS BUILT
+--   The two-fact drill-across is written ONCE, as a temporary helper
+--   view created at the top of this script and dropped at the bottom:
+--     customer_spend_v   one row per customer per home city/state per
+--                        YEAR, product and service revenue split out
+--   Both sections query it, so the two lists can never disagree and
+--   the drill-across is not repeated inside each query. The script is
+--   self-contained - it needs nothing pre-created and leaves nothing
+--   behind on a COMPLETE run.
+--
+--   CAVEAT of the create-and-drop pattern: abort part-way (Ctrl+C, or
+--   closing the window at a prompt) and customer_spend_v is left in
+--   the schema. Harmless - the next complete run replaces and drops
+--   it, or clear it by hand:  DROP VIEW customer_spend_v;
+--
 -- ===================================================================
 -- THE POINT OF THIS REPORT
 -- ===================================================================
@@ -57,11 +72,13 @@
 --                     not separate cities
 --
 -- OLAP TECHNIQUES USED
---   CTE (WITH)         both sections
---   UNION ALL          the two revenue facts drilled across onto one
---                      customer grain
+--   VIEW               customer_spend_v, the shared drill-across
+--                      (created by THIS script, dropped at the end)
+--   UNION ALL          the two revenue facts onto one customer grain
+--                      (inside the view)
+--   CTE (WITH)         both sections - the per-year averaging
 --   RANK               both sections
---   Ratio to report    share of chain sales / share of state sales
+--   Ratio to report    share of chain revenue / share of state revenue
 --   NOT EXISTS         section 2 - keeps only the cities with no shop
 -- ===================================================================
 
@@ -84,6 +101,41 @@ PROMPT
 ACCEPT p_from CHAR DEFAULT 2023 PROMPT 'Start year (default 2023): '
 ACCEPT p_to   CHAR DEFAULT 2025 PROMPT 'End year   (default 2025): '
 PROMPT
+
+-- ###################################################################
+-- SECTION 0 - THE SHARED CUSTOMER SPEND, AS A TEMPORARY HELPER VIEW
+-- The two-fact drill-across (order + reservation onto one customer
+-- grain) used to be repeated inside both queries below. It is written
+-- ONCE here, at the finest grain either section needs - one row per
+-- customer per home city/state per YEAR - created at the top and
+-- DROPPED at the bottom, the same create-and-drop pattern as the
+-- other two reports. The year prompts are NOT baked in: each section
+-- filters the view, so the view text is identical on every run.
+-- Abort part-way and customer_spend_v is left behind - harmless; the
+-- next complete run replaces and drops it.
+--
+-- The city/state come from the customer_dim version in force WHEN THE
+-- MONEY WAS SPENT (the facts carry that customer_key), so a customer
+-- who moved is counted in the town they lived in at the time.
+-- ###################################################################
+CREATE OR REPLACE VIEW customer_spend_v AS
+SELECT c.cus_ID,
+       c.cus_city,
+       c.cus_state,
+       d.cal_year,
+       SUM(x.amt)                                       AS spend,
+       SUM(CASE WHEN x.src = 'P' THEN x.amt ELSE 0 END) AS prod_rev,
+       SUM(CASE WHEN x.src = 'S' THEN x.amt ELSE 0 END) AS serv_rev
+FROM   (SELECT customer_key, date_key, order_net_amt AS amt,
+               'P' AS src
+        FROM   order_fact WHERE order_status = 'Completed'
+        UNION ALL
+        SELECT customer_key, date_key, serv_net_amt, 'S'
+        FROM   reservation_fact WHERE res_status = 'Completed') x
+JOIN   date_dim     d ON d.date_key     = x.date_key
+JOIN   customer_dim c ON c.customer_key = x.customer_key
+GROUP  BY c.cus_ID, c.cus_city, c.cus_state, d.cal_year;
+
 
 
 -- ###################################################################
@@ -113,29 +165,16 @@ COLUMN pct_share HEADING 'SHARE OF|REVENUE'   FORMAT A8
 BREAK ON REPORT
 COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
-WITH spend AS (
-    -- both revenue facts on one customer grain, year kept for the
-    -- per-year averaging
-    SELECT c.cus_ID, c.cus_city, c.cus_state, d.cal_year, x.amt, x.src
-    FROM   (SELECT customer_key, date_key, order_net_amt AS amt,
-                   'P' AS src
-            FROM   order_fact WHERE order_status = 'Completed'
-            UNION ALL
-            SELECT customer_key, date_key, serv_net_amt, 'S'
-            FROM   reservation_fact WHERE res_status = 'Completed') x
-    JOIN   date_dim     d ON d.date_key     = x.date_key
-    JOIN   customer_dim c ON c.customer_key = x.customer_key
-    WHERE  d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
-),
-by_state_year AS (
+WITH by_state_year AS (
     -- one row per state per YEAR: customers counted DISTINCT within
     -- the year (a person active in three years counts once per year)
     SELECT cus_state, cal_year,
            COUNT(DISTINCT cus_ID) AS custs,
-           SUM(amt)               AS sales,
-           SUM(CASE WHEN src = 'P' THEN amt ELSE 0 END) AS prod_rev,
-           SUM(CASE WHEN src = 'S' THEN amt ELSE 0 END) AS serv_rev
-    FROM   spend
+           SUM(spend)             AS sales,
+           SUM(prod_rev)          AS prod_rev,
+           SUM(serv_rev)          AS serv_rev
+    FROM   customer_spend_v
+    WHERE  cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
     GROUP  BY cus_state, cal_year
 ),
 by_state AS (
@@ -147,8 +186,10 @@ by_state AS (
            AVG(y.sales)                 AS sales,
            AVG(y.prod_rev)              AS prod_rev,
            AVG(y.serv_rev)              AS serv_rev,
-           (SELECT COUNT(DISTINCT s.cus_city) FROM spend s
-            WHERE  s.cus_state = y.cus_state) AS cities
+           (SELECT COUNT(DISTINCT s.cus_city) FROM customer_spend_v s
+            WHERE  s.cus_state = y.cus_state
+            AND    s.cal_year BETWEEN TO_NUMBER('&p_from')
+                                  AND TO_NUMBER('&p_to')) AS cities
     FROM   by_state_year y
     GROUP  BY y.cus_state
 ),
@@ -212,26 +253,16 @@ COLUMN pct_share HEADING 'SHARE OF|STATE'    FORMAT A8
 BREAK ON REPORT
 COMPUTE AVG LABEL 'AVG' OF custs sales prod_rev serv_rev per_head ON REPORT
 
-WITH spend AS (
-    SELECT c.cus_ID, c.cus_city, d.cal_year, x.amt, x.src
-    FROM   (SELECT customer_key, date_key, order_net_amt AS amt,
-                   'P' AS src
-            FROM   order_fact WHERE order_status = 'Completed'
-            UNION ALL
-            SELECT customer_key, date_key, serv_net_amt, 'S'
-            FROM   reservation_fact WHERE res_status = 'Completed') x
-    JOIN   date_dim     d ON d.date_key     = x.date_key
-    JOIN   customer_dim c ON c.customer_key = x.customer_key
-    WHERE  d.cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
-    AND    UPPER(c.cus_state) LIKE '%' || UPPER(TRIM('&p_state')) || '%'
-),
-by_city_year AS (
+WITH by_city_year AS (
+    -- the same view, scoped to the state asked for
     SELECT cus_city, cal_year,
            COUNT(DISTINCT cus_ID) AS custs,
-           SUM(amt)               AS sales,
-           SUM(CASE WHEN src = 'P' THEN amt ELSE 0 END) AS prod_rev,
-           SUM(CASE WHEN src = 'S' THEN amt ELSE 0 END) AS serv_rev
-    FROM   spend
+           SUM(spend)             AS sales,
+           SUM(prod_rev)          AS prod_rev,
+           SUM(serv_rev)          AS serv_rev
+    FROM   customer_spend_v
+    WHERE  cal_year BETWEEN TO_NUMBER('&p_from') AND TO_NUMBER('&p_to')
+    AND    UPPER(cus_state) LIKE '%' || UPPER(TRIM('&p_state')) || '%'
     GROUP  BY cus_city, cal_year
 ),
 by_city AS (
@@ -271,9 +302,8 @@ PROMPT
 PROMPT Report Completed
 PROMPT
 
--- ===================================================================
--- tidy up so the next script starts clean
--- ===================================================================
+DROP VIEW customer_spend_v;
+
 TTITLE OFF
 BTITLE OFF
 CLEAR COLUMNS
