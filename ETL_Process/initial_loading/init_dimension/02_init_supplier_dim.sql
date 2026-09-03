@@ -1,5 +1,5 @@
 -- ===================================================================
--- 02_init_supplier_dim.sql      SUPPLIER_DIM  (SCD Type 2)
+-- 02_init_supplier_dim.sql      SUPPLIER_DIM  (no SCD - static reference)
 -- Source: SUPPLIER (OLTP, 6 rows)
 -- ===================================================================
 

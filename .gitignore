@@ -107,8 +107,10 @@ analysis/**/*_output.txt
 
 
 # -------------------------------------------------------------------
-# Submission copy of ETL_Process\subsequent_loading - generated
-# (comments stripped, new dimension rows dated TRUNC(SYSDATE) instead
-# of DATE '2019-01-01'). Regenerate from the real folder, never edit.
+# Generated submission copy: create_dwh.sql + initial_loading (no
+# operational DB, no data, no holiday generator) + submit_sub (the
+# subsequent loading set, SCD2 dims' inserts dated TRUNC(SYSDATE)).
+# Comments stripped except section titles. Regenerate from the real
+# folders, never edit.
 # -------------------------------------------------------------------
-submit_sub/
+submit_folder/

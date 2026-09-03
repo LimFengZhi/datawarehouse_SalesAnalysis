@@ -1,5 +1,5 @@
 -- ===================================================================
--- 01_init_branch_dim.sql        BRANCH_DIM  (SCD Type 2)
+-- 01_init_branch_dim.sql        BRANCH_DIM  (no SCD - static reference)
 --   SECTION 1: staging VIEW  - all cleansing / transformation
 --   SECTION 2: SEQUENCE      - surrogate key (1..999 range)
 --   SECTION 3: PROCEDURE     - initial load
