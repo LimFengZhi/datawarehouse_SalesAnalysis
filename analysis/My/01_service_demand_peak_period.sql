@@ -128,18 +128,18 @@ TTITLE CENTER '+==========================================================+' SKI
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
-COLUMN br_city   HEADING 'BRANCH'           FORMAT A15
-COLUMN morning   HEADING 'MORNING (10-1)'   FORMAT 99,999
-COLUMN afternoon HEADING 'AFTERNOON (1-5)'  FORMAT 99,999
-COLUMN evening   HEADING 'EVENING (5-8)'    FORMAT 99,999
-COLUMN total_res HEADING 'TOTAL'            FORMAT 99,999
+COLUMN br_city      HEADING 'BRANCH'            FORMAT A15
+COLUMN morning      HEADING 'MORNING (10-1)'    FORMAT 99,999
+COLUMN afternoon    HEADING 'AFTERNOON (1-5)'   FORMAT 99,999
+COLUMN evening      HEADING 'EVENING (5-8)'     FORMAT 99,999
+COLUMN total_res    HEADING 'TOTAL'             FORMAT 99,999
+COLUMN morning_hr   HEADING 'MORNING|PER HR'    FORMAT 9,999.9
+COLUMN afternoon_hr HEADING 'AFTERNOON|PER HR'  FORMAT 9,999.9
+COLUMN evening_hr   HEADING 'EVENING|PER HR'    FORMAT 9,999.9
 
 BREAK ON REPORT
-COMPUTE SUM LABEL 'ALL BRANCHES' OF morning afternoon evening total_res ON REPORT
+COMPUTE SUM LABEL 'ALL BRANCHES' OF morning afternoon evening total_res morning_hr afternoon_hr evening_hr ON REPORT
 
--- Bands reflect the branch's actual booking window (10am-8pm), verified against
--- start_time: no reservation ever starts before 10 or at/after 20, since the
--- branch closes at 20:00 and services run 20-90 minutes.
 WITH banded AS (
     SELECT b.br_ID, b.br_city, f.res_ID,
            CASE WHEN TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 10 AND 12 THEN 'morning'
@@ -153,10 +153,13 @@ WITH banded AS (
     AND    TO_NUMBER(TO_CHAR(f.start_time, 'HH24')) BETWEEN 10 AND 19
 )
 SELECT br_city,
-       COUNT(CASE WHEN band = 'morning'   THEN res_ID END) AS morning,
-       COUNT(CASE WHEN band = 'afternoon' THEN res_ID END) AS afternoon,
-       COUNT(CASE WHEN band = 'evening'   THEN res_ID END) AS evening,
-       COUNT(res_ID)                                        AS total_res
+       COUNT(CASE WHEN band = 'morning'   THEN res_ID END)     AS morning,
+       COUNT(CASE WHEN band = 'afternoon' THEN res_ID END)     AS afternoon,
+       COUNT(CASE WHEN band = 'evening'   THEN res_ID END)     AS evening,
+       COUNT(res_ID)                                            AS total_res,
+       COUNT(CASE WHEN band = 'morning'   THEN res_ID END) / 3 AS morning_hr,
+       COUNT(CASE WHEN band = 'afternoon' THEN res_ID END) / 4 AS afternoon_hr,
+       COUNT(CASE WHEN band = 'evening'   THEN res_ID END) / 3 AS evening_hr
 FROM   banded
 GROUP  BY br_ID, br_city
 ORDER  BY total_res DESC;
@@ -189,7 +192,11 @@ banded AS (
            CASE WHEN start_hour BETWEEN 10 AND 12 THEN 'Morning (10am-1pm)'
                 WHEN start_hour BETWEEN 13 AND 16 THEN 'Afternoon (1pm-5pm)'
                 WHEN start_hour BETWEEN 17 AND 19 THEN 'Evening (5pm-8pm)'
-                END AS hour_band
+                END AS hour_band,
+           CASE WHEN start_hour BETWEEN 10 AND 12 THEN 3
+                WHEN start_hour BETWEEN 13 AND 16 THEN 4
+                WHEN start_hour BETWEEN 17 AND 19 THEN 3
+                END AS band_hours
     FROM   lines l
     WHERE  start_hour BETWEEN 10 AND 19
 ),
@@ -214,12 +221,12 @@ stats AS (
              FROM   lines GROUP BY cal_month_name, month_num ORDER BY cnt DESC)
          WHERE ROWNUM = 1)                 AS busiest_month_res,
         (SELECT hour_band FROM
-            (SELECT hour_band, COUNT(res_ID) AS cnt
-             FROM   banded GROUP BY hour_band ORDER BY cnt DESC)
+            (SELECT hour_band, COUNT(res_ID) / MAX(band_hours) AS rate
+             FROM   banded GROUP BY hour_band ORDER BY rate DESC)
          WHERE ROWNUM = 1)                 AS busiest_period,
-        (SELECT cnt FROM
-            (SELECT COUNT(res_ID) AS cnt
-             FROM   banded GROUP BY hour_band ORDER BY cnt DESC)
+        (SELECT rate FROM
+            (SELECT COUNT(res_ID) / MAX(band_hours) AS rate
+             FROM   banded GROUP BY hour_band ORDER BY rate DESC)
          WHERE ROWNUM = 1)                 AS busiest_period_res
     FROM dual
 )
@@ -232,8 +239,8 @@ UNION ALL SELECT 'Top Branch (Highest Demand)',
        top_branch || '  (' || TRIM(TO_CHAR(top_branch_res, '999,999,990')) || ' reservations)' FROM stats
 UNION ALL SELECT 'Busiest Month',
        busiest_month || '  (' || TRIM(TO_CHAR(busiest_month_res, '999,999,990')) || ' reservations)' FROM stats
-UNION ALL SELECT 'Busiest Time Period',
-       busiest_period || '  (' || TRIM(TO_CHAR(busiest_period_res, '999,999,990')) || ' reservations)' FROM stats;
+UNION ALL SELECT 'Busiest Time Period (Per Hour)',
+       busiest_period || '  (' || TRIM(TO_CHAR(busiest_period_res, '9,999,990.0')) || ' reservations/hr)' FROM stats;
 
 PROMPT
 PROMPT +==========================================================+
