@@ -60,7 +60,8 @@ COLUMN avg_unit_cost     FORMAT 9,990.99     HEADING 'Avg Cost|Per Unit (RM)'
 COLUMN pct_total_spend   FORMAT A10          HEADING '% of Total|Spend'
 COLUMN pct_total_orders  FORMAT A10          HEADING '% of Total|Orders'
 
-BREAK ON ROW SKIP 1
+BREAK ON ROW SKIP 1 ON REPORT
+COMPUTE SUM LABEL 'TOTAL' OF total_spend purchase_orders ON REPORT
 
 -- The query aggregates the view up to supplier level.
 WITH
@@ -104,6 +105,7 @@ PROMPT
 
 CLEAR COLUMNS
 CLEAR BREAKS
+CLEAR COMPUTES
 TTITLE CENTER '=============================================================' SKIP 1 -
        CENTER 'Top &top_n_prompt Products per Supplier by Procurement Spend' SKIP 1 -
        CENTER 'For Year &start_year_prompt to &end_year_prompt' SKIP 1 -
