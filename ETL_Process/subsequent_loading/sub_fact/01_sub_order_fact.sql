@@ -119,8 +119,6 @@ BEGIN
                        AND ls.order_date BETWEEN s.effective_start_date
                                              AND s.effective_end_date
     JOIN branch_dim   b ON b.br_ID      = ls.br_ID
-                       AND ls.order_date BETWEEN b.effective_start_date
-                                             AND b.effective_end_date
     WHERE ls.order_date >= v_from
     AND   ls.order_date <= v_to
     AND   NOT EXISTS (SELECT 1 FROM order_fact f

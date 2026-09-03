@@ -86,8 +86,8 @@ by_city_year AS (
 ),
 shop_city AS (
     -- deliberately br_city, NOT br_name: this compares a branch
-    -- LOCATION with a customer's home city. branch_dim is SCD2, so
-    -- DISTINCT folds the versions of one branch back to one city.
+    -- LOCATION with a customer's home city. branch_dim holds one row
+    -- per branch; DISTINCT just folds branches sharing a city.
     SELECT DISTINCT UPPER(br_city) AS ucity
     FROM   branch_dim
 )

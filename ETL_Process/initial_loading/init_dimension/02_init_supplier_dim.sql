@@ -79,15 +79,11 @@ BEGIN
     END IF;
 
     INSERT INTO supplier_dim (
-        supplier_key, sup_ID, sup_name, sup_phone, sup_email,
-        effective_start_date, effective_end_date, is_current_flag
+        supplier_key, sup_ID, sup_name, sup_phone, sup_email
     )
     SELECT
         seq_supplier_key.NEXTVAL,
-        sup_ID, clean_sup_name, clean_sup_phone, clean_sup_email,
-        DATE '2019-01-01',   -- first version: the first sales year (facts start 2019-01-01)
-        DATE '9999-12-31',
-        'Y'
+        sup_ID, clean_sup_name, clean_sup_phone, clean_sup_email
     FROM supplier_staging_v;
 
     v_count := SQL%ROWCOUNT;

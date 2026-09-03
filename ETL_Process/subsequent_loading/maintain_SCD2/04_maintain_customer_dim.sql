@@ -1,5 +1,5 @@
 -- ===================================================================
--- 06_maintain_customer_dim.sql   CUSTOMER_DIM - MAINTAIN SCD 2 + SCD 1
+-- 04_maintain_customer_dim.sql   CUSTOMER_DIM - MAINTAIN SCD 2 + SCD 1
 --
 --   SECTION 1: no new view - reuses customer_staging_v
 --   SECTION 2: no new sequence - reuses seq_customer_key
@@ -17,8 +17,12 @@
 -- one showing Bronze customers spend RM 853 each against Platinum's
 -- RM 733 once the loyalty discount is applied.
 --
--- Type 2 tracked: cus_name, cus_email, cus_gender, cus_city, cus_state,
--- cus_loyalty_tier.
+-- Type 2 tracked: cus_loyalty_tier, cus_city, cus_state. A MOVE is
+-- history: the hotspot analysis attributes spend to the home city in
+-- force when the money was spent, so the old versions must keep the
+-- old address. Name / email / gender are corrections, not history -
+-- sub_dimension's STEP 2 overwrites them in place (Type 1). This
+-- procedure = Type 2 versioning + the age-group refresh only.
 --
 -- cus_age_group is EXCLUDED from Type 2. It is derived from cus_DOB
 -- against SYSDATE, so versioning on it would add thousands of rows a
@@ -39,20 +43,7 @@ CREATE OR REPLACE PROCEDURE maintain_customer_dim_scd2(
     v_expired  NUMBER := 0;
     v_versions NUMBER := 0;
     v_ages     NUMBER := 0;
-    -- ---------------------------------------------------------------
-    -- ONE cursor drives both steps: each fetched row is a customer
-    -- whose CURRENT version differs from the staging view. The change
-    -- test lives INSIDE the cursor query, so a second run fetches
-    -- nothing - that is what keeps this idempotent. The surrogate key
-    -- rides along so STEP 1 can expire exactly that row. A brand-new
-    -- cus_ID has no current row to join, so it is naturally excluded -
-    -- inserting it is sub_dimension's job.
-    --
-    -- NVL on BOTH sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
-    -- <> would silently miss changes involving NULL.
-    -- cus_age_group deliberately EXCLUDED from the change test - it is
-    -- Type 1, refreshed in place by STEP 3 (header note).
-    -- ---------------------------------------------------------------
+
     CURSOR changed_customers_cursor IS
         SELECT d.customer_key AS old_key,
                s.cus_ID, s.clean_cus_name, s.clean_cus_email,
@@ -61,18 +52,12 @@ CREATE OR REPLACE PROCEDURE maintain_customer_dim_scd2(
         FROM   customer_staging_v s
         JOIN   customer_dim d ON d.cus_ID = s.cus_ID
                       AND d.is_current_flag = 'Y'
-        -- Never version BACKWARDS: expiring a version that starts on
-        -- or after the effective date would corrupt the timeline
-        -- (overlapping ranges). A backdated call fetches nothing and
-        -- becomes a safe no-op.
+
         WHERE  d.effective_start_date < v_eff
-        AND   (   NVL(s.clean_cus_name, '~')   <> NVL(d.cus_name, '~')
-               OR NVL(s.clean_cus_email, '~')  <> NVL(d.cus_email, '~')
-               OR NVL(s.clean_cus_gender, '~') <> NVL(d.cus_gender, '~')
-               OR NVL(s.clean_cus_city, '~')   <> NVL(d.cus_city, '~')
-               OR NVL(s.clean_cus_state, '~')  <> NVL(d.cus_state, '~')
-               OR NVL(s.clean_cus_loyalty_tier, '~')
-                    <> NVL(d.cus_loyalty_tier, '~') );
+        AND   (   NVL(s.clean_cus_loyalty_tier, '~')
+                    <> NVL(d.cus_loyalty_tier, '~')
+               OR NVL(s.clean_cus_city, '~')  <> NVL(d.cus_city, '~')
+               OR NVL(s.clean_cus_state, '~') <> NVL(d.cus_state, '~') );
     -- STEP 3's cursor: current rows whose age group drifted (a
     -- birthday, not a business event - Type 1, overwrite in place).
     CURSOR aged_customers_cursor IS

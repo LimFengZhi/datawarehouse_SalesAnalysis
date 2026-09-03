@@ -53,7 +53,8 @@
 -- CONVENTIONS (same as the report - see its header for the why)
 --   revenue = the *_net_amt columns (net of discount and 6 % SST),
 --   'Completed' rows only; branches grouped on the NATURAL key br_ID
---   (branch_dim is SCD2) and labelled by br_name
+--   and labelled by br_name (branch_dim is no longer SCD2 - one
+--   row per branch - so the natural-key grouping is now just tidy)
 -- ===================================================================
 
 SET SQLBLANKLINES ON

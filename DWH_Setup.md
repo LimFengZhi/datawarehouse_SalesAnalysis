@@ -374,8 +374,7 @@ JOIN customer_dim c ON c.cus_ID     = ls.cus_ID
    AND ls.order_date BETWEEN c.effective_start_date AND c.effective_end_date
 JOIN staff_dim    s ON s.st_ID      = ls.st_ID
    AND ls.order_date BETWEEN s.effective_start_date AND s.effective_end_date
-JOIN branch_dim   b ON b.br_ID      = ls.br_ID
-   AND ls.order_date BETWEEN b.effective_start_date AND b.effective_end_date;
+JOIN branch_dim   b ON b.br_ID      = ls.br_ID;   -- branch_dim is not SCD2
 ```
 
 ```sql

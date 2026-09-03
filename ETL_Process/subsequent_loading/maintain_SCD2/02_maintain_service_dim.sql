@@ -1,5 +1,5 @@
 -- ===================================================================
--- 04_maintain_service_dim.sql    SERVICE_DIM - MAINTAIN SCD TYPE 2
+-- 02_maintain_service_dim.sql    SERVICE_DIM - MAINTAIN SCD TYPE 2
 --
 --   SECTION 1: no new view - reuses service_staging_v
 --   SECTION 2: no new sequence - reuses seq_service_key
@@ -10,8 +10,10 @@
 -- SCOPE: CHANGED RECORDS ONLY. New services belong to
 --   sub_dimension\05_sub_service_dim.sql
 --
--- Tracked attributes (all TYPE 2, versioned):
---   serv_name / serv_category / serv_price
+-- TRACKED (TYPE 2): serv_price ONLY - only a price change creates
+-- history. A rename or a recategorisation is a correction handled by
+-- sub_dimension's STEP 2 (Type 1). This procedure versions the price
+-- and nothing else.
 -- The dimension carries no Type 1 attribute (the former derived
 -- duration column no longer exists; actual slot length is a measure
 -- on reservation_fact), so there is no in-place refresh step.
@@ -28,20 +30,7 @@ CREATE OR REPLACE PROCEDURE maintain_service_dim_scd2(
     v_eff      DATE   := TRUNC(p_effective_date);
     v_expired  NUMBER := 0;
     v_versions NUMBER := 0;
-    -- ---------------------------------------------------------------
-    -- ONE cursor drives both steps: each fetched row is a service
-    -- whose CURRENT version differs from the staging view. The change
-    -- test lives INSIDE the cursor query, so a second run fetches
-    -- nothing - that is what keeps this idempotent. The surrogate key
-    -- rides along so STEP 1 can expire exactly that row. A brand-new
-    -- serv_ID has no current row to join, so it is naturally excluded -
-    -- inserting it is sub_dimension's job.
-    --
-    -- NVL on BOTH sides: NULL <> 'x' is UNKNOWN, not TRUE, so a bare
-    -- <> would silently miss changes involving NULL.
-    -- Price uses NVL(...,-1): it is a NUMBER, and a string sentinel in
-    -- a numeric comparison would raise ORA-01722.
-    -- ---------------------------------------------------------------
+
     CURSOR changed_services_cursor IS
         SELECT d.service_key AS old_key,
                s.serv_ID, s.clean_serv_name, s.clean_serv_category,
@@ -49,17 +38,9 @@ CREATE OR REPLACE PROCEDURE maintain_service_dim_scd2(
         FROM   service_staging_v s
         JOIN   service_dim d ON d.serv_ID = s.serv_ID
                       AND d.is_current_flag = 'Y'
-        -- Never version BACKWARDS: expiring a version that starts on
-        -- or after the effective date would corrupt the timeline
-        -- (overlapping ranges). A backdated call fetches nothing and
-        -- becomes a safe no-op.
         WHERE  d.effective_start_date < v_eff
-        AND   (   NVL(s.clean_serv_name, '~')
-                    <> NVL(d.serv_name, '~')
-               OR NVL(s.clean_serv_category, '~')
-                    <> NVL(d.serv_category, '~')
-               OR NVL(s.clean_serv_price, -1)
-                    <> NVL(d.serv_price, -1) );
+        AND   NVL(s.clean_serv_price, -1)
+                <> NVL(d.serv_price, -1);
 BEGIN
     FOR rec IN changed_services_cursor LOOP
         -- -----------------------------------------------------------

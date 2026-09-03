@@ -69,8 +69,6 @@ BEGIN
     FROM branch_utils_fact_staging_v ls
     JOIN date_dim   d ON d.cal_date = ls.payment_date
     JOIN branch_dim b ON b.br_ID    = ls.br_ID
-                     AND ls.payment_date BETWEEN b.effective_start_date
-                                             AND b.effective_end_date
     WHERE ls.payment_date >= v_from
     AND   ls.payment_date <= v_to
     AND   NOT EXISTS (SELECT 1 FROM branch_utils_fact f

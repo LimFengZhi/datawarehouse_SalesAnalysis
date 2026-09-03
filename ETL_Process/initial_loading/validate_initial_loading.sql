@@ -252,9 +252,10 @@ UNION ALL SELECT 'utils rejected_by_view',
        (SELECT COUNT(*) FROM branch_utils)
      - (SELECT COUNT(*) FROM branch_utils_fact_staging_v) FROM dual;
 
--- Failed dimension lookups per staging view. SCD2 lookups use the same
--- date-range predicate as the load procedures: the version in force on
--- the transaction date.
+-- Failed dimension lookups per staging view. SCD2 lookups (product,
+-- customer, staff, service) use the same date-range predicate as the
+-- load procedures: the version in force on the transaction date.
+-- branch_dim and supplier_dim are not SCD2 - plain natural-key lookups.
 SELECT 'order no_date' AS chk, COUNT(*) AS bad FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
                     WHERE d.cal_date = ls.order_date)
@@ -275,9 +276,7 @@ UNION ALL SELECT 'order no_staff', COUNT(*) FROM order_fact_staging_v ls
                                             AND s.effective_end_date)
 UNION ALL SELECT 'order no_branch', COUNT(*) FROM order_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM branch_dim b
-                    WHERE b.br_ID = ls.br_ID
-                      AND ls.order_date BETWEEN b.effective_start_date
-                                            AND b.effective_end_date)
+                    WHERE b.br_ID = ls.br_ID)
 UNION ALL SELECT 'reservation no_date', COUNT(*)
   FROM reservation_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
@@ -294,9 +293,7 @@ UNION ALL SELECT 'purchase no_date', COUNT(*) FROM purchase_fact_staging_v ls
 UNION ALL SELECT 'purchase no_supplier', COUNT(*)
   FROM purchase_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM supplier_dim u
-                    WHERE u.sup_ID = ls.sup_ID
-                      AND ls.purchase_date BETWEEN u.effective_start_date
-                                               AND u.effective_end_date)
+                    WHERE u.sup_ID = ls.sup_ID)
 UNION ALL SELECT 'salary no_date', COUNT(*)
   FROM salary_payment_fact_staging_v ls
   WHERE NOT EXISTS (SELECT 1 FROM date_dim d
