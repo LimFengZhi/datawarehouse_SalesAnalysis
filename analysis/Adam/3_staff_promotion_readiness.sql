@@ -21,9 +21,15 @@ SET TERMOUT ON
 
 SPOOL staff_promotion_readiness_b_output.txt
 
+PROMPT
+ACCEPT from_year CHAR DEFAULT 2019 PROMPT 'From year (default 2019): '
+ACCEPT to_year   CHAR DEFAULT 2025 PROMPT 'To year   (default 2025): '
+PROMPT
+
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. BRANCHES RANKED BY % READY FOR PROMOTION' SKIP 1 -
+       CENTER '&from_year - &to_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -33,6 +39,9 @@ COLUMN total_candidates HEADING 'TOTAL|CANDIDATES'   FORMAT 9990
 COLUMN pct_ready       HEADING 'PCT READY|FOR PROMO %' FORMAT 990.0
 
 WITH hire AS (
+    -- NOT windowed on purpose: the hire date must come from the WHOLE
+    -- payroll history. Windowing it would make a 2019 hire look like a
+    -- 2024 hire whenever the window starts later, and wipe out tenure.
     SELECT sd.st_ID, MIN(d.cal_date) AS hire_date
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
@@ -41,10 +50,13 @@ WITH hire AS (
     GROUP  BY sd.st_ID
 ),
 ref_date AS (
+    -- the yardstick tenure is measured against: the last payroll date
+    -- INSIDE the window, so a 2019-2023 run reports tenure as of 2023
     SELECT MAX(d.cal_date) AS ref_date
     FROM   salary_payment_fact sp
     JOIN   date_dim d ON d.date_key = sp.date_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
 ),
 current_bt AS (
     SELECT DISTINCT sd.st_ID, sd.st_name
@@ -57,13 +69,21 @@ rev AS (
     SELECT sd.st_ID, SUM(f.serv_net_amt) AS revenue
     FROM   reservation_fact f
     JOIN   staff_dim sd ON sd.staff_key = f.staff_key
+    JOIN   date_dim  d  ON d.date_key   = f.date_key
     WHERE  f.res_status = 'Completed'
+    AND    d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID
 ),
 cost AS (
+    -- windowed with rev above: both sides of the RCR ratio must cover
+    -- the same period or the number is meaningless
     SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
+    JOIN   date_dim  d  ON d.date_key   = sp.date_key
+    WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID
 ),
 home_branch AS (
@@ -75,6 +95,7 @@ home_branch AS (
         JOIN   branch_dim b  ON b.branch_key  = sp.branch_key
         JOIN   date_dim   d  ON d.date_key    = sp.date_key
         WHERE  d.date_key <> 0
+        AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     )
     WHERE rn = 1
 ),
@@ -130,6 +151,7 @@ PROMPT
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 2. &branch: PROMOTION CANDIDATES AT THIS BRANCH' SKIP 1 -
+       CENTER '&from_year - &to_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -141,6 +163,9 @@ COLUMN rcr           HEADING 'RCR'                 FORMAT 990.00
 BREAK ON priority SKIP 1
 
 WITH hire AS (
+    -- NOT windowed on purpose: the hire date must come from the WHOLE
+    -- payroll history. Windowing it would make a 2019 hire look like a
+    -- 2024 hire whenever the window starts later, and wipe out tenure.
     SELECT sd.st_ID, MIN(d.cal_date) AS hire_date
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
@@ -149,10 +174,13 @@ WITH hire AS (
     GROUP  BY sd.st_ID
 ),
 ref_date AS (
+    -- the yardstick tenure is measured against: the last payroll date
+    -- INSIDE the window, so a 2019-2023 run reports tenure as of 2023
     SELECT MAX(d.cal_date) AS ref_date
     FROM   salary_payment_fact sp
     JOIN   date_dim d ON d.date_key = sp.date_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
 ),
 current_bt AS (
     SELECT DISTINCT sd.st_ID, sd.st_name
@@ -165,13 +193,21 @@ rev AS (
     SELECT sd.st_ID, SUM(f.serv_net_amt) AS revenue
     FROM   reservation_fact f
     JOIN   staff_dim sd ON sd.staff_key = f.staff_key
+    JOIN   date_dim  d  ON d.date_key   = f.date_key
     WHERE  f.res_status = 'Completed'
+    AND    d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID
 ),
 cost AS (
+    -- windowed with rev above: both sides of the RCR ratio must cover
+    -- the same period or the number is meaningless
     SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
+    JOIN   date_dim  d  ON d.date_key   = sp.date_key
+    WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID
 ),
 home_branch AS (
@@ -183,6 +219,7 @@ home_branch AS (
         JOIN   branch_dim b  ON b.branch_key  = sp.branch_key
         JOIN   date_dim   d  ON d.date_key    = sp.date_key
         WHERE  d.date_key <> 0
+        AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     )
     WHERE rn = 1
 ),
@@ -225,6 +262,8 @@ CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 UNDEFINE branch
+UNDEFINE from_year
+UNDEFINE to_year
 SET FEEDBACK ON
 SET VERIFY ON
 SET ECHO ON

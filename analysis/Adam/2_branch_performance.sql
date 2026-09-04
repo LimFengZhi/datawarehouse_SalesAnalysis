@@ -20,9 +20,15 @@ SET TERMOUT ON
 
 SPOOL staff_productivity_profit_output.txt
 
+PROMPT
+ACCEPT from_year CHAR DEFAULT 2019 PROMPT 'From year (default 2019): '
+ACCEPT to_year   CHAR DEFAULT 2025 PROMPT 'To year   (default 2025): '
+PROMPT
+
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 1. REVENUE vs LABOR COST, BY POSITION' SKIP 1 -
+       CENTER '&from_year - &to_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -43,6 +49,7 @@ WITH hrs AS (
     JOIN   date_dim   d  ON d.date_key   = f.date_key
     JOIN   staff_dim  sd ON sd.staff_key = f.staff_key
     WHERE  f.res_status = 'Completed' AND d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID, sd.st_position, d.cal_year_month
 ),
 cost AS (
@@ -52,6 +59,7 @@ cost AS (
     JOIN   date_dim   d  ON d.date_key   = sp.date_key
     JOIN   staff_dim  sd ON sd.staff_key = sp.staff_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID, d.cal_year_month
 ),
 joined AS (
@@ -78,6 +86,7 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 2. REVENUE vs LABOR COST, BY BRANCH' SKIP 1 -
+       CENTER '&from_year - &to_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -99,6 +108,7 @@ WITH hrs AS (
     JOIN   staff_dim  sd ON sd.staff_key = f.staff_key
     JOIN   branch_dim b  ON b.branch_key = f.branch_key
     WHERE  f.res_status = 'Completed' AND d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY b.br_ID, b.br_city, sd.st_ID, d.cal_year_month
 ),
 cost AS (
@@ -108,6 +118,7 @@ cost AS (
     JOIN   date_dim   d  ON d.date_key   = sp.date_key
     JOIN   staff_dim  sd ON sd.staff_key = sp.staff_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID, d.cal_year_month
 ),
 joined AS (
@@ -139,6 +150,7 @@ PROMPT
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 3. &branch: EVERY THERAPIST, RANKED' SKIP 1 -
+       CENTER '&from_year - &to_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -160,6 +172,7 @@ WITH hrs AS (
     JOIN   staff_dim  sd ON sd.staff_key = f.staff_key
     JOIN   branch_dim b  ON b.branch_key = f.branch_key
     WHERE  f.res_status = 'Completed' AND d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     AND    UPPER(b.br_city) = UPPER('&branch')
     GROUP  BY sd.st_ID, sd.st_position, d.cal_year_month
 ),
@@ -170,6 +183,7 @@ cost AS (
     JOIN   date_dim   d  ON d.date_key   = sp.date_key
     JOIN   staff_dim  sd ON sd.staff_key = sp.staff_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID, d.cal_year_month
 ),
 joined AS (
@@ -195,6 +209,7 @@ CLEAR COMPUTES
 
 TTITLE CENTER '+==========================================================+' SKIP 1 -
        CENTER 'GLOW BEAUTY - 4. &branch: WASTED HOURS BY THERAPIST' SKIP 1 -
+       CENTER '&from_year - &to_year' SKIP 1 -
        CENTER '+==========================================================+' SKIP 1 -
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -216,6 +231,7 @@ WITH branch_activity AS (
     JOIN   staff_dim  sd ON sd.staff_key = f.staff_key
     JOIN   branch_dim b  ON b.branch_key = f.branch_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     AND    UPPER(b.br_city) = UPPER('&branch')
 ),
 per_therapist AS (
@@ -233,6 +249,7 @@ cost AS (
     JOIN   date_dim   d  ON d.date_key   = sp.date_key
     JOIN   staff_dim  sd ON sd.staff_key = sp.staff_key
     WHERE  d.date_key <> 0
+    AND    d.cal_year BETWEEN TO_NUMBER('&from_year') AND TO_NUMBER('&to_year')
     GROUP  BY sd.st_ID, d.cal_year_month
 ),
 therapist_cost AS (
@@ -272,6 +289,8 @@ CLEAR COLUMNS
 CLEAR BREAKS
 CLEAR COMPUTES
 UNDEFINE branch
+UNDEFINE from_year
+UNDEFINE to_year
 SET FEEDBACK ON
 SET VERIFY ON
 SET ECHO ON
