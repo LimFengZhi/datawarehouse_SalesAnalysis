@@ -149,6 +149,7 @@ TTITLE CENTER '+==========================================================+' SKI
        LEFT 'DATE: &run_dt' RIGHT 'PAGE: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN priority      HEADING 'PROMOTION PRIORITY'  FORMAT A30
+COLUMN st_id         HEADING 'STAFF ID'                FORMAT 9999
 COLUMN st_name       HEADING 'STAFF NAME'          FORMAT A22
 COLUMN tenure_years  HEADING 'TENURE|(YEARS)'      FORMAT 990.0
 COLUMN rcr           HEADING 'RCR'                 FORMAT 990.00
@@ -230,7 +231,7 @@ ranked AS (
            END AS priority
     FROM   candidates
 )
-SELECT priority, st_name, tenure_years, rcr
+SELECT priority, st_id, st_name, tenure_years, rcr
 FROM   ranked
 WHERE  UPPER('&branch') = 'ALL' OR UPPER(br_city) = UPPER('&branch')
 ORDER  BY priority, rcr DESC;
