@@ -39,9 +39,6 @@ COLUMN total_candidates HEADING 'TOTAL|CANDIDATES'   FORMAT 9990
 COLUMN pct_ready       HEADING 'PCT READY|FOR PROMO %' FORMAT 990.0
 
 WITH hire AS (
-    -- NOT windowed on purpose: the hire date must come from the WHOLE
-    -- payroll history. Windowing it would make a 2019 hire look like a
-    -- 2024 hire whenever the window starts later, and wipe out tenure.
     SELECT sd.st_ID, MIN(d.cal_date) AS hire_date
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
@@ -50,8 +47,6 @@ WITH hire AS (
     GROUP  BY sd.st_ID
 ),
 ref_date AS (
-    -- the yardstick tenure is measured against: the last payroll date
-    -- INSIDE the window, so a 2019-2023 run reports tenure as of 2023
     SELECT MAX(d.cal_date) AS ref_date
     FROM   salary_payment_fact sp
     JOIN   date_dim d ON d.date_key = sp.date_key
@@ -76,8 +71,6 @@ rev AS (
     GROUP  BY sd.st_ID
 ),
 cost AS (
-    -- windowed with rev above: both sides of the RCR ratio must cover
-    -- the same period or the number is meaningless
     SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
@@ -163,9 +156,6 @@ COLUMN rcr           HEADING 'RCR'                 FORMAT 990.00
 BREAK ON priority SKIP 1
 
 WITH hire AS (
-    -- NOT windowed on purpose: the hire date must come from the WHOLE
-    -- payroll history. Windowing it would make a 2019 hire look like a
-    -- 2024 hire whenever the window starts later, and wipe out tenure.
     SELECT sd.st_ID, MIN(d.cal_date) AS hire_date
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
@@ -174,8 +164,6 @@ WITH hire AS (
     GROUP  BY sd.st_ID
 ),
 ref_date AS (
-    -- the yardstick tenure is measured against: the last payroll date
-    -- INSIDE the window, so a 2019-2023 run reports tenure as of 2023
     SELECT MAX(d.cal_date) AS ref_date
     FROM   salary_payment_fact sp
     JOIN   date_dim d ON d.date_key = sp.date_key
@@ -200,8 +188,6 @@ rev AS (
     GROUP  BY sd.st_ID
 ),
 cost AS (
-    -- windowed with rev above: both sides of the RCR ratio must cover
-    -- the same period or the number is meaningless
     SELECT sd.st_ID, SUM(sp.base_amt + sp.bonus_amt) AS labor_cost
     FROM   salary_payment_fact sp
     JOIN   staff_dim sd ON sd.staff_key = sp.staff_key
